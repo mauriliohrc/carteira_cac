@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "731030732087",
+    "project_id": "carteiracac",
+    "storage_bucket": "carteiracac.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:731030732087:android:ca1b0b6488724441ab2eb2",
+        "android_client_info": {
+          "package_name": "br.com.cacbrasil.carteira"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDUJQbiq-GsfvWCd6U-AgE_lfuHNQ2bpGc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

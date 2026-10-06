@@ -1,0 +1,18 @@
+# Dependências (EAS reinstala na nuvem)
+node_modules/
+
+# Backend e backoffice — não fazem parte do app móvel
+servidor/
+backoffice/
+
+# Artefatos de build locais
+build/
+dist/
+web-build/
+.expo/
+ios/build/
+android/build/
+
+# Diversos
+.git/
+*.log

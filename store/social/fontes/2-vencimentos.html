@@ -1,0 +1,84 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --verde:#0F3D1E; --verde2:#0A2712; --verde3:#061A0B;
+  --ouro:#D8AE3A; --ouro2:#F4D06A; --ouro3:#B8891F;
+  --creme:#FBFAF3; --sage:#C6D9BC;
+}
+html,body{width:1080px;height:1920px;overflow:hidden}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Arial,sans-serif;
+  color:var(--creme);
+  background:
+    radial-gradient(900px 700px at 78% 16%, rgba(30,106,52,.55), transparent 62%),
+    radial-gradient(760px 620px at 10% 92%, rgba(216,174,58,.13), transparent 64%),
+    linear-gradient(165deg, var(--verde) 0%, var(--verde2) 55%, var(--verde3) 100%);
+  position:relative;
+}
+.losango{position:absolute;right:-300px;top:280px;width:820px;height:820px;
+  transform:rotate(45deg);border:24px solid var(--ouro);opacity:.09;border-radius:64px}
+.losango.b{right:auto;left:-420px;top:1180px;width:640px;height:640px;opacity:.06;border-width:20px}
+
+/* ---------- topo ---------- */
+.marca{position:absolute;top:104px;left:78px;display:flex;align-items:center;gap:22px}
+.marca img{width:78px;height:78px;display:block;
+  filter:drop-shadow(0 8px 20px rgba(0,0,0,.45))}
+.marca .nome{font-size:27px;font-weight:800;letter-spacing:9px;color:var(--ouro2)}
+.marca .nome small{display:block;font-size:17px;font-weight:600;letter-spacing:3.5px;
+  color:var(--sage);opacity:.75;margin-top:7px}
+.fio{position:absolute;top:216px;left:78px;width:924px;height:2px;
+  background:linear-gradient(90deg,rgba(216,174,58,.75),rgba(216,174,58,0))}
+
+/* ---------- texto ---------- */
+.etq{position:absolute;top:286px;left:78px;display:flex;align-items:center;gap:16px;
+  font-size:23px;font-weight:800;letter-spacing:6px;color:var(--ouro)}
+.etq i{display:block;width:46px;height:5px;border-radius:3px;background:var(--ouro);font-style:normal}
+h1{position:absolute;top:348px;left:78px;width:930px;
+  font-size:90px;line-height:1.04;letter-spacing:-2.4px;font-weight:800;color:var(--creme);
+  text-shadow:0 6px 28px rgba(0,0,0,.35)}
+.sub{position:absolute;top:612px;left:78px;width:900px;
+  font-size:35px;line-height:1.42;color:var(--sage);font-weight:500}
+.sub b{color:var(--ouro2);font-weight:700}
+
+/* ---------- celular (layout A) ---------- */
+.fone{position:absolute;left:50%;transform:translateX(-50%);top:0px;
+  width:676px;height:0px;border-radius:72px;overflow:hidden;
+  border:9px solid rgba(216,174,58,.55);background:#0b1a0f;
+  box-shadow:0 48px 110px rgba(0,0,0,.62), 0 0 0 2px rgba(0,0,0,.35)}
+.fone img{display:block;width:100%}
+
+/* ---------- recorte (layout B) ---------- */
+.janela{position:absolute;left:50%;transform:translateX(-50%);top:735px;
+  width:904px;height:785px;border-radius:44px;overflow:hidden;
+  border:6px solid rgba(216,174,58,.5);background:#fff;
+  box-shadow:0 44px 100px rgba(0,0,0,.6)}
+.janela img{display:block;position:absolute}
+
+/* ---------- rodapé ---------- */
+.scrim{position:absolute;left:0;right:0;bottom:0;height:380px;
+  background:linear-gradient(180deg,rgba(6,26,11,0),rgba(6,26,11,.85) 52%,rgba(6,26,11,.99) 100%)}
+.rodape{position:absolute;left:0;right:0;bottom:224px;text-align:center}
+.pilula{display:inline-flex;align-items:center;gap:16px;
+  background:linear-gradient(180deg,var(--ouro2),var(--ouro));color:#17120A;
+  font-size:34px;font-weight:800;letter-spacing:.2px;padding:27px 52px;border-radius:22px;
+  box-shadow:0 18px 44px rgba(0,0,0,.45)}
+.rodape .obs{margin-top:22px;font-size:24px;letter-spacing:2.5px;font-weight:600;
+  color:var(--sage);opacity:.9}
+
+</style></head><body>
+<div class="losango"></div><div class="losango b"></div>
+<div class="marca">
+  <img src="../../../assets/logo.png">
+  <div class="nome">CARTEIRA CAC<small>ACERVO EM ORDEM</small></div>
+</div>
+<div class="fio"></div>
+<div class="etq"><i></i>AVISOS</div>
+<h1>Nunca mais perca<br>um vencimento.</h1>
+<div class="sub">No último mês antes de vencer, o app avisa <b>todos os dias</b> — mesmo fechado.</div>
+<div class="janela"><img src="../../../store/screenshots/6.9/5-avisos.png" style="width:919.9px;left:-13.9px;top:-489.2px"></div>
+<div class="scrim"></div>
+<div class="rodape">
+  <div class="pilula">⬇  Baixe grátis na App Store</div>
+  <div class="obs">CRAF · GUIA · LAUDO · CR</div>
+</div>
+</body></html>

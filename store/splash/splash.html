@@ -1,0 +1,50 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0}svg{display:block}</style></head>
+<body>
+<svg width="900" height="1160" viewBox="0 0 900 1160" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="ouro" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F4D06A"/><stop offset="0.5" stop-color="#D8AE3A"/><stop offset="1" stop-color="#B8891F"/>
+    </linearGradient>
+    <linearGradient id="escudo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FBFAF3"/><stop offset="1" stop-color="#E9E6D6"/>
+    </linearGradient>
+    <linearGradient id="doc" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#EEF3E6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- losango sutil do Brasil -->
+  <g transform="translate(450 470) rotate(45)">
+    <rect x="-300" y="-300" width="600" height="600" rx="40" fill="none" stroke="url(#ouro)" stroke-width="12" opacity="0.35"/>
+  </g>
+
+  <!-- escudo -->
+  <g transform="translate(450 470) scale(0.9) translate(-512 -512)">
+    <path d="M512 236 L716 300 C724 302 730 309 730 318 L730 556 C730 690 636 774 512 826 C388 774 294 690 294 556 L294 318 C294 309 300 302 308 300 Z"
+          fill="url(#escudo)" stroke="url(#ouro)" stroke-width="16"/>
+    <path d="M420 372 L556 372 L620 436 L620 620 C620 634 609 645 595 645 L420 645 C406 645 395 634 395 620 L395 397 C395 383 406 372 420 372 Z"
+          fill="url(#doc)" stroke="#B8891F" stroke-width="7"/>
+    <path d="M556 372 L556 436 L620 436 Z" fill="#E5DFC7" stroke="#B8891F" stroke-width="7" stroke-linejoin="round"/>
+    <rect x="430" y="470" width="150" height="15" rx="7.5" fill="#3B5A24"/>
+    <rect x="430" y="507" width="150" height="15" rx="7.5" fill="#7C8A63"/>
+    <rect x="430" y="544" width="105" height="15" rx="7.5" fill="#7C8A63"/>
+    <g transform="translate(512 705)">
+      <circle cx="0" cy="0" r="46" fill="#0C3016"/>
+      <circle cx="0" cy="0" r="46" fill="none" stroke="url(#ouro)" stroke-width="9"/>
+      <circle cx="0" cy="-8" r="15" fill="url(#ouro)"/>
+      <path d="M-9 -2 L9 -2 L15 26 L-15 26 Z" fill="url(#ouro)"/>
+    </g>
+  </g>
+
+  <!-- wordmark -->
+  <text x="450" y="920" text-anchor="middle"
+        font-family="Helvetica, Arial, sans-serif" font-size="86" font-weight="800"
+        letter-spacing="14" fill="#FBFAF3">CARTEIRA CAC</text>
+  <!-- fio dourado -->
+  <rect x="330" y="962" width="240" height="4" rx="2" fill="url(#ouro)" opacity="0.85"/>
+  <text x="450" y="1024" text-anchor="middle"
+        font-family="Helvetica, Arial, sans-serif" font-size="34" font-weight="600"
+        letter-spacing="6" fill="#B9C7A8">SEU ACERVO EM ORDEM</text>
+</svg>
+</body></html>

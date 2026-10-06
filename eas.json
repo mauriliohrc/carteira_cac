@@ -1,0 +1,33 @@
+{
+  "cli": { "version": ">= 5.9.0", "appVersionSource": "remote" },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": { "simulator": true, "resourceClass": "m-medium" }
+    },
+    "development-device": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": { "resourceClass": "m-medium" }
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": { "resourceClass": "m-medium" }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": { "EXPO_PUBLIC_API_URL": "https://api.carteiracac.com" },
+      "ios": { "resourceClass": "m-medium" }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "mauriliohrc@outlook.com",
+        "ascAppId": "6814230068",
+        "appleTeamId": "KEZ967T95T"
+      }
+    }
+  }
+}

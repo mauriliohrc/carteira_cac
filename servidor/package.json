@@ -1,0 +1,39 @@
+{
+  "name": "cac-brasil-servidor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "API do CAC Brasil — backoffice e backend do aplicativo",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/principal.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/principal.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "seed": "tsx prisma/seed.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.1",
+    "@prisma/client": "^6.1.0",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.7",
+    "fastify": "^5.2.0",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^10.0.13",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.10.2",
+    "@types/nodemailer": "^8.0.2",
+    "prisma": "^6.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,335 @@
+// ============================================================================
+// Schema do banco — CAC Brasil  (MySQL)
+//
+// Mantemos só tipos portáveis de propósito (herança do SQLite, para trocar de
+// banco sem reescrever regra de negócio):
+//   - sem enum nativo    -> "enums" são String validados por Zod na aplicação
+//   - sem campo Json     -> metadados ficam em String (@db.LongText onde grande)
+//   - ids em cuid (String) e datas em DateTime
+// No MySQL, `String` vira VARCHAR(191) por padrão; campos de texto livre, URLs
+// e JSON de sync recebem @db.Text / @db.LongText para não truncar.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/// Administrador do APLICATIVO (dono/operador do backoffice).
+/// NÃO confundir com os usuários administrativos das entidades.
+model UsuarioAdmin {
+  id        String   @id @default(cuid())
+  nome      String
+  email     String   @unique
+  senhaHash String
+  /// SUPER_ADMIN | SUPORTE  (validado por Zod)
+  papel     String   @default("SUPER_ADMIN")
+  ativo     Boolean  @default(true)
+  criadoEm  DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  noticias  Noticia[]
+
+  @@map("usuarios_admin")
+}
+
+/// Notícia publicada pelo admin do app e exibida no aplicativo.
+/// Só aparece no app quando status = PUBLICADA.
+model Noticia {
+  id          String    @id @default(cuid())
+  titulo      String
+  resumo      String?   @db.Text
+  conteudo    String    @db.LongText
+  imagemUrl   String?   @db.Text
+  /// RASCUNHO | PUBLICADA  (validado por Zod)
+  status      String    @default("RASCUNHO")
+  /// Marca quando foi publicada; null enquanto rascunho. Ordena a lista do app.
+  publicadaEm DateTime?
+  autorId     String?
+  /// Alcance da notícia: null = GERAL (todos os usuários do app veem).
+  /// Preenchido = restrita aos usuários vinculados a esta entidade.
+  entidadeId  String?
+  criadoEm    DateTime  @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  autor       UsuarioAdmin? @relation(fields: [autorId], references: [id], onDelete: SetNull)
+  entidade    EntidadeTiro? @relation(fields: [entidadeId], references: [id], onDelete: Cascade)
+  midias      MidiaNoticia[]
+
+  @@index([status, publicadaEm])
+  @@index([entidadeId, status, publicadaEm])
+  @@map("noticias")
+}
+
+/// Mídia de uma notícia (galeria): foto ou vídeo do YouTube, em ordem.
+model MidiaNoticia {
+  id        String   @id @default(cuid())
+  noticiaId String
+  /// IMAGEM | YOUTUBE  (validado por Zod; string para permitir novos tipos)
+  tipo      String
+  /// URL da imagem ou do vídeo do YouTube.
+  url       String   @db.Text
+  legenda   String?  @db.Text
+  /// Posição na galeria (0 = primeira).
+  ordem     Int      @default(0)
+  criadoEm  DateTime @default(now())
+
+  noticia   Noticia  @relation(fields: [noticiaId], references: [id], onDelete: Cascade)
+
+  @@index([noticiaId])
+  @@map("midias_noticia")
+}
+
+/// Entidade de tiro: clube, liga ou federação. Criada e gerida pelo admin do app.
+model EntidadeTiro {
+  id        String   @id @default(cuid())
+  nome      String
+  /// CLUBE | LIGA | FEDERACAO  (validado por Zod)
+  tipo      String
+  /// Registro no Exército (CR), quando houver.
+  cr        String?
+  cnpj      String?  @unique
+  email     String?
+  telefone  String?
+  cidade    String?
+  uf        String?
+  ativo     Boolean  @default(true)
+
+  // ---- Integração Shooting House (API de parceiros) ----
+  shIntegracaoAtiva Boolean @default(false)
+  /// Base da API; se nulo, usa o padrão (beta). Ex.: https://apibeta.shootinghouse.com.br/v1/partners
+  shBaseUrl String?  @db.Text
+  /// Credenciais Basic do parceiro na Shooting House.
+  shLogin   String?
+  shSenha   String?
+
+  criadoEm  DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  usuarios     UsuarioEntidade[]
+  vinculosApp  VinculoEntidade[]
+  noticias     Noticia[]
+
+  @@map("entidades_tiro")
+}
+
+/// Usuário FINAL do aplicativo (o CAC). Conta opcional: o app funciona 100%
+/// offline sem ela. Não se confunde com UsuarioAdmin nem UsuarioEntidade.
+/// Futuramente poderá ser vinculado a uma ou mais entidades.
+model UsuarioApp {
+  id              String   @id @default(cuid())
+  /// CPF só com dígitos (11). Único.
+  cpf             String   @unique
+  email           String   @unique
+  nome            String
+  senhaHash       String
+  emailVerificado Boolean  @default(false)
+  ativo           Boolean  @default(true)
+  /// Última atividade do usuário (heartbeat do app). "Online" = recente.
+  ultimoAcessoEm  DateTime?
+  /// Última verificação automática de vínculos na Shooting House (throttle).
+  vinculosCheckEm DateTime?
+  /// Premium reportado pelo app (assinatura/cupom ativos neste aparelho).
+  premium         Boolean  @default(false)
+  criadoEm        DateTime @default(now())
+  atualizadoEm    DateTime @updatedAt
+
+  tokensSenha     TokenSenha[]
+  tokensEmail     TokenEmail[]
+  dispositivos    DispositivoPush[]
+  registrosSync   RegistroSync[]
+  arquivosSync    ArquivoSync[]
+  vinculos        VinculoEntidade[]
+  usosCupom       UsoCupom[]
+
+  @@index([ultimoAcessoEm])
+  @@map("usuarios_app")
+}
+
+/// Cupom promocional que libera o Premium. Gerenciado pelo backoffice.
+model CupomPromocional {
+  id          String    @id @default(cuid())
+  /// Código normalizado (minúsculo, espaços colapsados). Único.
+  codigo      String    @unique
+  descricao   String?   @db.Text
+  ativo       Boolean   @default(true)
+  /// null = usos ilimitados.
+  limiteUsos  Int?
+  usos        Int       @default(0)
+  expiraEm    DateTime?
+  criadoEm    DateTime  @default(now())
+
+  registrosUso UsoCupom[]
+
+  @@map("cupons_promocionais")
+}
+
+/// Registro de cada resgate de um cupom (quem e quando).
+model UsoCupom {
+  id        String   @id @default(cuid())
+  cupomId   String
+  usuarioId String?
+  criadoEm  DateTime @default(now())
+
+  cupom     CupomPromocional @relation(fields: [cupomId], references: [id], onDelete: Cascade)
+  usuario   UsuarioApp?      @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([cupomId])
+  @@map("usos_cupom")
+}
+
+/// Vínculo (filiação) de um usuário do app a uma entidade de tiro.
+/// Um usuário pode estar vinculado a VÁRIAS entidades.
+model VinculoEntidade {
+  id         String   @id @default(cuid())
+  usuarioId  String
+  entidadeId String
+  /// SHOOTING_HOUSE (automático) | MANUAL (pelo backoffice)
+  origem     String   @default("SHOOTING_HOUSE")
+  criadoEm   DateTime @default(now())
+
+  usuario    UsuarioApp   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  entidade   EntidadeTiro @relation(fields: [entidadeId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, entidadeId])
+  @@index([entidadeId])
+  @@map("vinculos_entidade")
+}
+
+/// Espelho na nuvem dos registros do usuário (armas, documentos, habitualidades,
+/// locais…). Genérico por `tipo` + `dados` JSON. LWW por `atualizadoEm`;
+/// `carimboServidor` é o cursor do pull. `removido` = tombstone.
+model RegistroSync {
+  id              String   @id @default(cuid())
+  usuarioId       String
+  tipo            String
+  registroId      String
+  dados           String   @db.LongText
+  atualizadoEm    DateTime
+  removido        Boolean  @default(false)
+  carimboServidor DateTime @updatedAt
+
+  usuario         UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, tipo, registroId])
+  @@index([usuarioId, carimboServidor])
+  @@map("registros_sync")
+}
+
+/// Conteúdo binário dos arquivos/fotos do usuário (anexos de documentos, fotos
+/// de armas). Guardado no nosso backend; `registroId` casa com o metadado.
+model ArquivoSync {
+  id           String   @id @default(cuid())
+  usuarioId    String
+  registroId   String
+  mime         String?
+  tamanho      Int?
+  conteudo     Bytes
+  atualizadoEm DateTime @updatedAt
+
+  usuario      UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, registroId])
+  @@index([usuarioId])
+  @@map("arquivos_sync")
+}
+
+/// Token de push (Expo) de um aparelho. Pode estar sem usuário (anônimo) ou
+/// associado a uma conta. Um usuário pode ter vários aparelhos.
+model DispositivoPush {
+  id           String   @id @default(cuid())
+  /// null = aparelho anônimo (ainda sem conta ou após logout). Recebe "Todos".
+  usuarioId    String?
+  /// Expo push token (ExponentPushToken[...]). Único por aparelho.
+  token        String   @unique
+  /// IOS | ANDROID
+  plataforma   String
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  usuario      UsuarioApp? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([usuarioId])
+  @@map("dispositivos_push")
+}
+
+/// Histórico de disparos de push feitos pelo backoffice.
+model EnvioPush {
+  id            String   @id @default(cuid())
+  titulo        String
+  corpo         String   @db.Text
+  /// TODOS | ENTIDADE | USUARIO | INATIVOS
+  alvoTipo      String
+  /// Referência do alvo: entidadeId, usuarioId ou nº de dias (INATIVOS).
+  alvoRef       String?
+  totalUsuarios Int      @default(0)
+  totalTokens   Int      @default(0)
+  totalAceitos  Int      @default(0)
+  autorId       String?
+  criadoEm      DateTime @default(now())
+
+  @@map("envios_push")
+}
+
+/// Token de redefinição de senha do usuário do app. Guardamos só o HASH do
+/// token (nunca o valor em claro), com validade curta e marca de uso.
+model TokenSenha {
+  id        String    @id @default(cuid())
+  usuarioId String
+  /// Hash (sha256) do código de 6 dígitos enviado por e-mail.
+  tokenHash String
+  expiraEm  DateTime
+  usadoEm   DateTime?
+  /// Tentativas erradas; o código é invalidado após o limite (anti-força-bruta).
+  tentativas Int      @default(0)
+  criadoEm  DateTime  @default(now())
+
+  usuario   UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@map("tokens_senha")
+}
+
+/// Código de confirmação de e-mail do usuário do app (6 dígitos, por e-mail).
+model TokenEmail {
+  id        String    @id @default(cuid())
+  usuarioId String
+  /// Hash (sha256) do código de 6 dígitos.
+  codigoHash String
+  expiraEm  DateTime
+  usadoEm   DateTime?
+  tentativas Int      @default(0)
+  criadoEm  DateTime  @default(now())
+
+  usuario   UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@map("tokens_email")
+}
+
+/// Usuário administrativo de UMA entidade. Acessa o backoffice no escopo
+/// da sua entidade apenas. Não tem relação com os usuários-admin do app.
+model UsuarioEntidade {
+  id         String   @id @default(cuid())
+  entidadeId String
+  nome       String
+  email      String
+  senhaHash  String
+  /// ADMIN_ENTIDADE | OPERADOR  (validado por Zod)
+  papel      String   @default("ADMIN_ENTIDADE")
+  ativo      Boolean  @default(true)
+  criadoEm   DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  entidade   EntidadeTiro @relation(fields: [entidadeId], references: [id], onDelete: Cascade)
+
+  // E-mail único POR entidade (o mesmo e-mail pode existir em entidades diferentes).
+  @@unique([entidadeId, email])
+  @@index([entidadeId])
+  @@map("usuarios_entidade")
+}

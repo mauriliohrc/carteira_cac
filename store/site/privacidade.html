@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Política de Privacidade — Carteira CAC</title>
+<style>
+  :root{--verde:#0F3D1E;--verde2:#0A2712;--ouro:#D8AE3A;--tinta:#1f2417;--cinza:#5b6152}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--tinta);line-height:1.7;background:#fafafa}
+  a{color:var(--verde)}
+  .top{background:linear-gradient(160deg,var(--verde),var(--verde2));color:#FBFAF3;padding:48px 0}
+  .wrap{max-width:760px;margin:0 auto;padding:0 24px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:2px;font-size:14px;opacity:.9;margin-bottom:22px}
+  .brand svg{width:30px;height:30px}
+  h1{font-size:34px;letter-spacing:-.5px}
+  .meta{opacity:.75;font-size:14px;margin-top:8px}
+  main{max-width:760px;margin:0 auto;padding:48px 24px 80px;background:#fff;margin-top:-24px;border-radius:20px 20px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.04)}
+  h2{color:var(--verde);font-size:21px;margin:34px 0 10px}
+  p{margin:10px 0;color:#39402f}
+  ul{margin:10px 0 10px 22px;color:#39402f}li{margin:6px 0}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14.5px}
+  th,td{border:1px solid #e6e8e0;padding:10px 12px;text-align:left;vertical-align:top}
+  th{background:#eef4e7;color:var(--verde)}
+  .callout{background:#eef4e7;border-left:3px solid var(--verde);padding:16px 18px;border-radius:10px;margin:18px 0}
+  footer{max-width:760px;margin:0 auto;padding:24px;color:var(--cinza);font-size:13px;text-align:center}
+  a.back{color:var(--verde);font-size:14px;display:inline-block;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="top"><div class="wrap">
+  <div class="brand">
+    <svg viewBox="0 0 1024 1024"><path d="M512 236 L716 300 C724 302 730 309 730 318 L730 556 C730 690 636 774 512 826 C388 774 294 690 294 556 L294 318 C294 309 300 302 308 300 Z" fill="#FBFAF3" stroke="#D8AE3A" stroke-width="26" transform="translate(512 512) scale(1.3) translate(-512 -531)"/></svg>
+    CARTEIRA CAC
+  </div>
+  <h1>Política de Privacidade</h1>
+  <div class="meta">Última atualização: 2 de outubro de 2026</div>
+</div></div>
+
+<main>
+  <div class="callout">
+    <strong>Em resumo:</strong> a Carteira CAC funciona <strong>100% offline por padrão</strong> — sem
+    conta, seus dados ficam só no aparelho. Se você <strong>criar uma conta</strong> (opcional),
+    passamos a tratar alguns dados pessoais para dar backup, sincronizar entre aparelhos, enviar
+    notificações e, quando for o caso, verificar sua filiação em clubes parceiros. Esta política
+    explica exatamente o quê, por quê e com quem.
+  </div>
+
+  <h2>1. Quem é o controlador</h2>
+  <p>A Carteira CAC (“app”, “nós”) é o aplicativo para o Colecionador, Atirador e Caçador (CAC)
+  organizar seus documentos e vencimentos. Para fins da <strong>LGPD (Lei nº 13.709/2018)</strong>,
+  somos o controlador dos dados tratados nos nossos sistemas. Contato do encarregado/privacidade:
+  <a href="mailto:contato@carteiracac.com">contato@carteiracac.com</a>.</p>
+
+  <h2>2. Uso sem conta (modo offline)</h2>
+  <p>Você pode usar o app sem se cadastrar. Nesse modo, tudo o que você registra — armas, documentos
+  (CRAF, guia de tráfego, laudos, CR), fotos e anexos — fica guardado <strong>apenas no seu
+  aparelho</strong>, e <strong>não é enviado para nós nem para terceiros</strong>. As notificações de
+  vencimento são agendadas localmente.</p>
+
+  <h2>3. Uso com conta (nuvem opcional)</h2>
+  <p>Se você criar uma conta, passamos a tratar os dados abaixo para prestar o serviço de
+  backup e sincronização:</p>
+  <table>
+    <tr><th>Dado</th><th>Para quê</th></tr>
+    <tr><td>Nome, e-mail e CPF</td><td>Criar e identificar sua conta; o CPF também é usado para verificar filiação em clubes parceiros (ver item 5).</td></tr>
+    <tr><td>Senha</td><td>Autenticação. Guardada apenas como <em>hash</em> criptográfico (bcrypt) — nunca em texto, nem nós temos acesso a ela.</td></tr>
+    <tr><td>Seu acervo: armas, documentos, fotos e anexos (PDF/imagens)</td><td>Backup na nuvem e sincronização entre seus aparelhos.</td></tr>
+    <tr><td>Token de notificação do aparelho</td><td>Enviar avisos e comunicados (push).</td></tr>
+    <tr><td>Registros de uso (ex.: data do último acesso e da sincronização)</td><td>Funcionamento do sync e suporte.</td></tr>
+    <tr><td>Códigos temporários de verificação de e-mail e redefinição de senha</td><td>Confirmar sua conta e permitir trocar a senha com segurança.</td></tr>
+  </table>
+  <p>Bases legais (LGPD, art. 7º): <strong>execução de contrato</strong> (a prestação do serviço de
+  conta/nuvem que você solicitou) e <strong>consentimento</strong> (push e importação de dados de
+  clubes parceiros).</p>
+
+  <h2>4. Permissões do aparelho</h2>
+  <ul>
+    <li><strong>Câmera</strong> e <strong>Fotos</strong>: fotografar ou anexar imagens dos seus documentos.</li>
+    <li><strong>Notificações</strong>: avisos de vencimento (locais) e comunicados (push, se você tiver conta).</li>
+    <li><strong>Face ID / digital</strong>: desbloquear o app. A biometria é verificada pelo sistema; o app não a armazena.</li>
+  </ul>
+
+  <h2>5. Integração com clubes parceiros (Shooting House)</h2>
+  <p>Se o seu clube/entidade for integrado e você tiver conta, podemos enviar o seu <strong>CPF</strong>
+  à plataforma do parceiro (Shooting House) para <strong>verificar sua filiação</strong> e, quando você
+  for sócio ativo, <strong>importar</strong> automaticamente dados do seu cadastro lá — como armas, CR e
+  registros de habitualidade. Essa verificação só ocorre com a conta <strong>confirmada</strong> e com o
+  e-mail do app conferindo com o cadastro do parceiro, para evitar acesso indevido aos seus documentos.</p>
+
+  <h2>6. Com quem compartilhamos</h2>
+  <p>Não vendemos seus dados. Compartilhamos o mínimo necessário com operadores que viabilizam o serviço:</p>
+  <ul>
+    <li><strong>Apple e Google</strong> — distribuição do app, processamento das <strong>assinaturas</strong> e entrega de <strong>notificações push</strong> (APNs / Firebase Cloud Messaging).</li>
+    <li><strong>Clubes/entidades parceiras (Shooting House)</strong> — verificação de filiação por CPF, conforme o item 5.</li>
+    <li><strong>Provedor de hospedagem</strong> dos nossos servidores e <strong>provedor de e-mail</strong> (envio de verificação e redefinição de senha).</li>
+  </ul>
+
+  <h2>7. Pagamentos e assinaturas</h2>
+  <p>As assinaturas Premium são processadas pela <strong>App Store (Apple)</strong> ou pela
+  <strong>Google Play (Google)</strong>. O pagamento é feito na sua conta da loja — o app
+  <strong>não vê nem guarda dados de cartão</strong>. O tratamento desses dados segue a política da
+  respectiva loja.</p>
+
+  <h2>8. Backup exportável</h2>
+  <p>Você pode exportar um arquivo de backup do acervo, protegido por senha
+  (criptografia AES-256). Esse arquivo é gerado no aparelho e enviado para onde <strong>você</strong>
+  escolher (iCloud Drive, Google Drive, etc.), ficando sujeito às regras do serviço que você usar.</p>
+
+  <h2>9. Segurança</h2>
+  <p>Usamos conexões cifradas (HTTPS/TLS), senha protegida por <em>hash</em> (bcrypt), bloqueio local
+  por PIN e biometria, e o backup exportável é criptografado (AES-256). Nenhum sistema é 100% imune,
+  mas adotamos medidas técnicas e organizacionais para proteger seus dados.</p>
+
+  <h2>10. Retenção e exclusão</h2>
+  <ul>
+    <li><strong>Sem conta:</strong> os dados ficam no seu aparelho; apague documentos no app ou desinstale para remover tudo.</li>
+    <li><strong>Com conta:</strong> mantemos seus dados enquanto a conta existir. Você pode <strong>excluir sua conta</strong> a qualquer momento (no app ou pedindo por e-mail); ao excluir, removemos seus dados dos nossos servidores, incluindo o acervo sincronizado.</li>
+  </ul>
+
+  <h2>11. Transferência internacional</h2>
+  <p>Alguns operadores (Apple, Google/Firebase) podem processar dados em servidores fora do Brasil.
+  Nesses casos, a transferência observa as salvaguardas previstas na LGPD.</p>
+
+  <h2>12. Seus direitos (LGPD)</h2>
+  <p>Você pode, a qualquer momento: confirmar o tratamento, <strong>acessar</strong>, <strong>corrigir</strong>,
+  solicitar <strong>exclusão</strong> ou <strong>portabilidade</strong> dos seus dados, e
+  <strong>revogar consentimentos</strong>. Para exercer, escreva para
+  <a href="mailto:contato@carteiracac.com">contato@carteiracac.com</a> ou use as opções de conta no app.</p>
+
+  <h2>13. Crianças</h2>
+  <p>O app destina-se a adultos habilitados como CAC e não é direcionado a crianças; não coletamos
+  dados de menores intencionalmente.</p>
+
+  <h2>14. Alterações</h2>
+  <p>Podemos atualizar esta política. A data no topo indica a versão vigente; mudanças relevantes
+  serão comunicadas no app ou por e-mail.</p>
+
+  <h2>15. Contato</h2>
+  <p>Dúvidas ou solicitações de privacidade: <a href="mailto:contato@carteiracac.com">contato@carteiracac.com</a>.</p>
+
+  <a class="back" href="index.html">← Voltar ao site</a>
+</main>
+<footer>© 2026 Carteira CAC</footer>
+</body>
+</html>

@@ -1,0 +1,67 @@
+# ==========================================================================
+# SEGREDOS: ficam CIFRADOS em scripts/secrets-bundle.enc (versionado).
+# Para recriar os arquivos reais em outra máquina:  npm run setup
+# (pede a senha). Os arquivos de segredo em claro abaixo NÃO vão para o git.
+# ==========================================================================
+
+# dependências
+node_modules/
+
+# Expo / Metro / web
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.metro-health-check*
+
+# TypeScript
+*.tsbuildinfo
+
+# logs / SO
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.DS_Store
+*.orig.*
+
+# ---- Nativos: ios/ e android/ SÃO versionados (projeto bare); ignoramos
+#      apenas o que é gerado/local, para preservar as edições (R8, versão,
+#      permissões, config plugins). ----
+# iOS
+ios/Pods/
+ios/build/
+ios/DerivedData/
+**/*.xcuserstate
+ios/**/xcuserdata/
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/.kotlin/
+android/.cxx/
+android/local.properties
+
+# Backoffice (Next.js)
+backoffice/.next/
+backoffice/out/
+backoffice/next-env.d.ts
+
+# Servidor
+servidor/dist/
+servidor/prisma/dados/
+*.db
+*.db-journal
+
+# artefatos de publicação (AAB/IPA/mapping)
+entregas-*/
+
+# ---- SEGREDOS EM CLARO (gerados por `npm run setup`) — nunca versionar ----
+.env
+.env.local
+.env*.local
+scripts/secrets-bundle.json
+carteiracac-firebase-adminsdk-*.json
+store/CarteiraCAC-android-keys/carteiracac-upload.keystore
+store/CarteiraCAC-android-keys/CREDENCIAIS-LEIA.txt
+# (o bundle CIFRADO scripts/secrets-bundle.enc É versionado, de propósito)
