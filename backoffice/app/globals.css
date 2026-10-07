@@ -112,6 +112,7 @@ tr:hover td { background: var(--superficie-2); }
 .etiqueta.inativo { color: var(--texto-suave); }
 
 .erro { color: var(--perigo); font-size: 13px; margin: 8px 0; }
+.ajuda-previa { font-size: 12.5px; color: var(--texto-suave); margin: 6px 0 0; }
 .vazio { color: var(--texto-suave); padding: 28px; text-align: center; }
 
 .centro-tela {

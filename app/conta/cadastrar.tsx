@@ -9,12 +9,22 @@ import { useConta } from '@/conta/ContaContext';
 import { ErroConta } from '@/conta/api';
 import { emailValido, limparCPF, mascaraCPF, validarCPF } from '@/conta/cpf';
 
+/** (DD) 9XXXX-XXXX conforme o usuário digita. */
+function mascaraCelular(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 11);
+  if (d.length <= 2) return d.length ? `(${d}` : '';
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
 export default function Cadastrar() {
   const p = useEstilos(folha);
   const { cadastrar } = useConta();
   const [nome, setNome] = useState('');
   const [cpf, setCpf] = useState('');
   const [email, setEmail] = useState('');
+  const [celular, setCelular] = useState('');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [tocado, setTocado] = useState(false);
@@ -24,7 +34,9 @@ export default function Cadastrar() {
   const emailOk = emailValido(email);
   const senhaOk = senha.length >= 6;
   const nomeOk = nome.trim().length >= 2;
-  const podeEnviar = nomeOk && cpfOk && emailOk && senhaOk;
+  const celularDigitos = celular.replace(/\D/g, '');
+  const celularOk = celularDigitos.length === 0 || celularDigitos.length === 10 || celularDigitos.length === 11;
+  const podeEnviar = nomeOk && cpfOk && emailOk && senhaOk && celularOk;
 
   async function aoCadastrar() {
     setTocado(true);
@@ -32,7 +44,13 @@ export default function Cadastrar() {
     setErro(null);
     setEnviando(true);
     try {
-      await cadastrar({ nome: nome.trim(), cpf: limparCPF(cpf), email: email.trim(), senha });
+      await cadastrar({
+        nome: nome.trim(),
+        cpf: limparCPF(cpf),
+        email: email.trim(),
+        senha,
+        celular: celularDigitos || null,
+      });
       router.back();
     } catch (e) {
       setErro(e instanceof ErroConta ? e.message : 'Não foi possível criar a conta.');
@@ -71,6 +89,16 @@ export default function Cadastrar() {
         placeholder="voce@email.com"
         obrigatorio
         erro={tocado && !emailOk ? 'E-mail inválido.' : null}
+      />
+      <Campo
+        rotulo="Celular (opcional)"
+        valor={celular}
+        aoMudar={(v) => setCelular(mascaraCelular(v))}
+        teclado="numeric"
+        placeholder="(11) 99999-9999"
+        maxLength={16}
+        dica="Usamos só para entrar em contato e dar suporte, se você precisar."
+        erro={tocado && !celularOk ? 'Informe um celular válido com DDD, ou deixe em branco.' : null}
       />
       <Campo
         rotulo="Senha"

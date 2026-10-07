@@ -5,7 +5,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { Tela, Vazio } from '@/ui/base';
 import { ErroConta } from '@/conta/api';
-import { formatarData, obterNoticia } from '@/noticias/api';
+import { formatarData, marcarNoticiaLida, obterNoticia } from '@/noticias/api';
 import { CorpoHtml } from '@/noticias/CorpoHtml';
 import type { Noticia } from '@/noticias/tipos';
 
@@ -24,6 +24,7 @@ export default function DetalheNoticia() {
       try {
         const n = await obterNoticia(String(id));
         if (vivo) setNoticia(n);
+        void marcarNoticiaLida(String(id)); // conta o leitor (best-effort)
       } catch (e) {
         if (vivo) {
           setErro(

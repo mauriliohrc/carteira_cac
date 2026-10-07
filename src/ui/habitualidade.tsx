@@ -205,9 +205,25 @@ export function CartaoSessao({
           ))}
         </View>
 
-        <Text style={h.sessaoArmas} numberOfLines={1}>
-          {sessao.armas.map((a) => a.nome).join(' · ') || 'Sem arma registrada'}
-        </Text>
+        {/* Cada arma registrada, com o grupo — para ficar claro o que contou. */}
+        {sessao.armas.length ? (
+          <View style={h.sessaoArmasLista}>
+            {sessao.armas.slice(0, 4).map((a, i) => (
+              <View key={`${a.armaId ?? a.nome}-${i}`} style={h.sessaoArmaLinha}>
+                <Ionicons name="ellipse" size={5} color={c.textoFraco} />
+                <Text style={h.sessaoArmaNome} numberOfLines={1}>
+                  {a.nome}
+                  <Text style={h.sessaoArmaGrupo}> · {GRUPO_POR_VALOR[a.grupo]?.curto ?? a.grupo}</Text>
+                </Text>
+              </View>
+            ))}
+            {sessao.armas.length > 4 ? (
+              <Text style={h.sessaoArmaMais}>+{sessao.armas.length - 4} arma(s)</Text>
+            ) : null}
+          </View>
+        ) : (
+          <Text style={h.sessaoArmas}>Sem arma registrada</Text>
+        )}
       </View>
 
       <Ionicons name="chevron-forward" size={16} color={c.textoFraco} />
@@ -318,4 +334,9 @@ const folha = (c: Paleta) =>
     sessaoLocal: { ...tipo.legenda, color: c.textoMedio, marginTop: 3 },
     sessaoEtiquetas: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 7 },
     sessaoArmas: { ...tipo.legenda, fontSize: 10.5, color: c.textoFraco, marginTop: 6 },
+    sessaoArmasLista: { marginTop: 7, gap: 3 },
+    sessaoArmaLinha: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    sessaoArmaNome: { flex: 1, ...tipo.legenda, fontSize: 11.5, color: c.textoMedio },
+    sessaoArmaGrupo: { color: c.textoFraco },
+    sessaoArmaMais: { ...tipo.legenda, fontSize: 10.5, color: c.textoFraco, marginLeft: 11 },
   });

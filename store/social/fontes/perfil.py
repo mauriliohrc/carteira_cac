@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+# Gera o logo redondo da Carteira CAC para foto de perfil (Instagram / WhatsApp).
+# Saida: store/social/perfil/logo-instagram.png  (1080x1080, recorte circular seguro)
+import pathlib
+
+RAIZ = pathlib.Path(__file__).resolve().parents[2]   # .../store
+PROJ = RAIZ.parent
+LOGO = PROJ / "assets" / "logo.png"
+SAIDA = RAIZ / "social" / "perfil"
+SAIDA.mkdir(parents=True, exist_ok=True)
+
+HTML = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+:root{{--verde:#0F3D1E;--verde2:#0A2712;--verde3:#061A0B;
+  --ouro:#D8AE3A;--ouro2:#F4D06A;--sage:#C6D9BC}}
+html,body{{width:1080px;height:1080px;overflow:hidden}}
+body{{position:relative;
+  background:
+    radial-gradient(760px 620px at 50% 34%, rgba(30,106,52,.70), transparent 60%),
+    radial-gradient(640px 520px at 50% 108%, rgba(216,174,58,.14), transparent 62%),
+    linear-gradient(160deg,var(--verde) 0%,var(--verde2) 56%,var(--verde3) 100%)}}
+/* losangos decorativos, dentro do circulo seguro */
+.losango{{position:absolute;left:50%;top:50%;width:720px;height:720px;
+  transform:translate(-50%,-50%) rotate(45deg);
+  border:18px solid var(--ouro);opacity:.10;border-radius:58px}}
+.losango.b{{width:560px;height:560px;opacity:.07;border-width:14px}}
+/* anel sutil marcando a area de recorte circular */
+.anel{{position:absolute;left:50%;top:50%;width:1000px;height:1000px;border-radius:50%;
+  transform:translate(-50%,-50%);
+  border:3px solid rgba(216,174,58,.35);
+  box-shadow:0 0 0 1px rgba(0,0,0,.18) inset}}
+.escudo{{position:absolute;left:50%;top:49%;transform:translate(-50%,-50%);
+  width:560px;height:560px;
+  filter:drop-shadow(0 26px 52px rgba(0,0,0,.55))}}
+</style></head><body>
+<div class="losango"></div><div class="losango b"></div>
+<div class="anel"></div>
+<img class="escudo" src="{LOGO}">
+</body></html>"""
+
+(SAIDA / "logo-instagram.html").write_text(HTML, encoding="utf-8")
+print("html: perfil/logo-instagram")

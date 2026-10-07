@@ -59,6 +59,8 @@ export interface Noticia {
   /** Alcance: null = geral (todos); preenchido = restrita a uma entidade. */
   entidadeId: string | null;
   entidadeNome: string | null;
+  /** Quantas pessoas leram no app. */
+  leituras?: number;
   criadoEm: string;
   atualizadoEm: string;
 }
@@ -82,12 +84,18 @@ export interface UsuarioApp {
   nome: string;
   email: string;
   cpf: string;
+  celular?: string | null;
   ativo: boolean;
+  emailVerificado?: boolean;
   premium: boolean;
   entidades: VinculoEntidade[];
   ultimoAcessoEm: string | null;
   online: boolean;
   dispositivos: number;
+  /** Plataformas dos aparelhos ativos: 'IOS' | 'ANDROID'. */
+  plataformas?: string[];
+  /** Armas cadastradas no app (acervo sincronizado). */
+  armasSistema?: number;
   criadoEm: string;
 }
 
@@ -238,7 +246,14 @@ export interface UsoCupom {
   usuario: { nome: string; email: string; cpf: string } | null;
 }
 
-export type TipoAlvoPush = 'TODOS' | 'ENTIDADE' | 'USUARIO' | 'INATIVOS';
+export type TipoAlvoPush =
+  | 'TODOS'
+  | 'ENTIDADE'
+  | 'USUARIO'
+  | 'INATIVOS'
+  | 'SEM_CADASTRO'
+  | 'SEM_EMAIL'
+  | 'SEM_ARMA';
 
 export interface EnvioPush {
   id: string;
@@ -260,4 +275,66 @@ export interface UsuarioEntidade {
   papel: PapelEntidade;
   ativo: boolean;
   criadoEm: string;
+}
+
+// ------------------------------------------------------------- competições
+export type Ordenamento = 'MAIOR' | 'MENOR';
+
+export const ROTULO_ORDENAMENTO: Record<Ordenamento, string> = {
+  MAIOR: 'Maior pontuação vence',
+  MENOR: 'Menor pontuação vence',
+};
+
+export const ROTULO_ORIGEM_NOME: Record<string, string> = {
+  APP: 'Usuário do app',
+  SHOOTING_HOUSE: 'Shooting House',
+  MANUAL: 'Manual',
+};
+
+export interface Competicao {
+  id: string;
+  entidadeId: string;
+  nome: string;
+  descricao: string | null;
+  bannerUrl: string | null;
+  regras: string | null;
+  dataInicio: string;
+  dataFim: string;
+  ativo: boolean;
+  criadoEm: string;
+  atualizadoEm: string;
+  totalCategorias?: number;
+  categorias?: CategoriaCompeticao[];
+}
+
+export interface CategoriaCompeticao {
+  id: string;
+  competicaoId: string;
+  nome: string;
+  descricao: string | null;
+  regras: string | null;
+  dataInicio: string | null;
+  dataFim: string | null;
+  ordenamento: Ordenamento;
+  criadoEm: string;
+  atualizadoEm: string;
+  totalResultados?: number;
+}
+
+export interface ResultadoCompeticao {
+  id: string;
+  cpf: string;
+  nome: string;
+  pontuacao: number;
+  usuarioId: string | null;
+  origemNome: string;
+  observacao: string | null;
+  criadoEm: string;
+  posicao?: number;
+}
+
+export interface PreviaAtirador {
+  cpf: string;
+  nome: string | null;
+  origem: 'APP' | 'SHOOTING_HOUSE' | 'NAO_ENCONTRADO';
 }

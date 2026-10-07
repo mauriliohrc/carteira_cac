@@ -21,6 +21,17 @@ export async function obterNoticia(id: string): Promise<Noticia> {
   return r.noticia;
 }
 
+/** Marca a notícia como lida (conta leitores no backoffice). Só com conta. */
+export async function marcarNoticiaLida(id: string): Promise<void> {
+  const token = await lerToken();
+  if (!token) return;
+  try {
+    await apiApp(`/noticias/${id}/lida`, { metodo: 'POST', token });
+  } catch {
+    /* leitura é best-effort; não atrapalha a tela */
+  }
+}
+
 /** 'AAAA-MM-DDThh:mm:ss…' -> '31/12/2026'. */
 export function formatarData(iso: string | null): string {
   if (!iso) return '';

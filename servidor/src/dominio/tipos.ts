@@ -19,6 +19,10 @@ export const TIPOS_MIDIA: TipoMidia[] = ['IMAGEM', 'YOUTUBE'];
 export type PlataformaPush = 'IOS' | 'ANDROID';
 export const PLATAFORMAS_PUSH: PlataformaPush[] = ['IOS', 'ANDROID'];
 
+/** Sentido do ranking de uma categoria de competição. */
+export type Ordenamento = 'MAIOR' | 'MENOR';
+export const ORDENAMENTOS: Ordenamento[] = ['MAIOR', 'MENOR'];
+
 export type TipoAlvoPush = 'TODOS' | 'ENTIDADE' | 'USUARIO' | 'INATIVOS';
 
 /** Janela, em minutos, para considerar um usuário "online" agora. */

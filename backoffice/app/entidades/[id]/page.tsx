@@ -79,6 +79,18 @@ function DetalheEntidade({ id }: { id: string }) {
       <FormularioEntidade entidade={entidade} aoSalvar={salvarEntidade} textoBotao="Salvar alterações" />
 
       <div className="cabeca-secao" style={{ marginTop: 32 }}>
+        <div>
+          <h2 style={{ margin: 0 }}>Competições</h2>
+          <p className="subtitulo" style={{ marginTop: 4 }}>
+            Cadastre e gerencie as competições, categorias e resultados desta entidade.
+          </p>
+        </div>
+        <Link href={`/entidades/${id}/competicoes`}>
+          <button className="secundario">Gerenciar competições</button>
+        </Link>
+      </div>
+
+      <div className="cabeca-secao" style={{ marginTop: 32 }}>
         <h2 style={{ margin: 0 }}>Usuários administrativos</h2>
         {!novoUsuario && (
           <button className="pequeno" onClick={() => setNovoUsuario(true)}>

@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useSessao } from '@/lib/sessao';
 
 const NAV = [
+  { href: '/dashboard', rotulo: 'Dashboard' },
   { href: '/entidades', rotulo: 'Entidades' },
   { href: '/noticias', rotulo: 'Notícias' },
   { href: '/usuarios', rotulo: 'Usuários' },
@@ -30,11 +31,11 @@ export function Protegido({ children }: { children: React.ReactNode }) {
     <>
       <header className="topo">
         <div className="linha-acoes" style={{ gap: 24 }}>
-          <div className="marca">
+          <Link href="/dashboard" className="marca" style={{ textDecoration: 'none' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo.png" alt="Carteira CAC" />
             Carteira <span>CAC</span>
-          </div>
+          </Link>
           <nav className="nav">
             {NAV.map((item) => {
               const ativo = pathname === item.href || pathname.startsWith(item.href + '/');

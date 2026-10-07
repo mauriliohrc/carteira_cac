@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  ORDENAMENTOS,
   PAPEIS_ADMIN,
   PAPEIS_ENTIDADE,
   PLATAFORMAS_PUSH,
@@ -59,6 +60,16 @@ export const atualizarUsuarioEntidadeSchema = z.object({
 });
 
 // ----------------------------------------------- usuário final do app (CAC)
+/** Celular BR opcional: só dígitos, 10–11 (com DDD); vazio vira null. */
+const celularOpcional = z
+  .union([z.string(), z.null()])
+  .optional()
+  .transform((v) => {
+    const d = (v ?? '').replace(/\D/g, '');
+    return d ? d : null;
+  })
+  .refine((v) => v === null || (v.length >= 10 && v.length <= 11), 'Celular deve ter DDD + número');
+
 export const cadastroAppSchema = z.object({
   nome: z.string().trim().min(2, 'Informe seu nome'),
   cpf: z
@@ -67,6 +78,8 @@ export const cadastroAppSchema = z.object({
     .refine(validarCPF, 'CPF inválido'),
   email: z.string().trim().toLowerCase().email('E-mail inválido'),
   senha: z.string().min(6, 'A senha deve ter ao menos 6 caracteres'),
+  /** Opcional — número para contato e suporte. */
+  celular: celularOpcional,
 });
 
 export const registrarDispositivoSchema = z.object({
@@ -80,6 +93,10 @@ export const alvoPushSchema = z.discriminatedUnion('tipo', [
   z.object({ tipo: z.literal('ENTIDADE'), entidadeId: z.string().min(1) }),
   z.object({ tipo: z.literal('USUARIO'), usuarioId: z.string().min(1) }),
   z.object({ tipo: z.literal('INATIVOS'), diasSemAcesso: z.number().int().min(1).max(3650) }),
+  // Segmentos de engajamento:
+  z.object({ tipo: z.literal('SEM_CADASTRO') }), // instalações anônimas (sem conta)
+  z.object({ tipo: z.literal('SEM_EMAIL') }), // com conta, e-mail não verificado
+  z.object({ tipo: z.literal('SEM_ARMA') }), // com conta, nenhuma arma cadastrada
 ]);
 
 export const enviarPushSchema = z.object({
@@ -190,6 +207,64 @@ export const atualizarNoticiaSchema = criarNoticiaSchema.partial();
 /** Notícia criada por uma entidade: o alcance é sempre a própria entidade. */
 export const criarNoticiaEntidadeSchema = noticiaBaseSchema;
 export const atualizarNoticiaEntidadeSchema = noticiaBaseSchema.partial();
+
+// ------------------------------------------------------------- competições
+/** Campos de uma competição (criada por uma entidade). */
+export const criarCompeticaoSchema = z
+  .object({
+    nome: z.string().trim().min(2, 'Nome muito curto'),
+    descricao: z.string().trim().max(2000, 'Descrição muito longa').optional().nullable(),
+    bannerUrl: z.string().trim().url('URL do banner inválida').optional().nullable(),
+    regras: z.string().trim().max(20000, 'Regras muito longas').optional().nullable(),
+    dataInicio: z.coerce.date({ invalid_type_error: 'Data de início inválida' }),
+    dataFim: z.coerce.date({ invalid_type_error: 'Data de fim inválida' }),
+    ativo: z.boolean().optional(),
+  })
+  .refine((d) => d.dataFim >= d.dataInicio, {
+    message: 'A data de fim deve ser igual ou posterior à de início',
+    path: ['dataFim'],
+  });
+
+export const atualizarCompeticaoSchema = z.object({
+  nome: z.string().trim().min(2, 'Nome muito curto').optional(),
+  descricao: z.string().trim().max(2000).optional().nullable(),
+  bannerUrl: z.string().trim().url('URL do banner inválida').optional().nullable(),
+  regras: z.string().trim().max(20000).optional().nullable(),
+  dataInicio: z.coerce.date().optional(),
+  dataFim: z.coerce.date().optional(),
+  ativo: z.boolean().optional(),
+});
+
+/** Campos de uma categoria (os mesmos da competição, sem foto; com ordenamento). */
+export const criarCategoriaSchema = z.object({
+  nome: z.string().trim().min(1, 'Informe o nome'),
+  descricao: z.string().trim().max(2000).optional().nullable(),
+  regras: z.string().trim().max(20000).optional().nullable(),
+  dataInicio: z.coerce.date().optional().nullable(),
+  dataFim: z.coerce.date().optional().nullable(),
+  ordenamento: z.enum(ORDENAMENTOS as [string, ...string[]]).optional(),
+});
+
+export const atualizarCategoriaSchema = criarCategoriaSchema.partial();
+
+/** Lançamento do resultado de um atirador numa categoria. */
+export const lancarResultadoSchema = z.object({
+  cpf: z.string().transform(limparCPF).refine(validarCPF, 'CPF inválido'),
+  pontuacao: z.coerce.number({ invalid_type_error: 'Pontuação inválida' }).finite('Pontuação inválida'),
+  /** Opcional: sobrescreve o nome resolvido automaticamente. */
+  nome: z.string().trim().min(2, 'Nome muito curto').max(120).optional().nullable(),
+  observacao: z.string().trim().max(500).optional().nullable(),
+});
+
+// --------------------------------------------------------------- uploads
+/** Upload de imagem (banner de competição) em base64. */
+export const uploadImagemSchema = z.object({
+  mime: z
+    .string()
+    .regex(/^image\/(png|jpe?g|webp|gif)$/, 'Envie uma imagem PNG, JPG, WEBP ou GIF'),
+  /** Conteúdo em base64 (sem o prefixo `data:`). */
+  dadosBase64: z.string().min(1, 'Arquivo vazio'),
+});
 
 // ----------------------------------------------------------- usuários admin
 export const criarUsuarioAdminSchema = z.object({

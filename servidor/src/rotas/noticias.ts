@@ -32,6 +32,7 @@ function resolverPublicadaEm(
 const COM_MIDIAS = {
   midias: { orderBy: { ordem: 'asc' as const } },
   entidade: { select: { id: true, nome: true } },
+  _count: { select: { leituras: true } },
 };
 
 async function achar(id: string) {
@@ -76,7 +77,10 @@ export async function rotasNoticias(app: FastifyInstance) {
         orderBy: { criadoEm: 'desc' },
         skip: (pagina - 1) * limite,
         take: limite,
-        include: { entidade: { select: { id: true, nome: true } } },
+        include: {
+          entidade: { select: { id: true, nome: true } },
+          _count: { select: { leituras: true } },
+        },
       }),
     ]);
 

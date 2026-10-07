@@ -1,0 +1,61 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --verde:#0F3D1E; --verde2:#0A2712; --verde3:#061A0B;
+  --ouro:#D8AE3A; --ouro2:#F4D06A; --ouro3:#B8891F;
+  --creme:#FBFAF3; --sage:#C6D9BC;
+}
+html,body{width:1080px;height:1080px;overflow:hidden}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Arial,sans-serif;
+  color:var(--creme);
+  background:
+    radial-gradient(760px 620px at 82% 10%, rgba(30,106,52,.55), transparent 60%),
+    radial-gradient(640px 560px at 4% 100%, rgba(216,174,58,.12), transparent 62%),
+    linear-gradient(162deg, var(--verde) 0%, var(--verde2) 56%, var(--verde3) 100%);
+  position:relative;
+}
+.losango{position:absolute;right:-240px;top:120px;width:640px;height:640px;
+  transform:rotate(45deg);border:20px solid var(--ouro);opacity:.09;border-radius:52px}
+.losango.b{right:auto;left:-320px;bottom:-280px;top:auto;width:520px;height:520px;opacity:.06;border-width:16px}
+
+/* ---------- marca ---------- */
+.marca{position:absolute;top:66px;left:72px;display:flex;align-items:center;gap:18px}
+.marca img{width:64px;height:64px;display:block;filter:drop-shadow(0 7px 16px rgba(0,0,0,.45))}
+.marca .nome{font-size:23px;font-weight:800;letter-spacing:7px;color:var(--ouro2)}
+.marca .nome small{display:block;font-size:14px;font-weight:600;letter-spacing:3px;
+  color:var(--sage);opacity:.75;margin-top:6px}
+.fio{position:absolute;top:158px;left:72px;width:936px;height:2px;
+  background:linear-gradient(90deg,rgba(216,174,58,.7),rgba(216,174,58,0))}
+
+/* ---------- etiqueta ---------- */
+.etq{display:flex;align-items:center;gap:14px;
+  font-size:19px;font-weight:800;letter-spacing:5px;color:var(--ouro)}
+.etq i{display:block;width:40px;height:5px;border-radius:3px;background:var(--ouro);font-style:normal}
+
+/* ---------- rodape ---------- */
+.pilula{display:inline-flex;align-items:center;gap:14px;
+  background:linear-gradient(180deg,var(--ouro2),var(--ouro));color:#17120A;
+  font-size:28px;font-weight:800;padding:22px 42px;border-radius:18px;
+  box-shadow:0 16px 38px rgba(0,0,0,.45)}
+.obs{margin-top:16px;font-size:19px;letter-spacing:2.5px;font-weight:600;color:var(--sage);opacity:.9}
+
+
+.col{position:absolute;left:72px;top:232px;width:486px}
+.col h1{margin-top:22px;font-size:60px;line-height:1.05;letter-spacing:-1.6px;
+  font-weight:800;color:var(--creme);text-shadow:0 5px 22px rgba(0,0,0,.32)}
+.col .sub{margin-top:26px;font-size:27px;line-height:1.4;color:var(--sage);font-weight:500;width:462px}
+.col .sub b{color:var(--ouro2);font-weight:700}
+.rodape{position:absolute;left:72px;bottom:74px}
+.fone{position:absolute;right:30px;top:214px;width:452px;height:792px;
+  border-radius:54px;overflow:hidden;border:8px solid rgba(216,174,58,.5);background:#0b1a0f;
+  transform:rotate(-3deg);
+  box-shadow:0 40px 90px rgba(0,0,0,.6),0 0 0 2px rgba(0,0,0,.32)}
+.fone img{display:block;width:100%}
+
+</style></head><body>
+<div class="losango"></div><div class="losango b"></div>
+<div class="marca"><img src="/Users/bad/Documents/carteira_cac/assets/logo.png"><div class="nome">CARTEIRA CAC<small>ACERVO EM ORDEM</small></div></div>
+<div class="fio"></div>
+<div class="col"><div class="etq"><i></i>AVISOS</div><h1>Nunca mais<br>perca um<br>vencimento.</h1><div class="sub">No último mês antes de vencer, o app avisa <b>todos os dias</b> — mesmo fechado.</div></div><div class="fone"><img src="/Users/bad/Documents/carteira_cac/store/screenshots/6.9/5-avisos.png"></div><div class="rodape"><div class="pilula">⬇  Baixe grátis</div><div class="obs">CRAF · GUIA · LAUDO · CR</div></div>
+</body></html>

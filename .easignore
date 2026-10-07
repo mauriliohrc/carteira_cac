@@ -5,13 +5,22 @@ node_modules/
 servidor/
 backoffice/
 
-# Artefatos de build locais
+# Artefatos de build locais (regenerados na nuvem)
 build/
 dist/
 web-build/
 .expo/
 ios/build/
+ios/Pods/
 android/build/
+android/app/build/
+android/.cxx/
+android/app/.cxx/
+
+# Assets de loja e publicações — não fazem parte do bundle do app
+store/
+*.ipa
+*.aab
 
 # Diversos
 .git/

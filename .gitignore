@@ -65,3 +65,10 @@ carteiracac-firebase-adminsdk-*.json
 store/CarteiraCAC-android-keys/carteiracac-upload.keystore
 store/CarteiraCAC-android-keys/CREDENCIAIS-LEIA.txt
 # (o bundle CIFRADO scripts/secrets-bundle.enc É versionado, de propósito)
+
+# EAS local credentials (segredos)
+credentials.json
+store/publicacoes/
+*.aab
+*.ipa
+ios/exportOptions.plist

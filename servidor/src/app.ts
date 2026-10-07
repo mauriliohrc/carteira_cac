@@ -6,6 +6,11 @@ import { ErroHttp } from './http/erros.js';
 import { rotasAutenticacao } from './rotas/autenticacao.js';
 import { rotasEntidades } from './rotas/entidades.js';
 import { rotasEntidade } from './rotas/entidade.js';
+import { rotasEntidadeCompeticoes } from './rotas/entidadeCompeticoes.js';
+import { rotasAdminCompeticoes } from './rotas/adminCompeticoes.js';
+import { rotasUploads } from './rotas/uploads.js';
+import { rotasPublicoCompeticoes } from './rotas/publicoCompeticoes.js';
+import { rotasDashboardAdmin } from './rotas/dashboardAdmin.js';
 import { rotasNoticias } from './rotas/noticias.js';
 import { rotasPushAdmin } from './rotas/pushAdmin.js';
 import { rotasAcervoAdmin } from './rotas/acervoAdmin.js';
@@ -19,6 +24,7 @@ import { rotasParceiroAppV1 } from './rotas/v1/appParceiro.js';
 import { rotasArmasAppV1 } from './rotas/v1/appArmas.js';
 import { rotasDocumentosAppV1 } from './rotas/v1/appDocumentos.js';
 import { rotasCupomAppV1 } from './rotas/v1/appCupom.js';
+import { rotasCompeticoesAppV1 } from './rotas/v1/appCompeticoes.js';
 
 export function construirApp() {
   // bodyLimit alto: uploads de PDF/foto em base64 na sincronização.
@@ -53,8 +59,13 @@ export function construirApp() {
   app.register(rotasAutenticacao);
   app.register(rotasEntidades);
   app.register(rotasEntidade);
+  app.register(rotasEntidadeCompeticoes);
+  app.register(rotasAdminCompeticoes);
+  app.register(rotasUploads);
+  app.register(rotasPublicoCompeticoes);
   app.register(rotasNoticias);
   app.register(rotasPushAdmin);
+  app.register(rotasDashboardAdmin);
   app.register(rotasAcervoAdmin);
   app.register(rotasCuponsAdmin);
 
@@ -69,6 +80,7 @@ export function construirApp() {
   app.register(rotasArmasAppV1, { prefix: '/api/v1' });
   app.register(rotasDocumentosAppV1, { prefix: '/api/v1' });
   app.register(rotasCupomAppV1, { prefix: '/api/v1' });
+  app.register(rotasCompeticoesAppV1, { prefix: '/api/v1' });
 
   return app;
 }

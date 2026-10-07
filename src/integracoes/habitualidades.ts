@@ -7,9 +7,9 @@ interface SessaoDTO {
   externoId: string;
   data: string;
   tipo: string;
-  grupo: string;
-  armaNome: string;
   localNome: string | null;
+  /** Armas do dia/local. Cada grupo conta uma habitualidade (regra da SH). */
+  armas: { grupo: string; armaNome: string; serie: string | null }[];
 }
 
 interface RespostaImport {
@@ -47,9 +47,8 @@ export async function importarShootingHouse(): Promise<ResultadoImportacao> {
     externoId: s.externoId,
     data: s.data,
     tipo: s.tipo as TipoSessao,
-    grupo: s.grupo as Grupo,
-    armaNome: s.armaNome,
     localNome: s.localNome,
+    armas: s.armas.map((a) => ({ grupo: a.grupo as Grupo, armaNome: a.armaNome, serie: a.serie })),
   }));
 
   const importadas = await importarExternas(sessoes);

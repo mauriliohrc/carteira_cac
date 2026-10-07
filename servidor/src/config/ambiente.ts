@@ -12,6 +12,11 @@ export const ambiente = {
   porta: Number(process.env.PORTA ?? 3333),
   backofficeOrigem: process.env.BACKOFFICE_ORIGEM ?? 'http://localhost:3000',
   producao: process.env.NODE_ENV === 'production',
+  /**
+   * URL pública da API (ex.: https://api.carteiracac.com). Usada para montar o
+   * link absoluto dos uploads (banners). Vazio = deriva do próprio request.
+   */
+  apiPublicaUrl: (process.env.API_PUBLICA_URL ?? '').replace(/\/$/, ''),
   jwt: {
     segredoAdmin: obrigatorio('JWT_SEGREDO_ADMIN', 'dev-segredo-admin'),
     segredoEntidade: obrigatorio('JWT_SEGREDO_ENTIDADE', 'dev-segredo-entidade'),

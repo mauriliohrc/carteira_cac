@@ -13,12 +13,14 @@
     },
     "preview": {
       "distribution": "internal",
+      "env": { "EXPO_PUBLIC_API_URL": "https://api.carteiracac.com" },
       "ios": { "resourceClass": "m-medium" }
     },
     "production": {
       "autoIncrement": true,
       "env": { "EXPO_PUBLIC_API_URL": "https://api.carteiracac.com" },
-      "ios": { "resourceClass": "m-medium" }
+      "ios": { "resourceClass": "m-medium" },
+      "android": { "credentialsSource": "local" }
     }
   },
   "submit": {

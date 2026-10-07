@@ -11,6 +11,7 @@ import {
 import { sincronizarArquivos } from './arquivos';
 import { importarArmasAuto } from '@/parceiro/armas';
 import { importarDocumentosAuto } from '@/parceiro/documentos';
+import { importarShootingHouse } from '@/integracoes/habitualidades';
 
 let rodando = false;
 
@@ -56,11 +57,18 @@ export async function sincronizar(): Promise<ResultadoSync> {
     // Arquivos (PDFs/fotos): sobe os que faltam, baixa os ausentes.
     await sincronizarArquivos(token);
 
-    // Importa automaticamente o acervo e os documentos da Shooting House (sem duplicar).
+    // Importa automaticamente o acervo, os documentos e as habitualidades da
+    // Shooting House (sem duplicar). Uma falha num parceiro não derruba o sync.
     const armasImportadas = await importarArmasAuto();
     const docsImportados = await importarDocumentosAuto();
+    const habitsImportadas = await importarShootingHouse()
+      .then((r) => r.importadas)
+      .catch(() => 0);
 
-    return { ok: true, baixados: resp.registros.length + armasImportadas + docsImportados };
+    return {
+      ok: true,
+      baixados: resp.registros.length + armasImportadas + docsImportados + habitsImportadas,
+    };
   } catch {
     return { ok: false, baixados: 0 };
   } finally {

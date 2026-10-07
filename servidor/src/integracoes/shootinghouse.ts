@@ -10,15 +10,31 @@ export interface CredenciaisSH {
   senha: string;
 }
 
-/** Sessão já normalizada para o formato do app. */
+/** Uma arma usada numa sessão (o grupo é o que conta para a habitualidade). */
+export interface ArmaSessao {
+  grupo: string; // CLR_* | CC_* | CLL_*
+  armaNome: string;
+  /** Nº de série — casa com a arma cadastrada no app para marcá-la na sessão. */
+  serie: string | null;
+}
+
+/**
+ * Sessão já normalizada para o formato do app.
+ *
+ * REGRA DE CONTAGEM: na Shooting House lança-se uma habitualidade por ARMA,
+ * mas no MESMO DIA e MESMO LOCAL todas contam como UMA única habitualidade —
+ * creditando cada *grupo de armas* uma vez. Por isso agrupamos aqui por
+ * (atirador, data, local) e trazemos as armas daquele dia em `armas`; o app
+ * credita cada grupo uma só vez por sessão.
+ */
 export interface SessaoImportada {
-  /** Id estável derivado dos dados — base da deduplicação. */
+  /** Id estável derivado de (atirador, data, local) — base da deduplicação. */
   externoId: string;
   data: string; // YYYY-MM-DD
   tipo: 'TREINO' | 'COMPETICAO';
-  grupo: string; // CLR_* | CC_* | CLL_*
-  armaNome: string;
   localNome: string | null;
+  /** Armas distintas usadas no dia/local (uma habitualidade por grupo). */
+  armas: ArmaSessao[];
 }
 
 export type StatusSH = 'OK' | 'NAO_AUTORIZADO' | 'ERRO';
@@ -37,10 +53,15 @@ function hash(s: string): string {
   return (h >>> 0).toString(36);
 }
 
-function paraDataISO(v: string | undefined): string | null {
-  if (!v) return null;
-  if (/^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0, 10);
-  const d = new Date(v);
+function paraDataISO(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+  // Formato da SH: "DD/MM/AAAA" (às vezes com hora: "DD/MM/AAAA HH:MM").
+  const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
 }
 
@@ -54,35 +75,48 @@ const GRUPOS_VALIDOS = new Set([
 ]);
 
 /**
- * Deriva o grupo do app a partir dos campos da SH. Best-effort: os valores
- * exatos da SH precisam ser confirmados contra uma resposta real.
+ * Mapeia o grupo da SH para o grupo do app. A SH traz o grupo explícito:
+ *   - `grupo_arma_completo`: "Arma Longa Raiada Restrita", "Arma Curta …" etc.
+ *   - `grupo_arma` (código): ALRR, ALRP, ALLR, ALLP, ACR/ACP (curta)…
+ * Usamos o texto completo (mais claro) e caímos no código como reforço.
  */
-function derivarGrupo(groupKey: string, tipoArma?: string, tipoAlma?: string, tipoUso?: string): string {
-  const ctx = `${groupKey} ${tipoArma ?? ''} ${tipoAlma ?? ''} ${tipoUso ?? ''}`.toUpperCase();
-  const uso = /RESTRIT/.test(ctx) ? 'RESTRITA' : 'PERMITIDA';
-  const curto = /CURT|CC|PISTOL|REV[OÓ]LVER|CANO CURTO/.test(ctx);
-  if (curto) return `CC_${uso}`;
-  const lisa = /LIS|ESPINGARD|CLL|ALMA LISA/.test(ctx);
-  return lisa ? `CLL_${uso}` : `CLR_${uso}`;
+function grupoDoSH(completo?: string, codigo?: string): string {
+  const s = `${completo ?? ''} ${codigo ?? ''}`.toUpperCase();
+  const cod = (codigo ?? '').toUpperCase();
+  const restrita = /RESTRIT/.test(s) || /^A..R$/.test(cod) || /R$/.test(cod);
+  const uso = restrita ? 'RESTRITA' : 'PERMITIDA';
+  // Curta: "Arma Curta", "Cano Curto", pistola/revólver, ou código iniciando em AC.
+  if (/CURT|PISTOL|REV[OÓ]LVER|GARRUCHA/.test(s) || /^AC/.test(cod)) return `CC_${uso}`;
+  // Longa lisa: "Lisa", espingarda, ou código ALL*.
+  if (/LISA|ESPINGARD/.test(s) || /^ALL/.test(cod)) return `CLL_${uso}`;
+  // Longa raiada (default): rifle, carabina, fuzil, ALR*.
+  return `CLR_${uso}`;
 }
 
-function ehCompeticao(v?: string): boolean {
-  if (!v) return false;
-  return !/^(n[ãa]o|nao|false|0|-|\s*)$/i.test(v.trim());
+function ehCompeticaoSH(modalidade?: string): boolean {
+  if (!modalidade) return false;
+  return /COMPETI|PROVA|CAMPEONAT|TORNEIO/i.test(modalidade);
 }
 
-// Estrutura crua documentada (arrays paralelos por arma).
+function primeiro(a: unknown, i: number): string | undefined {
+  if (Array.isArray(a)) return a[i] != null ? String(a[i]) : a[0] != null ? String(a[0]) : undefined;
+  return a != null ? String(a) : undefined;
+}
+
+/** Bloco cru de uma arma na SH — arrays paralelos por participação. */
 interface BlocoArmaSH {
-  evento?: string[];
-  local?: string[];
-  competicao?: string[];
-  tipo_arma?: string[];
-  tipo_uso?: string[];
-  tipo_alma?: string[];
-  calibre?: string[];
-  serie?: string[];
-  data_participacao?: string[];
-  cidade_uf?: string;
+  data_participacao?: unknown[];
+  grupo_arma?: unknown[];
+  grupo_arma_completo?: unknown[];
+  arma_formatada?: unknown[];
+  calibre?: unknown[];
+  serie?: unknown[];
+  modalidades?: unknown[];
+  modalidades_simples?: unknown[];
+  prova?: unknown[];
+  prova_cidade?: unknown[];
+  cidade_uf?: unknown;
+  [k: string]: unknown;
 }
 interface AtiradorSH {
   idatirador?: number;
@@ -90,47 +124,102 @@ interface AtiradorSH {
   habitualidades?: Record<string, Record<string, BlocoArmaSH>>;
 }
 
-/** Achata a resposta crua da SH em sessões individuais. */
+/**
+ * Achata a resposta crua da SH e agrupa por (atirador, data, local): uma
+ * habitualidade por dia/local, com as armas daquele dia. Assim, três pistolas
+ * no mesmo treino viram UMA habitualidade (um crédito por grupo), não três.
+ */
 export function normalizar(payload: AtiradorSH[]): SessaoImportada[] {
-  const sessoes: SessaoImportada[] = [];
+  // 1) achata em participações individuais (uma por arma/dia).
+  interface Participacao {
+    idAtirador: string | number;
+    data: string;
+    local: string | null;
+    grupo: string;
+    armaNome: string;
+    serie: string | null;
+    competicao: boolean;
+  }
+  const participacoes: Participacao[] = [];
   for (const atirador of payload ?? []) {
     const idAtirador = atirador.idatirador ?? atirador.cpf ?? '?';
     const grupos = atirador.habitualidades ?? {};
     for (const [groupKey, armas] of Object.entries(grupos)) {
-      for (const [weaponId, bloco] of Object.entries(armas)) {
-        const n = bloco.data_participacao?.length ?? 0;
+      for (const [, bloco] of Object.entries(armas)) {
+        const n = Array.isArray(bloco.data_participacao) ? bloco.data_participacao.length : 0;
         for (let i = 0; i < n; i++) {
           const data = paraDataISO(bloco.data_participacao?.[i]);
           if (!data) continue;
-          const grupo = derivarGrupo(
-            groupKey,
-            bloco.tipo_arma?.[i],
-            bloco.tipo_alma?.[i],
-            bloco.tipo_uso?.[i]
+          const grupo = grupoDoSH(
+            primeiro(bloco.grupo_arma_completo, i),
+            primeiro(bloco.grupo_arma, i) ?? groupKey
           );
-          const serie = bloco.serie?.[i] ?? '';
-          const calibre = bloco.calibre?.[i] ?? '';
-          const armaNome = [calibre, serie ? `nº ${serie}` : '']
-            .filter(Boolean)
-            .join(' ')
-            .trim() || (GRUPOS_VALIDOS.has(grupo) ? grupo : 'Arma');
-          const localNome = bloco.local?.[i] ?? bloco.cidade_uf ?? null;
-          const externoId =
-            'sh_' + hash(`${idAtirador}|${weaponId}|${data}|${serie}|${bloco.evento?.[i] ?? ''}|${i}`);
-
-          sessoes.push({
-            externoId,
+          const serie = primeiro(bloco.serie, i) ?? '';
+          const calibre = primeiro(bloco.calibre, i) ?? '';
+          const armaNome =
+            (primeiro(bloco.arma_formatada, i) ?? '').trim() ||
+            [calibre, serie ? `nº ${serie}` : '']
+              .filter(Boolean)
+              .join(' ')
+              .trim() ||
+            (GRUPOS_VALIDOS.has(grupo) ? grupo : 'Arma');
+          const local =
+            (bloco.cidade_uf != null ? String(bloco.cidade_uf) : undefined) ??
+            primeiro(bloco.prova_cidade, i) ??
+            null;
+          const modalidade = primeiro(bloco.modalidades_simples, i) ?? primeiro(bloco.modalidades, i);
+          const prova = primeiro(bloco.prova, i);
+          participacoes.push({
+            idAtirador,
             data,
-            tipo: ehCompeticao(bloco.competicao?.[i]) ? 'COMPETICAO' : 'TREINO',
+            local,
             grupo,
             armaNome,
-            localNome,
+            serie: serie ? String(serie).trim() : null,
+            competicao: ehCompeticaoSH(modalidade) || Boolean(prova && prova.trim()),
           });
         }
       }
     }
   }
-  return sessoes;
+
+  // 2) agrupa por (atirador, data, local). Dentro da sessão, armas distintas.
+  interface Acc extends SessaoImportada {
+    _vistas: Set<string>;
+    _competicao: boolean;
+  }
+  const porSessao = new Map<string, Acc>();
+  for (const p of participacoes) {
+    const chave = `${p.idAtirador}|${p.data}|${p.local ?? ''}`;
+    let sess = porSessao.get(chave);
+    if (!sess) {
+      sess = {
+        externoId: 'sh_' + hash(chave),
+        data: p.data,
+        tipo: 'TREINO',
+        localNome: p.local,
+        armas: [],
+        _vistas: new Set<string>(),
+        _competicao: false,
+      };
+      porSessao.set(chave, sess);
+    }
+    const chaveArma = `${p.grupo}|${p.serie ?? p.armaNome}`;
+    if (!sess._vistas.has(chaveArma)) {
+      sess._vistas.add(chaveArma);
+      sess.armas.push({ grupo: p.grupo, armaNome: p.armaNome, serie: p.serie });
+    }
+    if (p.competicao) sess._competicao = true;
+  }
+
+  // 3) materializa (uma competição "contamina" a sessão inteira como COMPETICAO).
+  return [...porSessao.values()].map((s) => ({
+    externoId: s.externoId,
+    data: s.data,
+    tipo: s._competicao ? 'COMPETICAO' : 'TREINO',
+    localNome: s.localNome,
+    armas: s.armas,
+  }));
 }
 
 export interface ArmaImportada {
@@ -338,10 +427,24 @@ export async function emailConfereNoSH(
   return { confere, membro: v.membro, status: v.status };
 }
 
-/** Busca e normaliza as habitualidades de um CPF num parceiro. */
+/** Início da janela de 1 ano (contando o dia de hoje) em YYYY-MM-DD. */
+function inicioUmAno(): string {
+  const hoje = new Date();
+  const ini = new Date(hoje);
+  ini.setFullYear(ini.getFullYear() - 1);
+  return ini.toISOString().slice(0, 10);
+}
+
+/**
+ * Busca e normaliza as habitualidades de um CPF num parceiro, sempre da janela
+ * de 1 ano contando o dia de hoje. A SH devolve um OBJETO (um atirador), não um
+ * array — por isso embrulhamos. Pedimos também o intervalo por querystring.
+ */
 export async function buscarHabitualidades(creds: CredenciaisSH, cpf: string): Promise<ResultadoSH> {
   const base = (creds.baseUrl || BASE_PADRAO).replace(/\/$/, '');
-  const url = `${base}/registers/habitualities/${cpf}`;
+  const inicio = inicioUmAno();
+  const fim = new Date().toISOString().slice(0, 10);
+  const url = `${base}/registers/habitualities/${cpf}?startDate=${inicio}&endDate=${fim}`;
   const auth = Buffer.from(`${creds.login}:${creds.senha}`).toString('base64');
 
   let resp: Response;
@@ -360,13 +463,17 @@ export async function buscarHabitualidades(creds: CredenciaisSH, cpf: string): P
       mensagem: `Shooting House recusou o acesso (HTTP ${resp.status}).`,
     };
   }
+  if (resp.status === 404) return { status: 'OK', sessoes: [] }; // sem habitualidades
   if (!resp.ok) {
     return { status: 'ERRO', sessoes: [], mensagem: `HTTP ${resp.status}` };
   }
 
   try {
-    const dados = (await resp.json()) as AtiradorSH[];
-    return { status: 'OK', sessoes: normalizar(dados) };
+    const dados = await resp.json();
+    const lista: AtiradorSH[] = Array.isArray(dados) ? dados : dados ? [dados] : [];
+    // Garante a janela de 1 ano mesmo que a SH ignore o intervalo na querystring.
+    const sessoes = normalizar(lista).filter((s) => s.data >= inicio);
+    return { status: 'OK', sessoes };
   } catch {
     return { status: 'ERRO', sessoes: [], mensagem: 'Resposta inválida da Shooting House' };
   }

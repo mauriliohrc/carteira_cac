@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -31,6 +32,7 @@ export function Tela({
   tituloCabecalho,
   semCabecalho,
   teclado,
+  aoAtualizar,
 }: {
   children: React.ReactNode;
   rolavel?: boolean;
@@ -46,13 +48,27 @@ export function Tela({
   semCabecalho?: boolean;
   /** Formulários: afasta o conteúdo do teclado. */
   teclado?: boolean;
+  /** Habilita "puxar para atualizar" na tela rolável. */
+  aoAtualizar?: () => Promise<void> | void;
 }) {
+  const c = useCores();
   const e = useEstilos(folha);
   const folgaBarra = useFolgaBarra();
   const folgaCabecalho = useFolgaCabecalho();
+  const [atualizando, setAtualizando] = React.useState(false);
 
   const topo = semCabecalho ? espaco.lg : folgaCabecalho;
   const rodape = sobBarra ? folgaBarra : 48;
+
+  const puxarParaAtualizar = React.useCallback(async () => {
+    if (!aoAtualizar) return;
+    setAtualizando(true);
+    try {
+      await aoAtualizar();
+    } finally {
+      setAtualizando(false);
+    }
+  }, [aoAtualizar]);
 
   const conteudo = rolavel ? (
     <ScrollView
@@ -62,6 +78,19 @@ export function Tela({
       ]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
+      // Garante o gesto de "puxar para atualizar" mesmo com conteúdo curto.
+      alwaysBounceVertical={!!aoAtualizar}
+      refreshControl={
+        aoAtualizar ? (
+          <RefreshControl
+            refreshing={atualizando}
+            onRefresh={puxarParaAtualizar}
+            tintColor={c.primario}
+            // Puxa a partir do topo do conteúdo, abaixo do cabeçalho flutuante.
+            progressViewOffset={semCabecalho ? 0 : folgaCabecalho}
+          />
+        ) : undefined
+      }
       // Cabeçalho e barra flutuam sobre a lista; sem estes recuos o indicador
       // de rolagem corre por baixo deles.
       scrollIndicatorInsets={{

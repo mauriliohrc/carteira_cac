@@ -24,7 +24,7 @@ type Aba = 'ARMAS' | 'HABITUALIDADE';
 export default function TelaAcervo() {
   const c = useCores();
   const s = useEstilos(folha);
-  const { armas, premium, progressoHabitualidade } = useApp();
+  const { armas, premium, progressoHabitualidade, sincronizarAgora } = useApp();
   const { aba: abaPedida } = useLocalSearchParams<{ aba?: string }>();
 
   const [aba, setAba] = useState<Aba>(abaPedida === 'habitualidade' ? 'HABITUALIDADE' : 'ARMAS');
@@ -52,7 +52,7 @@ export default function TelaAcervo() {
     : 0;
 
   return (
-    <Tela sobBarra>
+    <Tela sobBarra aoAtualizar={sincronizarAgora}>
       <View style={s.topo}>
         <View style={{ flex: 1 }}>
           {ehHabitualidade ? (

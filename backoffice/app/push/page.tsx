@@ -12,6 +12,9 @@ const ROTULO_ALVO: Record<TipoAlvoPush, string> = {
   ENTIDADE: 'Por entidade',
   USUARIO: 'Um usuário',
   INATIVOS: 'Inativos',
+  SEM_CADASTRO: 'Sem cadastro',
+  SEM_EMAIL: 'E-mail não validado',
+  SEM_ARMA: 'Sem arma cadastrada',
 };
 
 export default function PaginaPush() {
@@ -70,15 +73,16 @@ function Push() {
       case 'INATIVOS':
         return { tipo, diasSemAcesso: Number(dias) };
       default:
-        return { tipo: 'TODOS' };
+        // TODOS, SEM_CADASTRO, SEM_EMAIL, SEM_ARMA — sem campos extras.
+        return { tipo };
     }
   }
 
   const alvoValido =
-    tipo === 'TODOS' ||
     (tipo === 'ENTIDADE' && !!entidadeId) ||
     (tipo === 'USUARIO' && !!usuarioId) ||
-    (tipo === 'INATIVOS' && dias >= 1);
+    (tipo === 'INATIVOS' && dias >= 1) ||
+    (tipo !== 'ENTIDADE' && tipo !== 'USUARIO' && tipo !== 'INATIVOS'); // segmentos simples
 
   async function enviar() {
     setErro('');

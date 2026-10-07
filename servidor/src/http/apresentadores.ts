@@ -10,6 +10,7 @@ import type {
 type NoticiaComMidias = Noticia & {
   midias?: MidiaNoticia[];
   entidade?: { id: string; nome: string } | null;
+  _count?: { leituras?: number };
 };
 
 function apresentarMidia(m: MidiaNoticia) {
@@ -32,6 +33,8 @@ export function apresentarNoticia(n: NoticiaComMidias) {
     entidadeNome: n.entidade?.nome ?? null,
     criadoEm: n.criadoEm,
     atualizadoEm: n.atualizadoEm,
+    // Quantas pessoas leram (quando a consulta incluir a contagem).
+    leituras: n._count?.leituras ?? 0,
     midias: (n.midias ?? []).map(apresentarMidia),
   };
 }
@@ -58,6 +61,7 @@ export function apresentarUsuarioApp(u: UsuarioApp) {
     nome: u.nome,
     email: u.email,
     cpf: u.cpf,
+    celular: u.celular,
     emailVerificado: u.emailVerificado,
     ativo: u.ativo,
     criadoEm: u.criadoEm,

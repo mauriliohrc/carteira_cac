@@ -63,6 +63,7 @@ function ListaDeNoticias() {
                 <th>Título</th>
                 <th>Alcance</th>
                 <th>Status</th>
+                <th>Leituras</th>
                 <th>Publicada em</th>
                 <th>Criada em</th>
               </tr>
@@ -87,6 +88,7 @@ function ListaDeNoticias() {
                       {ROTULO_STATUS[n.status]}
                     </span>
                   </td>
+                  <td title="Pessoas que leram no app">👁 {n.leituras ?? 0}</td>
                   <td>{formatarData(n.publicadaEm)}</td>
                   <td>{formatarData(n.criadoEm)}</td>
                 </tr>

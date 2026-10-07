@@ -7,7 +7,7 @@ import {
 } from '../dominio/validacao.js';
 import type { StatusNoticia } from '../dominio/tipos.js';
 import { apresentarNoticia } from '../http/apresentadores.js';
-import { invalido, naoEncontrado } from '../http/erros.js';
+import { invalido, naoEncontrado, proibido } from '../http/erros.js';
 import { exigirEntidade } from '../http/guardas.js';
 import { enviarPush } from '../push/expo.js';
 
@@ -25,6 +25,7 @@ function resolverPublicadaEm(statusNovo: StatusNoticia, publicadaEmAtual: Date |
 const COM_MIDIAS = {
   midias: { orderBy: { ordem: 'asc' as const } },
   entidade: { select: { id: true, nome: true } },
+  _count: { select: { leituras: true } },
 };
 
 type MidiaEntrada = { tipo: string; url: string; legenda?: string | null };
@@ -39,6 +40,13 @@ function criarMidias(midias: MidiaEntrada[]) {
  */
 export async function rotasEntidade(app: FastifyInstance) {
   app.addHook('preHandler', exigirEntidade());
+
+  // Push (notificações) é só do ADMIN_ENTIDADE; operador faz notícias e competições.
+  function exigirAdminEntidade(req: { usuario?: { papel?: string } }) {
+    if (req.usuario?.papel !== 'ADMIN_ENTIDADE') {
+      throw proibido('Apenas administradores da entidade podem enviar notificações');
+    }
+  }
 
   // Acha uma notícia garantindo que pertence à entidade do requisitante.
   async function acharDaEntidade(id: string, entidadeId: string) {
@@ -62,7 +70,10 @@ export async function rotasEntidade(app: FastifyInstance) {
         orderBy: { criadoEm: 'desc' },
         skip: (pagina - 1) * limite,
         take: limite,
-        include: { entidade: { select: { id: true, nome: true } } },
+        include: {
+          entidade: { select: { id: true, nome: true } },
+          _count: { select: { leituras: true } },
+        },
       }),
     ]);
 
@@ -145,6 +156,7 @@ export async function rotasEntidade(app: FastifyInstance) {
 
   // ------------------------------------------------ push para os sócios
   app.post('/api/entidade/push', async (req) => {
+    exigirAdminEntidade(req);
     const entidadeId = req.usuario!.entidadeId!;
     const { titulo, corpo, dados } = enviarPushEntidadeSchema.parse(req.body);
 
@@ -196,6 +208,7 @@ export async function rotasEntidade(app: FastifyInstance) {
   });
 
   app.get('/api/entidade/push', async (req) => {
+    exigirAdminEntidade(req);
     const entidadeId = req.usuario!.entidadeId!;
     const q = req.query as { limite?: string };
     const limite = Math.min(100, Math.max(1, Number(q.limite) || 30));
@@ -209,6 +222,7 @@ export async function rotasEntidade(app: FastifyInstance) {
 
   // Quantos sócios/aparelhos a entidade alcança (para a tela de push).
   app.get('/api/entidade/alcance', async (req) => {
+    exigirAdminEntidade(req);
     const entidadeId = req.usuario!.entidadeId!;
     const [socios, dispositivos] = await Promise.all([
       prisma.usuarioApp.count({ where: { ativo: true, vinculos: { some: { entidadeId } } } }),

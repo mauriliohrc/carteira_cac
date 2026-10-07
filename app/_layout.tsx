@@ -135,10 +135,12 @@ function Raiz() {
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener((resposta) => {
       const dados = resposta.notification.request.content.data as
-        | { noticiaId?: string; tela?: string }
+        | { noticiaId?: string; competicaoId?: string; tela?: string }
         | undefined;
       if (dados?.noticiaId) {
         router.push({ pathname: '/noticias/[id]', params: { id: String(dados.noticiaId) } });
+      } else if (dados?.competicaoId) {
+        router.push({ pathname: '/competicoes/[id]', params: { id: String(dados.competicaoId) } });
       } else if (dados?.tela) {
         router.push(dados.tela as never);
       } else {

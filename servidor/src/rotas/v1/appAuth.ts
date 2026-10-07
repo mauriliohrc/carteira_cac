@@ -43,10 +43,10 @@ function gerarCodigo(): string {
 export async function rotasAppV1(app: FastifyInstance) {
   // ------------------------------------------------------------- cadastro
   app.post('/app/auth/cadastro', async (req, reply) => {
-    const { nome, cpf, email, senha } = cadastroAppSchema.parse(req.body);
+    const { nome, cpf, email, senha, celular } = cadastroAppSchema.parse(req.body);
     try {
       const usuario = await prisma.usuarioApp.create({
-        data: { nome, cpf, email, senhaHash: await gerarHash(senha) },
+        data: { nome, cpf, email, celular, senhaHash: await gerarHash(senha) },
       });
       const token = assinarTokenApp(usuario.id);
       reply.code(201);

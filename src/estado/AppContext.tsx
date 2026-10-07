@@ -74,6 +74,8 @@ interface EstadoApp {
   marcarAvisosLidos: () => Promise<void>;
   apagarAvisos: () => Promise<void>;
   recarregar: () => Promise<void>;
+  /** Sincroniza com a nuvem (inclui importar da Shooting House) e recarrega. */
+  sincronizarAgora: () => Promise<void>;
   definirPremium: (valor: boolean) => Promise<void>;
 }
 
@@ -298,6 +300,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       marcarAvisosLidos,
       apagarAvisos,
       recarregar: carregar,
+      sincronizarAgora: sincronizarECarregar,
       definirPremium,
     };
   }, [

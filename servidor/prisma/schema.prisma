@@ -59,10 +59,27 @@ model Noticia {
   autor       UsuarioAdmin? @relation(fields: [autorId], references: [id], onDelete: SetNull)
   entidade    EntidadeTiro? @relation(fields: [entidadeId], references: [id], onDelete: Cascade)
   midias      MidiaNoticia[]
+  leituras    LeituraNoticia[]
 
   @@index([status, publicadaEm])
   @@index([entidadeId, status, publicadaEm])
   @@map("noticias")
+}
+
+/// Marca que um usuário do app LEU uma notícia (uma linha por usuário/notícia).
+/// Serve para contar quantas pessoas leram cada notícia.
+model LeituraNoticia {
+  id        String   @id @default(cuid())
+  noticiaId String
+  usuarioId String
+  criadoEm  DateTime @default(now())
+
+  noticia   Noticia    @relation(fields: [noticiaId], references: [id], onDelete: Cascade)
+  usuario   UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([noticiaId, usuarioId])
+  @@index([noticiaId])
+  @@map("leituras_noticia")
 }
 
 /// Mídia de uma notícia (galeria): foto ou vídeo do YouTube, em ordem.
@@ -113,8 +130,98 @@ model EntidadeTiro {
   usuarios     UsuarioEntidade[]
   vinculosApp  VinculoEntidade[]
   noticias     Noticia[]
+  competicoes  Competicao[]
 
   @@map("entidades_tiro")
+}
+
+/// Arquivo enviado pelo backoffice (ex.: banner de competição). Guardado no
+/// banco (como os anexos do app) e servido em GET /uploads/:id.
+model Upload {
+  id        String   @id @default(cuid())
+  mime      String
+  tamanho   Int
+  dados     Bytes
+  criadoEm  DateTime @default(now())
+
+  @@map("uploads")
+}
+
+/// Competição criada por uma ENTIDADE. Agrupa categorias; cada categoria tem
+/// seu próprio ranking. Só aparece no app enquanto `ativo` e dentro do prazo.
+model Competicao {
+  id          String   @id @default(cuid())
+  entidadeId  String
+  nome        String
+  /// Descrição/apresentação da competição.
+  descricao   String?  @db.Text
+  /// Foto/banner (URL). Exibido no app.
+  bannerUrl   String?  @db.Text
+  /// Regulamento completo (texto livre).
+  regras      String?  @db.LongText
+  dataInicio  DateTime
+  dataFim     DateTime
+  ativo       Boolean  @default(true)
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  entidade    EntidadeTiro          @relation(fields: [entidadeId], references: [id], onDelete: Cascade)
+  categorias  CategoriaCompeticao[]
+
+  @@index([entidadeId])
+  @@index([ativo, dataFim])
+  @@map("competicoes")
+}
+
+/// Categoria dentro de uma competição. Tem o próprio ranking e o sentido do
+/// ordenamento: MAIOR (maior pontuação vence) ou MENOR (menor vence, ex.: tempo).
+model CategoriaCompeticao {
+  id            String   @id @default(cuid())
+  competicaoId  String
+  nome          String
+  descricao     String?  @db.Text
+  regras        String?  @db.LongText
+  dataInicio    DateTime?
+  dataFim       DateTime?
+  /// MAIOR | MENOR  (validado por Zod). Sentido do ranking.
+  ordenamento   String   @default("MAIOR")
+  criadoEm      DateTime @default(now())
+  atualizadoEm  DateTime @updatedAt
+
+  competicao    Competicao            @relation(fields: [competicaoId], references: [id], onDelete: Cascade)
+  resultados    ResultadoCompeticao[]
+
+  @@index([competicaoId])
+  @@map("categorias_competicao")
+}
+
+/// Resultado de um atirador numa categoria. Identificado pelo CPF; o nome vem
+/// do usuário do app (se houver conta) ou da Shooting House da entidade.
+/// Um atirador tem no máximo um resultado por categoria.
+model ResultadoCompeticao {
+  id           String   @id @default(cuid())
+  categoriaId  String
+  /// CPF só com dígitos (11).
+  cpf          String
+  /// Nome exibido no ranking.
+  nome         String
+  /// Pontuação (Float: aceita tempo/decimais).
+  pontuacao    Float
+  /// Vínculo opcional ao usuário do app, quando o CPF tem conta.
+  usuarioId    String?
+  /// APP | SHOOTING_HOUSE | MANUAL — de onde veio o nome.
+  origemNome   String   @default("MANUAL")
+  observacao   String?  @db.Text
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  categoria    CategoriaCompeticao @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
+  usuario      UsuarioApp?         @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@unique([categoriaId, cpf])
+  @@index([categoriaId])
+  @@index([usuarioId])
+  @@map("resultados_competicao")
 }
 
 /// Usuário FINAL do aplicativo (o CAC). Conta opcional: o app funciona 100%
@@ -127,6 +234,8 @@ model UsuarioApp {
   email           String   @unique
   nome            String
   senhaHash       String
+  /// Celular para contato/suporte (opcional). Só dígitos.
+  celular         String?
   emailVerificado Boolean  @default(false)
   ativo           Boolean  @default(true)
   /// Última atividade do usuário (heartbeat do app). "Online" = recente.
@@ -145,6 +254,8 @@ model UsuarioApp {
   arquivosSync    ArquivoSync[]
   vinculos        VinculoEntidade[]
   usosCupom       UsoCupom[]
+  resultadosComp  ResultadoCompeticao[]
+  leiturasNoticia LeituraNoticia[]
 
   @@index([ultimoAcessoEm])
   @@map("usuarios_app")

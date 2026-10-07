@@ -152,9 +152,13 @@ export interface SessaoExterna {
   externoId: string;
   data: DataISO;
   tipo: TipoSessao;
-  grupo: Grupo;
-  armaNome: string;
   localNome: string | null;
+  /**
+   * Armas usadas no dia/local. Na Shooting House lança-se uma habitualidade por
+   * arma, mas no mesmo dia e local contam como UMA — por isso vêm agrupadas numa
+   * sessão só. A contagem credita cada grupo uma vez (ver `gruposDaSessao`).
+   */
+  armas: { grupo: Grupo; armaNome: string; serie: string | null }[];
 }
 
 /**
@@ -165,6 +169,15 @@ export interface SessaoExterna {
 export async function importarExternas(sessoes: SessaoExterna[]): Promise<number> {
   const db = await abrirBanco();
   let importadas = 0;
+  // Casa a arma importada (por nº de série) com a cadastrada no app, para a
+  // sessão já vir com as armas marcadas e ligadas ao acervo.
+  const armasLocais = await db.getAllAsync<{ id: string; numero_serie: string }>(
+    'SELECT id, numero_serie FROM armas'
+  );
+  const idPorSerie = new Map<string, string>();
+  for (const a of armasLocais) {
+    if (a.numero_serie) idPorSerie.set(a.numero_serie.trim().toUpperCase(), a.id);
+  }
   await db.withTransactionAsync(async () => {
     for (const s of sessoes) {
       const id = novoId();
@@ -185,14 +198,23 @@ export async function importarExternas(sessoes: SessaoExterna[]): Promise<number
         agora
       );
       if (r.changes > 0) {
-        await db.runAsync(
-          'INSERT INTO habitualidade_armas (id, habitualidade_id, arma_id, grupo, arma_nome) VALUES (?,?,?,?,?)',
-          novoId(),
-          id,
-          null,
-          s.grupo,
-          s.armaNome
-        );
+        // Uma linha por arma distinta do dia/local. A contagem ainda credita
+        // cada grupo uma só vez (ver `gruposDaSessao` no domínio).
+        const vistas = new Set<string>();
+        for (const arma of s.armas) {
+          const chave = `${arma.grupo}|${arma.serie ?? arma.armaNome}`;
+          if (vistas.has(chave)) continue;
+          vistas.add(chave);
+          const armaId = arma.serie ? idPorSerie.get(arma.serie.trim().toUpperCase()) ?? null : null;
+          await db.runAsync(
+            'INSERT OR IGNORE INTO habitualidade_armas (id, habitualidade_id, arma_id, grupo, arma_nome) VALUES (?,?,?,?,?)',
+            novoId(),
+            id,
+            armaId,
+            arma.grupo,
+            arma.armaNome
+          );
+        }
         importadas += 1;
       }
     }

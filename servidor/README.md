@@ -77,6 +77,26 @@ versionadas porque o backoffice é publicado junto com o servidor.
 
 Status da notícia: `RASCUNHO` (invisível no app) | `PUBLICADA`. Só publicadas aparecem no app.
 
+### Competições — entidade (exigem token de ENTIDADE)
+Tudo é escopado à própria entidade do token (`/api/entidade/...`).
+
+| Método | Rota | Observação |
+|---|---|---|
+| GET | `/api/entidade/competicoes` | lista as competições da entidade (com nº de categorias) |
+| POST | `/api/entidade/competicoes` | cria (`nome`, `dataInicio`, `dataFim`, e opcionais `descricao`, `bannerUrl`, `regras`, `ativo`) |
+| GET | `/api/entidade/competicoes/:id` | detalhe + categorias (com contagem de resultados) |
+| PATCH | `/api/entidade/competicoes/:id` | edita |
+| DELETE | `/api/entidade/competicoes/:id` | remove (cascata: categorias e resultados) |
+| POST | `/api/entidade/competicoes/:id/categorias` | cria categoria (`nome`, `ordenamento` = `MAIOR`\|`MENOR`, opcionais `descricao`, `regras`) |
+| PATCH | `/api/entidade/categorias/:id` | edita categoria |
+| DELETE | `/api/entidade/categorias/:id` | remove categoria |
+| GET | `/api/entidade/atirador/:cpf` | prévia do nome do CPF: usuário do app → Shooting House → `NAO_ENCONTRADO` |
+| GET | `/api/entidade/categorias/:id/resultados` | ranking da categoria (com `posicao`) |
+| POST | `/api/entidade/categorias/:id/resultados` | lança resultado (`cpf`, `pontuacao`, `nome?`). Nome resolvido automaticamente (app → SH → manual). Relançar o mesmo CPF **atualiza** (upsert) |
+| DELETE | `/api/entidade/resultados/:id` | remove um resultado |
+
+`ordenamento`: `MAIOR` = maior pontuação vence (pontos/acertos); `MENOR` = menor vence (tempo/penalidades).
+
 ### Aplicativo — usuário final (API versionada, `/api/v1`)
 | Método | Rota | Observação |
 |---|---|---|
@@ -88,6 +108,33 @@ Status da notícia: `RASCUNHO` (invisível no app) | `PUBLICADA`. Só publicadas
 | POST | `/api/v1/app/auth/senha/redefinir` | token + nova senha |
 | GET  | `/api/v1/app/noticias?cursor=&limite=10` | **público**; só publicadas; lista infinita por cursor |
 | GET  | `/api/v1/app/noticias/:id` | **público**; só se publicada |
+| GET  | `/api/v1/app/habitualidades/importar` | requer token; importa da Shooting House (ver regra abaixo) |
+| GET  | `/api/v1/app/competicoes` | requer token; competições **ativas** das entidades do usuário |
+| GET  | `/api/v1/app/competicoes/:id` | requer token; categorias com **Top 10** + a posição do próprio usuário |
+
+#### Habitualidades — Shooting House (regra de contagem)
+
+`GET /api/v1/app/habitualidades/importar` varre as entidades com integração SH
+ativa, confere o CPF e devolve as sessões **já deduplicadas**. Na Shooting House
+lança-se **uma habitualidade por arma**; mas no **mesmo dia e no mesmo local**
+todas contam como **uma única habitualidade — um crédito por grupo de armas**.
+Por isso a resposta agrupa por `(atirador, data, local)`:
+
+```jsonc
+{
+  "externoId": "sh_xxxx",       // estável por (atirador, data, local) → não duplica ao reimportar
+  "data": "2026-01-10",
+  "tipo": "TREINO",             // "COMPETICAO" se qualquer participação do dia for de competição
+  "localNome": "Clube A",
+  "armas": [                     // armas distintas do dia; o app credita cada GRUPO uma vez
+    { "grupo": "CC_PERMITIDA", "armaNome": ".38 nº 111" },
+    { "grupo": "CLR_PERMITIDA", "armaNome": ".308 nº 333" }
+  ]
+}
+```
+
+O app mescla por `externoId` e cria uma sessão local com essas armas; a contagem
+por grupo (`domain/habitualidade.ts`) credita cada grupo uma só vez por sessão.
 
 > **E-mail de reset:** ainda não há envio de e-mail (SMTP/provedor). Fora de produção, o
 > endpoint `esqueci` devolve o token no corpo para permitir testar o fluxo. Em produção
