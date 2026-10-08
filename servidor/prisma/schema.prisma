@@ -244,6 +244,9 @@ model UsuarioApp {
   vinculosCheckEm DateTime?
   /// Premium reportado pelo app (assinatura/cupom ativos neste aparelho).
   premium         Boolean  @default(false)
+  /// Origem do premium reportada pelo app: CUPOM | MENSAL | ANUAL | ANUAL_PARCEIRO.
+  /// Nulo quando desconhecido (app antigo que só reporta o booleano) ou sem premium.
+  premiumTipo     String?
   criadoEm        DateTime @default(now())
   atualizadoEm    DateTime @updatedAt
 

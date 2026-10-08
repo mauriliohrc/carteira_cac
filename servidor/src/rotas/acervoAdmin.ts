@@ -56,6 +56,7 @@ export async function rotasAcervoAdmin(app: FastifyInstance) {
         cpf: u.cpf,
         ativo: u.ativo,
         premium: u.premium,
+        premiumTipo: u.premiumTipo,
         emailVerificado: u.emailVerificado,
         entidades: vinculos.map((v) => ({ id: v.entidade.id, nome: v.entidade.nome, origem: v.origem })),
         ultimoAcessoEm: u.ultimoAcessoEm,

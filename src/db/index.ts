@@ -2,7 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import { Platform } from 'react-native';
 
 const NOME_BANCO = 'cacbrasil.db';
-const VERSAO_ALVO = 7;
+const VERSAO_ALVO = 8;
 
 let instancia: SQLite.SQLiteDatabase | null = null;
 let abrindo: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -185,6 +185,14 @@ const MIGRACOES: ((db: SQLite.SQLiteDatabase) => Promise<void>)[] = [
         PRIMARY KEY (tipo, registro_id)
       );
     `);
+  },
+
+  // v8 — local do manejo nas autorizações de caça/manejo de fauna.
+  //
+  // Aditiva: coluna opcional, nasce NULL para tudo que já existe. Só a
+  // Autorização de Manejo preenche; os demais documentos a ignoram.
+  async (db) => {
+    await db.execAsync('ALTER TABLE documentos ADD COLUMN local_manejo TEXT;');
   },
 ];
 

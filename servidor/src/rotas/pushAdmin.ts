@@ -140,6 +140,7 @@ export async function rotasPushAdmin(app: FastifyInstance) {
         ativo: u.ativo,
         emailVerificado: u.emailVerificado,
         premium: u.premium,
+        premiumTipo: u.premiumTipo,
         entidades: u.vinculos.map((v) => ({ id: v.entidade.id, nome: v.entidade.nome, origem: v.origem })),
         ultimoAcessoEm: u.ultimoAcessoEm,
         online: estaOnline(u.ultimoAcessoEm),

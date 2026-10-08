@@ -8,6 +8,7 @@ import { GRUPO_POR_VALOR, TIPO_SESSAO_POR_VALOR } from '@/domain/catalogos';
 import {
   gruposDaSessao,
   MINIMO_POR_GRUPO,
+  type ProgressoGenerico,
   type ProgressoGrupo,
   type ProgressoHabitualidade,
 } from '@/domain/habitualidade';
@@ -21,7 +22,10 @@ import { Etiqueta } from './base';
  * fiscalização, então o latão cobre todo o meio do caminho e o vermelho fica
  * para quem não registrou nada nos 12 meses.
  */
-export function corDoGrupo(p: ProgressoGrupo, c: Paleta): { cor: string; fundo: string } {
+export function corDoGrupo(
+  p: { cumprido: boolean; feitas: number },
+  c: Paleta
+): { cor: string; fundo: string } {
   if (p.cumprido) return { cor: c.primario, fundo: c.primarioFraco };
   if (p.feitas === 0) return { cor: c.perigo, fundo: c.perigoFraco };
   return { cor: c.aviso, fundo: c.avisoFraco };
@@ -48,12 +52,24 @@ export function Marcas({ feitas, cor }: { feitas: number; cor: string }) {
   );
 }
 
-/** Uma linha do andamento: grupo, contagem, marcas e o que isso significa. */
-export function LinhaGrupo({ progresso }: { progresso: ProgressoGrupo }) {
+/**
+ * Uma linha do andamento: grupo (ou a exigência genérica), contagem, marcas e
+ * o que isso significa. O `rotulo` sobrescreve o nome — usado pelo genérico,
+ * que não tem grupo balístico a exibir.
+ */
+export function LinhaGrupo({
+  progresso,
+  rotulo,
+}: {
+  progresso: ProgressoGrupo | ProgressoGenerico;
+  rotulo?: string;
+}) {
   const c = useCores();
   const h = useEstilos(folha);
   const { cor, fundo } = corDoGrupo(progresso, c);
-  const grupo = GRUPO_POR_VALOR[progresso.grupo];
+  const nome =
+    rotulo ??
+    ('grupo' in progresso ? GRUPO_POR_VALOR[progresso.grupo]?.curto ?? progresso.grupo : 'Habitualidade');
   const extras = Math.max(0, progresso.feitas - MINIMO_POR_GRUPO);
 
   const situacao = progresso.cumprido
@@ -71,7 +87,7 @@ export function LinhaGrupo({ progresso }: { progresso: ProgressoGrupo }) {
           color={cor}
         />
         <Text style={h.grupoNome} numberOfLines={1}>
-          {grupo?.curto ?? progresso.grupo}
+          {nome}
         </Text>
         <Text style={[h.contagem, { color: cor }]}>
           {Math.min(progresso.feitas, MINIMO_POR_GRUPO)}/{MINIMO_POR_GRUPO}
@@ -109,9 +125,11 @@ export function ResumoHabitualidade({
 }) {
   const c = useCores();
   const h = useEstilos(folha);
+  const g = progresso.generico;
   const total = progresso.grupos.length;
-  const tudoEmDia = progresso.cumpridos === total;
-  const cor = tudoEmDia ? c.primario : progresso.cumpridos ? c.aviso : c.perigo;
+  const tudoEmDia = g ? g.cumprido : progresso.cumpridos === total;
+  const emAndamento = g ? g.feitas > 0 : progresso.cumpridos > 0;
+  const cor = tudoEmDia ? c.primario : emAndamento ? c.aviso : c.perigo;
 
   return (
     <Pressable
@@ -125,17 +143,25 @@ export function ResumoHabitualidade({
       <View style={{ flex: 1 }}>
         <Text style={h.resumoTitulo}>Habitualidade</Text>
         <Text style={h.resumoSub} numberOfLines={1}>
-          {tudoEmDia
-            ? `${total} grupo${total > 1 ? 's' : ''} em dia nos últimos 12 meses`
-            : `${progresso.cumpridos}/${total} grupos em dia · faltam ${progresso.faltamTotal} sessões`}
+          {g
+            ? g.cumprido
+              ? `${MINIMO_POR_GRUPO} sessões em dia nos últimos 12 meses`
+              : `Faltam ${g.faltam} de ${MINIMO_POR_GRUPO} sessões`
+            : tudoEmDia
+              ? `${total} grupo${total > 1 ? 's' : ''} em dia nos últimos 12 meses`
+              : `${progresso.cumpridos}/${total} grupos em dia · faltam ${progresso.faltamTotal} sessões`}
         </Text>
         <View style={h.pontos}>
-          {progresso.grupos.map((g) => (
-            <View
-              key={g.grupo}
-              style={[h.ponto, { backgroundColor: corDoGrupo(g, c).cor }]}
-            />
-          ))}
+          {g ? (
+            <View style={[h.ponto, { backgroundColor: corDoGrupo(g, c).cor }]} />
+          ) : (
+            progresso.grupos.map((grupo) => (
+              <View
+                key={grupo.grupo}
+                style={[h.ponto, { backgroundColor: corDoGrupo(grupo, c).cor }]}
+              />
+            ))
+          )}
         </View>
       </View>
 

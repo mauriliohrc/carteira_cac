@@ -14,6 +14,7 @@ interface LinhaDoc {
   data_validade: string;
   origem: string | null;
   destino: string | null;
+  local_manejo: string | null;
   observacoes: string | null;
   criado_em: string;
   atualizado_em: string;
@@ -31,6 +32,7 @@ function daLinha(l: LinhaDoc): Documento {
     dataValidade: l.data_validade as DataISO,
     origem: l.origem,
     destino: l.destino,
+    localManejo: l.local_manejo,
     observacoes: l.observacoes,
     criadoEm: l.criado_em,
     atualizadoEm: l.atualizado_em,
@@ -60,8 +62,8 @@ export async function criarDocumento(entrada: EntradaDocumento): Promise<string>
   await db.runAsync(
     `INSERT INTO documentos (
       id, tipo, arma_id, titulo, numero, orgao, data_emissao, data_validade,
-      origem, destino, observacoes, criado_em, atualizado_em
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      origem, destino, local_manejo, observacoes, criado_em, atualizado_em
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     id,
     entrada.tipo,
     entrada.armaId,
@@ -72,6 +74,7 @@ export async function criarDocumento(entrada: EntradaDocumento): Promise<string>
     entrada.dataValidade,
     limpo(entrada.origem),
     limpo(entrada.destino),
+    limpo(entrada.localManejo),
     limpo(entrada.observacoes),
     agora,
     agora
@@ -87,7 +90,7 @@ export async function atualizarDocumento(
   await db.runAsync(
     `UPDATE documentos SET
       tipo = ?, arma_id = ?, titulo = ?, numero = ?, orgao = ?, data_emissao = ?,
-      data_validade = ?, origem = ?, destino = ?,
+      data_validade = ?, origem = ?, destino = ?, local_manejo = ?,
       observacoes = ?, atualizado_em = ?
      WHERE id = ?`,
     entrada.tipo,
@@ -99,6 +102,7 @@ export async function atualizarDocumento(
     entrada.dataValidade,
     limpo(entrada.origem),
     limpo(entrada.destino),
+    limpo(entrada.localManejo),
     limpo(entrada.observacoes),
     agoraISO(),
     id

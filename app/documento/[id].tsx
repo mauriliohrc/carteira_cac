@@ -157,6 +157,13 @@ export default function DetalheDocumento() {
           </>
         ) : null}
 
+        {def.campos.local && doc.localManejo ? (
+          <>
+            <Divisor />
+            <Linha rotulo="Local do manejo" valor={doc.localManejo} />
+          </>
+        ) : null}
+
         {doc.observacoes ? (
           <>
             <Divisor />

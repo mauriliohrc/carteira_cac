@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 
 import { espaco, MONO, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { useApp } from '@/estado/AppContext';
-import { Botao, Cartao, Secao, Vazio } from '@/ui/base';
+import { Botao, Cartao, Secao } from '@/ui/base';
 import { CartaoSessao, LinhaGrupo } from '@/ui/habitualidade';
 import { isoParaBR } from '@/lib/data';
 import { MESES_JANELA, MINIMO_POR_GRUPO } from '@/domain/habitualidade';
@@ -23,33 +23,38 @@ const NO_HISTORICO = 8;
 export function ConteudoHabitualidade({ aoRegistrar }: { aoRegistrar: () => void }) {
   const c = useCores();
   const s = useEstilos(folha);
-  const { armas, habitualidades, progressoHabitualidade: p } = useApp();
+  const { habitualidades, progressoHabitualidade: p } = useApp();
 
-  const tudoEmDia = p.exigido && p.cumpridos === p.grupos.length;
+  const g = p.generico;
+  const tudoEmDia = p.exigido && (g ? g.cumprido : p.cumpridos === p.grupos.length);
+  const algumProgresso = g ? g.feitas > 0 : p.cumpridos > 0;
   const corStatus = !p.exigido
     ? c.info
     : tudoEmDia
       ? c.primario
-      : p.cumpridos
+      : algumProgresso
         ? c.aviso
         : c.perigo;
 
-  if (!armas.length) {
-    return (
-      <Vazio
-        icone="locate-outline"
-        titulo="Cadastre uma arma primeiro"
-        descricao="A habitualidade é contada por grupo de armas. Cadastre o acervo de atirador desportivo e o app passa a mostrar quantas sessões faltam em cada grupo."
-        acao={
-          <Botao
-            titulo="Cadastrar arma"
-            icone="add"
-            aoTocar={() => router.push('/arma/editar')}
-          />
-        }
-      />
-    );
-  }
+  const statusTitulo = !p.exigido
+    ? 'Habitualidade não exigida'
+    : g
+      ? g.cumprido
+        ? 'Habitualidade em dia'
+        : `Faltam ${g.faltam} sessões`
+      : tudoEmDia
+        ? 'Habitualidade em dia'
+        : `Faltam ${p.faltamTotal} sessões`;
+
+  const statusSub = !p.exigido
+    ? 'Acervo só de defesa pessoal não exige habitualidade. Cadastre uma arma de atirador para acompanhar a habitualidade por grupo.'
+    : g
+      ? g.cumprido
+        ? `Suas ${MINIMO_POR_GRUPO} sessões dos últimos 12 meses estão em dia.`
+        : `Você ainda não tem arma de atirador: faça ${MINIMO_POR_GRUPO} sessões de qualquer grupo, treinando com arma do clube. ${g.feitas}/${MINIMO_POR_GRUPO} feitas.`
+      : tudoEmDia
+        ? `Os ${p.grupos.length} grupos do seu acervo de atirador têm as ${MINIMO_POR_GRUPO} sessões.`
+        : `${p.cumpridos} de ${p.grupos.length} grupos do acervo de atirador estão em dia.`;
 
   return (
     <>
@@ -68,30 +73,26 @@ export function ConteudoHabitualidade({ aoRegistrar }: { aoRegistrar: () => void
             color={corStatus}
           />
           <View style={{ flex: 1 }}>
-            <Text style={s.statusTitulo}>
-              {!p.exigido
-                ? 'Seu acervo não exige habitualidade'
-                : tudoEmDia
-                  ? 'Habitualidade em dia'
-                  : `Faltam ${p.faltamTotal} sessões`}
-            </Text>
-            <Text style={s.statusSub}>
-              {!p.exigido
-                ? 'A comprovação é exigida só do acervo de atirador desportivo. Caça, coleção e defesa pessoal não pedem.'
-                : tudoEmDia
-                  ? `Os ${p.grupos.length} grupos do seu acervo de atirador têm as ${MINIMO_POR_GRUPO} sessões.`
-                  : `${p.cumpridos} de ${p.grupos.length} grupos do acervo de atirador estão em dia.`}
-            </Text>
+            <Text style={s.statusTitulo}>{statusTitulo}</Text>
+            <Text style={s.statusSub}>{statusSub}</Text>
           </View>
         </View>
 
         {p.exigido ? (
-          <View style={s.numeros}>
-            <Numero valor={p.grupos.length} rotulo="Grupos" cor={c.texto} />
-            <Numero valor={p.cumpridos} rotulo="Em dia" cor={c.primario} />
-            <Numero valor={p.grupos.length - p.cumpridos} rotulo="Pendentes" cor={c.perigo} />
-            <Numero valor={p.sessoesNaJanela} rotulo="Sessões" cor={c.textoMedio} />
-          </View>
+          g ? (
+            <View style={s.numeros}>
+              <Numero valor={g.feitas} rotulo="Feitas" cor={c.primario} />
+              <Numero valor={g.faltam} rotulo="Faltam" cor={c.perigo} />
+              <Numero valor={MINIMO_POR_GRUPO} rotulo="Mínimo" cor={c.textoMedio} />
+            </View>
+          ) : (
+            <View style={s.numeros}>
+              <Numero valor={p.grupos.length} rotulo="Grupos" cor={c.texto} />
+              <Numero valor={p.cumpridos} rotulo="Em dia" cor={c.primario} />
+              <Numero valor={p.grupos.length - p.cumpridos} rotulo="Pendentes" cor={c.perigo} />
+              <Numero valor={p.sessoesNaJanela} rotulo="Sessões" cor={c.textoMedio} />
+            </View>
+          )
         ) : null}
 
         <Text style={s.janela}>
@@ -100,16 +101,27 @@ export function ConteudoHabitualidade({ aoRegistrar }: { aoRegistrar: () => void
       </Cartao>
 
       {p.exigido ? (
-        <Secao titulo="Andamento por grupo">
-          {p.grupos.map((grupo) => (
-            <LinhaGrupo key={grupo.grupo} progresso={grupo} />
-          ))}
-          <Text style={s.nota}>
-            Um grupo só é cobrado se houver arma dele no acervo de atirador. Uma sessão com duas
-            armas do mesmo grupo vale uma habitualidade; com armas de grupos diferentes, vale uma
-            em cada.
-          </Text>
-        </Secao>
+        g ? (
+          <Secao titulo="Andamento">
+            <LinhaGrupo progresso={g} rotulo="Habitualidade (qualquer grupo)" />
+            <Text style={s.nota}>
+              Sem arma de atirador, as {MINIMO_POR_GRUPO} sessões valem de qualquer grupo — você
+              treina com a arma do clube. Ao cadastrar uma arma de atirador, a contagem passa a ser
+              por grupo.
+            </Text>
+          </Secao>
+        ) : (
+          <Secao titulo="Andamento por grupo">
+            {p.grupos.map((grupo) => (
+              <LinhaGrupo key={grupo.grupo} progresso={grupo} />
+            ))}
+            <Text style={s.nota}>
+              Um grupo só é cobrado se houver arma dele no acervo de atirador. Uma sessão com duas
+              armas do mesmo grupo vale uma habitualidade; com armas de grupos diferentes, vale uma
+              em cada.
+            </Text>
+          </Secao>
+        )
       ) : null}
 
       <Secao
@@ -157,7 +169,9 @@ export function ConteudoHabitualidade({ aoRegistrar }: { aoRegistrar: () => void
       </Secao>
 
       <Text style={s.rodape}>
-        Mínimo de {MINIMO_POR_GRUPO} sessões por grupo nos últimos {MESES_JANELA} meses.
+        {g
+          ? `Mínimo de ${MINIMO_POR_GRUPO} sessões nos últimos ${MESES_JANELA} meses.`
+          : `Mínimo de ${MINIMO_POR_GRUPO} sessões por grupo nos últimos ${MESES_JANELA} meses.`}
       </Text>
     </>
   );

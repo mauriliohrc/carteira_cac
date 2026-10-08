@@ -54,13 +54,24 @@ export async function rotasDispositivosAppV1(app: FastifyInstance) {
   // vincular o usuário às entidades em que ele é sócio ativo e adimplente.
   app.post('/app/presenca', { preHandler: exigirApp() }, async (req) => {
     const id = req.usuario!.id;
-    const corpo = (req.body ?? {}) as { premium?: boolean };
+    const corpo = (req.body ?? {}) as { premium?: boolean; premiumTipo?: string | null };
+
+    // Retrocompatível: apps antigos mandam só `premium` (booleano). O
+    // `premiumTipo` é opcional e só grava quando vem um valor conhecido;
+    // perder o premium zera o tipo.
+    const tiposValidos = ['CUPOM', 'MENSAL', 'ANUAL', 'ANUAL_PARCEIRO'];
+    const dados: Record<string, unknown> = { ultimoAcessoEm: new Date() };
+    if (typeof corpo.premium === 'boolean') {
+      dados.premium = corpo.premium;
+      if (!corpo.premium) dados.premiumTipo = null;
+    }
+    if (typeof corpo.premiumTipo === 'string' && tiposValidos.includes(corpo.premiumTipo)) {
+      dados.premiumTipo = corpo.premiumTipo;
+    }
+
     const u = await prisma.usuarioApp.update({
       where: { id },
-      data: {
-        ultimoAcessoEm: new Date(),
-        ...(typeof corpo.premium === 'boolean' ? { premium: corpo.premium } : {}),
-      },
+      data: dados,
       select: { cpf: true, vinculosCheckEm: true },
     });
 

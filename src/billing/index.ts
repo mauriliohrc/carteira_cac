@@ -21,11 +21,12 @@ import {
   requestPurchase,
   finishTransaction,
   restorePurchases,
-  hasActiveSubscriptions,
+  getActiveSubscriptions,
   purchaseUpdatedListener,
   purchaseErrorListener,
   type Purchase,
   type ProductSubscription,
+  type ActiveSubscription,
 } from 'expo-iap';
 
 import { CHAVES, gravarConfig, lerConfig } from '@/db/config';
@@ -44,6 +45,24 @@ export const PRECO_PARCEIRO_PADRAO = 'R$ 49,90';
 
 /** Todos os produtos que, ativos na loja, valem como Premium. */
 const TODOS_PRODUTOS = [...PRODUTOS_ASSINATURA, PRODUTO_PARCEIRO];
+
+/** Tipo do premium ativo, para o backoffice distinguir a origem. */
+export type TipoPremium = 'CUPOM' | 'MENSAL' | 'ANUAL' | 'ANUAL_PARCEIRO';
+
+const TIPO_POR_PRODUTO: Record<string, TipoPremium> = {
+  premium_mensal: 'MENSAL',
+  premium_anual: 'ANUAL',
+  [PRODUTO_PARCEIRO]: 'ANUAL_PARCEIRO',
+};
+
+/** A SKU ativa (parceiro > anual > mensal) traduzida em tipo; null se nenhuma. */
+function tipoDasAssinaturas(assinaturas: ActiveSubscription[]): TipoPremium | null {
+  const ids = new Set(assinaturas.map((a) => a.productId));
+  if (ids.has(PRODUTO_PARCEIRO)) return 'ANUAL_PARCEIRO';
+  if (ids.has('premium_anual')) return 'ANUAL';
+  if (ids.has('premium_mensal')) return 'MENSAL';
+  return null;
+}
 
 /**
  * Metadados de apresentação de cada plano. O PREÇO não vem daqui — vem da loja
@@ -218,6 +237,17 @@ export async function consultarPremiumCache(): Promise<boolean> {
 }
 
 /**
+ * Tipo do premium conhecido localmente, sem tocar a loja. Cupom vence tudo;
+ * senão, lê o tipo da última assinatura vista. null = premium de origem ainda
+ * desconhecida (ex.: assinatura ativa mas loja ainda não consultada).
+ */
+export async function consultarTipoPremiumCache(): Promise<TipoPremium | null> {
+  if (await temCodigoPromocional()) return 'CUPOM';
+  const t = await lerConfig(CHAVES.premiumTipo);
+  return t === 'MENSAL' || t === 'ANUAL' || t === 'ANUAL_PARCEIRO' ? t : null;
+}
+
+/**
  * Checa a assinatura na loja e atualiza o cache. NÃO use no caminho de
  * carregamento do app — pode demorar; chame em segundo plano. Com timeout,
  * nunca trava: se a loja não responde, mantém o cache.
@@ -228,9 +258,16 @@ export async function consultarPremium(): Promise<boolean> {
   try {
     await iniciarBilling();
     if (conectado) {
-      const ativo = await comTimeout(hasActiveSubscriptions([...TODOS_PRODUTOS]), 8_000, null);
-      if (ativo !== null) {
+      const assinaturas = await comTimeout(
+        getActiveSubscriptions([...TODOS_PRODUTOS]) as Promise<ActiveSubscription[]>,
+        8_000,
+        null
+      );
+      if (assinaturas !== null) {
+        const ativo = assinaturas.length > 0;
         await gravarConfig(CHAVES.premium, ativo ? '1' : '0');
+        // Guarda o tipo pela SKU ativa; zera quando não há assinatura.
+        await gravarConfig(CHAVES.premiumTipo, ativo ? tipoDasAssinaturas(assinaturas) ?? '' : '');
         return ativo;
       }
     }
@@ -299,7 +336,12 @@ export async function comprarPlano(id: IdPlano | typeof PRODUTO_PARCEIRO): Promi
   }
 
   return new Promise<boolean>((resolve) => {
-    pendente = resolve;
+    pendente = (sucesso) => {
+      // Compra confirmada: grava o tipo pela SKU comprada já na hora (a
+      // checagem da loja em segundo plano confirma depois).
+      if (sucesso) void gravarConfig(CHAVES.premiumTipo, TIPO_POR_PRODUTO[id] ?? '');
+      resolve(sucesso);
+    };
     requestPurchase({
       request: {
         apple: { sku: id },
@@ -322,8 +364,14 @@ export async function restaurarCompras(): Promise<boolean> {
     await iniciarBilling();
     if (!conectado) return false;
     await comTimeout(restorePurchases().then(() => true).catch(() => true), 15_000, true);
-    const ativo = await comTimeout(hasActiveSubscriptions([...TODOS_PRODUTOS]), 8_000, false);
+    const assinaturas = await comTimeout(
+      getActiveSubscriptions([...TODOS_PRODUTOS]) as Promise<ActiveSubscription[]>,
+      8_000,
+      [] as ActiveSubscription[]
+    );
+    const ativo = assinaturas.length > 0;
     await marcarPremium(ativo);
+    await gravarConfig(CHAVES.premiumTipo, ativo ? tipoDasAssinaturas(assinaturas) ?? '' : '');
     return ativo;
   } catch {
     return false;

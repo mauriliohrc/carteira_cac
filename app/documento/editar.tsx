@@ -53,6 +53,7 @@ export default function EditorDocumento() {
   );
   const [origem, setOrigem] = useState(existente?.origem ?? '');
   const [destino, setDestino] = useState(existente?.destino ?? '');
+  const [localManejo, setLocalManejo] = useState(existente?.localManejo ?? '');
   const [observacoes, setObservacoes] = useState(existente?.observacoes ?? '');
   const [erros, setErros] = useState<Record<string, string>>({});
   const [salvando, setSalvando] = useState(false);
@@ -60,6 +61,7 @@ export default function EditorDocumento() {
   const def = TIPO_DOC_POR_VALOR[tipo];
   const ehDeArma = def.escopo === 'ARMA';
   const ehGuia = tipo === 'GUIA_TRAFEGO';
+  const ehManejo = !!def.campos.local;
 
   // Trocar de tipo reposiciona o órgão emissor e solta o vínculo com a arma
   // quando o documento passa a ser pessoal.
@@ -110,6 +112,7 @@ export default function EditorDocumento() {
       dataValidade: validade,
       origem: ehGuia ? origem : null,
       destino: ehGuia ? destino : null,
+      localManejo: ehManejo ? localManejo : null,
       observacoes,
     };
     try {
@@ -258,6 +261,18 @@ export default function EditorDocumento() {
               aoMudar={setDestino}
               placeholder="Ex.: Clube de Tiro Alfa — Pinhais/PR"
               erro={erros.destino}
+            />
+          </BlocoFormulario>
+        ) : null}
+
+        {ehManejo ? (
+          <BlocoFormulario titulo="Local do manejo">
+            <Campo
+              rotulo="Local autorizado"
+              valor={localManejo}
+              aoMudar={setLocalManejo}
+              placeholder="Ex.: Fazenda Santa Clara — Bagé/RS"
+              dica="Propriedade, município ou área onde o manejo está autorizado."
             />
           </BlocoFormulario>
         ) : null}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { tempoRelativo } from '@/lib/formato';
+import { rotuloPlano } from '@/lib/tipos';
 import type { ListaUsuariosApp } from '@/lib/tipos';
 import { Protegido } from '../componentes/Protegido';
 
@@ -209,7 +210,7 @@ function ListaUsuarios() {
                   </td>
                   <td>
                     <span className={`etiqueta ${u.premium ? 'publicada' : 'rascunho'}`}>
-                      {u.premium ? 'Premium' : 'Grátis'}
+                      {rotuloPlano(u.premium, u.premiumTipo)}
                     </span>
                   </td>
                   <td>

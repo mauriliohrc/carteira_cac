@@ -17,8 +17,22 @@ const ORDEM: TipoDocumento[] = [
   'LAUDO_CAPACIDADE_TECNICA',
   'FILIACAO_CLUBE',
   'HABITUALIDADE',
+  'AUTORIZACAO_MANEJO',
+  'AUTORIZACAO_IBAMA',
   'CERTIDAO',
   'OUTRO',
+];
+
+/**
+ * Tipos que não entram em "Ainda não cadastrados": ou são genéricos
+ * (Outro/Certidão), ou valem só para quem caça (Manejo/IBAMA) e virariam
+ * sugestão sem sentido para a maioria, que é atirador.
+ */
+const SEM_SUGESTAO: TipoDocumento[] = [
+  'OUTRO',
+  'CERTIDAO',
+  'AUTORIZACAO_MANEJO',
+  'AUTORIZACAO_IBAMA',
 ];
 
 export default function Pessoais() {
@@ -36,7 +50,7 @@ export default function Pessoais() {
     return mapa;
   }, [documentosPessoais]);
 
-  const faltando = ORDEM.filter((t) => t !== 'OUTRO' && t !== 'CERTIDAO' && !porTipo.has(t));
+  const faltando = ORDEM.filter((t) => !SEM_SUGESTAO.includes(t) && !porTipo.has(t));
   const novo = (tipo?: TipoDocumento) =>
     router.push({
       pathname: '/documento/editar',

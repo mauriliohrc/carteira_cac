@@ -22,8 +22,15 @@ export const CHAVES = {
   premium: 'premium.ativo',
   /** Premium liberado por código promocional (dono): não expira nem depende da loja. */
   premiumCodigo: 'premium.codigo',
+  /** Tipo do premium da loja: 'MENSAL' | 'ANUAL' | 'ANUAL_PARCEIRO' (cupom é derivado do código). */
+  premiumTipo: 'premium.tipo',
   onboardingVisto: 'app.onboarding',
   tema: 'app.tema',
+  /**
+   * O usuário quer acompanhar habitualidade no app. Ligado por padrão; se
+   * desligar, a habitualidade some do app (nem calcula, nem exibe, nem avisa).
+   */
+  gerenciarHabitualidade: 'habitualidade.gerenciar',
   /** Já pedimos a avaliação na loja (uma vez só, no cadastro da primeira arma). */
   avaliacaoPedida: 'app.avaliacao.pedida',
   /** Cursor (carimbo do servidor) do último pull de sincronização na nuvem. */

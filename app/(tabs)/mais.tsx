@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
@@ -35,7 +35,8 @@ export default function Mais() {
   const c = useCores();
   const m = useEstilos(folha);
   const { preferencia, definirPreferencia, esquema } = useTema();
-  const { armas, documentos, premium, definirPremium } = useApp();
+  const { armas, documentos, premium, definirPremium, gerenciarHabitualidade, definirGerenciarHabitualidade } =
+    useApp();
   const { temPin } = useTranca();
   const [restaurando, setRestaurando] = useState(false);
   const [statusAvisos, setStatusAvisos] = useState<{ ativo: boolean; agendadas: number } | null>(null);
@@ -103,6 +104,37 @@ export default function Mais() {
             {preferencia === 'automatico'
               ? `Seguindo o sistema — agora em modo ${esquema}.`
               : `Fixo em modo ${esquema}, independente do sistema.`}
+          </Text>
+        </Cartao>
+      </Secao>
+
+      <Secao titulo="Habitualidade">
+        <Cartao>
+          <View style={m.linhaAviso}>
+            <Ionicons
+              name={gerenciarHabitualidade ? 'locate' : 'locate-outline'}
+              size={20}
+              color={gerenciarHabitualidade ? c.primario : c.textoFraco}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={m.itemTitulo}>Gerenciar habitualidade</Text>
+              <Text style={m.itemSub}>
+                {gerenciarHabitualidade
+                  ? 'Acompanhando as sessões de tiro exigidas do atirador'
+                  : 'Desligada — a habitualidade não aparece no app'}
+              </Text>
+            </View>
+            <Switch
+              value={gerenciarHabitualidade}
+              onValueChange={(v) => void definirGerenciarHabitualidade(v)}
+              trackColor={{ true: c.primario, false: c.borda }}
+              thumbColor={c.superficie}
+              ios_backgroundColor={c.borda}
+            />
+          </View>
+          <Text style={m.dica}>
+            Deixe ligada se você é atirador desportivo. Caçadores e colecionadores que não atiram
+            podem desligar — some a aba e os avisos de habitualidade.
           </Text>
         </Cartao>
       </Secao>

@@ -156,6 +156,8 @@ export interface DefTipoDoc {
   campos: {
     numero?: string;
     trajeto?: boolean;
+    /** Mostra o campo "Local do manejo" — só a Autorização de Manejo usa. */
+    local?: boolean;
   };
 }
 
@@ -237,6 +239,24 @@ export const TIPOS_DOCUMENTO: DefTipoDoc[] = [
     campos: { numero: 'Nº do comprovante' },
   },
   {
+    valor: 'AUTORIZACAO_MANEJO',
+    rotulo: 'Autorização de Manejo de Fauna',
+    curto: 'Aut. de Manejo',
+    icone: 'paw',
+    escopo: 'PESSOAL',
+    orgaoPadrao: 'IBAMA',
+    campos: { numero: 'Nº da autorização', local: true },
+  },
+  {
+    valor: 'AUTORIZACAO_IBAMA',
+    rotulo: 'Autorização do IBAMA',
+    curto: 'Aut. IBAMA',
+    icone: 'leaf',
+    escopo: 'PESSOAL',
+    orgaoPadrao: 'IBAMA',
+    campos: { numero: 'Nº da autorização' },
+  },
+  {
     valor: 'CERTIDAO',
     rotulo: 'Certidão Negativa',
     curto: 'Certidão',
@@ -276,6 +296,7 @@ export const ORGAOS: Opcao<Orgao>[] = [
   { valor: 'PF', rotulo: 'Polícia Federal (SINARM)', curto: 'Polícia Federal' },
   { valor: 'CLUBE', rotulo: 'Clube / Entidade de tiro', curto: 'Clube' },
   { valor: 'PROFISSIONAL', rotulo: 'Profissional credenciado', curto: 'Profissional' },
+  { valor: 'IBAMA', rotulo: 'IBAMA / Órgão ambiental', curto: 'IBAMA' },
   { valor: 'OUTRO', rotulo: 'Outro', curto: 'Outro' },
 ];
 

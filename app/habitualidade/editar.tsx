@@ -38,7 +38,11 @@ export default function EditorHabitualidade() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const c = useCores();
   const s = useEstilos(folha);
-  const { armas, habitualidades, locais, recarregar } = useApp();
+  const { armas, habitualidades, locais, progressoHabitualidade, recarregar } = useApp();
+
+  // Sem arma de atirador, a exigência é genérica (treino com arma do clube):
+  // a sessão conta sem precisar marcar arma nenhuma.
+  const modoGenerico = !!progressoHabitualidade.generico;
 
   const existente = useMemo(
     () => habitualidades.find((h) => h.id === id) ?? null,
@@ -94,7 +98,9 @@ export default function EditorHabitualidade() {
     const novos: Record<string, string> = {};
     if (!data) novos.data = 'Informe a data da sessão no formato dd/mm/aaaa.';
     else if (data > hojeISO()) novos.data = 'A sessão não pode estar no futuro.';
-    if (!marcadas.length && !orfas.length) {
+    // No modo genérico a sessão vale por si só (arma do clube), então não se
+    // exige marcar arma. Fora dele, o grupo vem da arma, então pelo menos uma.
+    if (!modoGenerico && !marcadas.length && !orfas.length) {
       novos.armas = 'Marque pelo menos uma arma usada na sessão.';
     }
     setErros(novos);
@@ -168,7 +174,9 @@ export default function EditorHabitualidade() {
     router.back();
   };
 
-  if (!armas.length) {
+  // Sem arma e sem exigência genérica (quem não é atirador) não há o que
+  // registrar: o grupo creditado sai da arma, e aqui não há arma nem motivo.
+  if (!armas.length && !modoGenerico) {
     return (
       <Tela voltar tituloCabecalho="Nova habitualidade">
         <Vazio
@@ -248,8 +256,15 @@ export default function EditorHabitualidade() {
         </Pressable>
       </BlocoFormulario>
 
-      <BlocoFormulario titulo="Armas usadas">
+      <BlocoFormulario titulo={modoGenerico ? 'Armas usadas (opcional)' : 'Armas usadas'}>
         {erros.armas ? <Text style={s.erro}>{erros.armas}</Text> : null}
+
+        {modoGenerico ? (
+          <Text style={s.nota}>
+            Você ainda não tem arma de atirador: esta sessão conta como habitualidade
+            genérica (treino com arma do clube). Marcar arma é opcional.
+          </Text>
+        ) : null}
 
         {armas.map((arma) => (
           <ItemArma
@@ -269,7 +284,16 @@ export default function EditorHabitualidade() {
 
         <Cartao plano estilo={s.credito}>
           <Text style={s.creditoRotulo}>ESTA SESSÃO CREDITA</Text>
-          {gruposCreditados.length ? (
+          {modoGenerico ? (
+            <View style={s.creditoEtiquetas}>
+              <Etiqueta
+                texto="1 habitualidade"
+                cor={c.primario}
+                fundo={c.primarioFraco}
+                icone="checkmark"
+              />
+            </View>
+          ) : gruposCreditados.length ? (
             <View style={s.creditoEtiquetas}>
               {gruposCreditados.map((g) => (
                 <Etiqueta
@@ -287,7 +311,9 @@ export default function EditorHabitualidade() {
             </Text>
           )}
           <Text style={s.creditoNota}>
-            Uma habitualidade por grupo, por sessão. Duas armas do mesmo grupo não valem duas.
+            {modoGenerico
+              ? 'Cada sessão vale uma habitualidade das 8 exigidas nos últimos 12 meses.'
+              : 'Uma habitualidade por grupo, por sessão. Duas armas do mesmo grupo não valem duas.'}
           </Text>
         </Cartao>
       </BlocoFormulario>

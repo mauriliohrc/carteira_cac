@@ -95,8 +95,19 @@ console.log('\n1. Só o acervo de atirador é cobrado');
     exigidos[0] === 'CC_RESTRITA' && exigidos[1] === 'CLL_PERMITIDA'
   );
 
-  const vazio = calcularProgresso([arma('CC_PERMITIDA', 'CACA')], varias(10, ['CC_PERMITIDA']), HOJE);
-  conferir('acervo sem atirador não vira cobrança', !vazio.exigido && vazio.grupos.length === 0);
+  // Quem NÃO é atirador (ehAtirador falso) não deve nada, nem genérica — mesmo
+  // com sessões registradas. A dedução padrão (todo mundo é atirador) só não
+  // vale para quem desmarcou.
+  const naoAtirador = calcularProgresso(
+    [arma('CC_PERMITIDA', 'CACA')],
+    varias(10, ['CC_PERMITIDA']),
+    HOJE,
+    false
+  );
+  conferir(
+    'não atirador não vira cobrança',
+    !naoAtirador.exigido && naoAtirador.grupos.length === 0 && naoAtirador.generico === null
+  );
 }
 
 console.log('\n2. A fronteira dos 12 meses');
@@ -215,11 +226,14 @@ console.log('\n6. A sessão sobrevive à venda da arma');
   conferir('crédito do grupo continua valendo', p.grupos[0].feitas === 1);
 }
 
-console.log('\n7. Acervo vazio não inventa cobrança');
+console.log('\n7. Não atirador: acervo vazio não inventa cobrança');
 {
-  const p = calcularProgresso([], [], HOJE);
+  const p = calcularProgresso([], [], HOJE, false);
   conferir('nada exigido', !p.exigido);
-  conferir('nenhum grupo, nenhuma pendência', p.grupos.length === 0 && p.faltamTotal === 0);
+  conferir(
+    'nenhum grupo, nenhum genérico, nenhuma pendência',
+    p.grupos.length === 0 && p.generico === null && p.faltamTotal === 0
+  );
   conferir('janela ainda é informada', p.inicio === '2025-09-28' && p.hoje === HOJE);
 }
 
@@ -235,9 +249,9 @@ console.log('\n8. O aviso: só fala quando há o que cobrar');
   );
   conferir('em dia não gera aviso', avisoDeHabitualidade(emDia) === null);
 
-  // Sem acervo de atirador não existe cobrança, logo não existe aviso.
-  const semExigencia = calcularProgresso([arma('CC_RESTRITA', 'CACA')], [], HOJE);
-  conferir('acervo sem atirador não gera aviso', avisoDeHabitualidade(semExigencia) === null);
+  // Quem não é atirador não tem cobrança, logo não tem aviso.
+  const semExigencia = calcularProgresso([arma('CC_RESTRITA', 'CACA')], [], HOJE, false);
+  conferir('não atirador não gera aviso', avisoDeHabitualidade(semExigencia) === null);
 }
 
 console.log('\n9. Grupo atrasado: falta em aberto, sem data');
@@ -307,6 +321,104 @@ console.log('\n12. Grupo em dia e longe de cair não entra no aviso');
   conferir('só o atrasado é citado', aviso.itens === 1, `itens=${aviso.itens}`);
   conferir('corpo fala do curto', aviso.corpo.includes('Curto restrita'), aviso.corpo);
   conferir('corpo não fala do longo', !aviso.corpo.includes('Longo lisa'), aviso.corpo);
+}
+
+console.log('\n13. Atirador sem arma de atirador: 8 genéricas de qualquer grupo');
+{
+  // Nenhuma arma: a dedução padrão é que a pessoa é atiradora e deve 8.
+  const semArma = calcularProgresso([], [], HOJE);
+  conferir('exige mesmo sem arma', semArma.exigido && semArma.generico !== null);
+  conferir('não há grupos a cobrar', semArma.grupos.length === 0);
+  conferir('faltam as 8', semArma.generico!.faltam === MINIMO_POR_GRUPO && !semArma.generico!.cumprido);
+  conferir('faltamTotal reflete o genérico', semArma.faltamTotal === MINIMO_POR_GRUPO);
+
+  // Só arma de caça não vira grupo — segue genérico, e as sessões contam.
+  const soCaca = calcularProgresso(
+    [arma('CLL_PERMITIDA', 'CACA')],
+    varias(5, ['CC_RESTRITA']),
+    HOJE
+  );
+  conferir('acervo só de caça cai no genérico', soCaca.generico !== null && soCaca.grupos.length === 0);
+  conferir('genérico conta as 5 sessões', soCaca.generico!.feitas === 5 && soCaca.generico!.faltam === 3);
+
+  // Qualquer grupo conta, e cada sessão vale uma — mesmo com dois grupos nela.
+  const doisGrupos = calcularProgresso(
+    [],
+    [sessao('2026-09-01', ['CC_RESTRITA', 'CLL_PERMITIDA'])],
+    HOJE
+  );
+  conferir('sessão com dois grupos conta como uma genérica', doisGrupos.generico!.feitas === 1);
+
+  // 8 sessões cumprem, e o prazo nasce da 8ª mais recente.
+  const cheio = calcularProgresso([], varias(MINIMO_POR_GRUPO, ['CC_PERMITIDA']), HOJE);
+  const oitava = somarDias(HOJE, -(10 + (MINIMO_POR_GRUPO - 1) * 20));
+  conferir('8 genéricas cumprem', cheio.generico!.cumprido && cheio.generico!.faltam === 0);
+  conferir('cumpridos conta o genérico em dia', cheio.cumpridos === 1);
+  conferir('perdeEm = 12 meses após a 8ª mais recente', cheio.generico!.perdeEm === saiDaJanelaEm(oitava), `${cheio.generico!.perdeEm}`);
+}
+
+console.log('\n14. Aviso do genérico');
+{
+  const atrasado = avisoDeHabitualidade(calcularProgresso([], varias(3, ['CC_PERMITIDA']), HOJE))!;
+  conferir('genérico incompleto gera aviso', !!atrasado);
+  conferir('título diz incompleta', atrasado.titulo.includes('incompleta'), atrasado.titulo);
+  conferir('subtítulo fala em sessões, não grupos', atrasado.subtitulo.includes('5 de 8') || atrasado.subtitulo.includes('sessões'), atrasado.subtitulo);
+  conferir('corpo mostra 3/8', atrasado.corpo.includes('3/8'), atrasado.corpo);
+  conferir('já irregular hoje', atrasado.pior === -1);
+
+  // Genérico cumprido, com a 8ª mais recente caindo em 10 dias.
+  const caiEm = somarDias(HOJE, 10);
+  const sessoes = [
+    ...Array.from({ length: MINIMO_POR_GRUPO - 1 }, (_, i) =>
+      sessao(somarDias(HOJE, -(1 + i)), ['CC_PERMITIDA'])
+    ),
+    sessao(somarMeses(caiEm, -12), ['CC_PERMITIDA']),
+  ];
+  const aCair = avisoDeHabitualidade(calcularProgresso([], sessoes, HOJE))!;
+  conferir('genérico a vencer gera aviso', !!aCair && aCair.titulo.includes('a vencer'), aCair?.titulo);
+  conferir('traz a data da perda', aCair.corpo.includes(isoParaBR(caiEm)), aCair.corpo);
+}
+
+console.log('\n15. Não atirador tem prioridade sobre o acervo');
+{
+  // Mesmo com arma de atirador e sessões, quem desmarcou não deve nada.
+  const p = calcularProgresso([arma('CC_RESTRITA')], varias(MINIMO_POR_GRUPO, ['CC_RESTRITA']), HOJE, false);
+  conferir('não exige', !p.exigido);
+  conferir('sem grupos e sem genérico', p.grupos.length === 0 && p.generico === null);
+  conferir('nenhum aviso', avisoDeHabitualidade(p) === null);
+}
+
+console.log('\n16. Só defesa pessoal não cobra (nem genérica)');
+{
+  // Toggle ligado (padrão): mesmo assim, acervo só de defesa pessoal não exige.
+  const soDefesa = calcularProgresso([arma('CC_PERMITIDA', 'DEFESA_PESSOAL')], [], HOJE);
+  conferir('não exige', !soDefesa.exigido);
+  conferir('sem grupo e sem genérico', soDefesa.grupos.length === 0 && soDefesa.generico === null);
+  conferir('nenhum aviso', avisoDeHabitualidade(soDefesa) === null);
+
+  // Nem com sessões registradas — defesa pessoal não vira habitualidade.
+  const comSessoes = calcularProgresso(
+    [arma('CC_PERMITIDA', 'DEFESA_PESSOAL'), arma('CLL_PERMITIDA', 'DEFESA_PESSOAL')],
+    varias(5, ['CC_PERMITIDA']),
+    HOJE
+  );
+  conferir('duas de defesa, com sessões: ainda não exige', !comSessoes.exigido && comSessoes.generico === null);
+
+  // Defesa + caça (nenhuma de atirador): NÃO é só defesa, então cai no genérico.
+  const defesaMaisCaca = calcularProgresso(
+    [arma('CC_PERMITIDA', 'DEFESA_PESSOAL'), arma('CLL_PERMITIDA', 'CACA')],
+    varias(2, ['CC_PERMITIDA']),
+    HOJE
+  );
+  conferir('defesa + caça cai no genérico', defesaMaisCaca.generico !== null && defesaMaisCaca.generico!.feitas === 2);
+
+  // Com arma de atirador junto, vale o por-grupo — defesa pessoal é ignorada.
+  const comAtirador = calcularProgresso(
+    [arma('CC_PERMITIDA', 'DEFESA_PESSOAL'), arma('CC_RESTRITA', 'ATIRADOR')],
+    [],
+    HOJE
+  );
+  conferir('defesa + atirador: por grupo, só o grupo de atirador', comAtirador.generico === null && comAtirador.grupos.length === 1 && comAtirador.grupos[0].grupo === 'CC_RESTRITA');
 }
 
 console.log(falhas ? `\n${falhas} verificação(ões) falharam\n` : '\nTodas as verificações passaram\n');

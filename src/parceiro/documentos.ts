@@ -64,6 +64,7 @@ export async function importarDocumentosAuto(): Promise<number> {
       dataValidade: d.dataValidade as DataISO,
       origem: null,
       destino: null,
+      localManejo: null,
       observacoes: null,
     });
     vistas.add(d.externoKey);

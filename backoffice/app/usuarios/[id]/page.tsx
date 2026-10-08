@@ -10,6 +10,7 @@ import {
   DEF_DOC_POR_TIPO,
   ROTULO_ACERVO,
   ROTULO_GRUPO,
+  rotuloPlano,
   type ArmaApp,
   type DocumentoApp,
   type Entidade,
@@ -186,7 +187,7 @@ function Perfil({ id }: { id: string }) {
             <Campo rotulo="Conta criada em" valor={dataHora(u.criadoEm)} />
             <Campo rotulo="Último acesso" valor={online ? 'online agora' : tempoRelativo(u.ultimoAcessoEm)} />
             <Campo rotulo="E-mail verificado" valor={u.emailVerificado ? 'Sim' : 'Não'} />
-            <Campo rotulo="Plano" valor={u.premium ? 'Premium' : 'Grátis'} />
+            <Campo rotulo="Plano" valor={rotuloPlano(u.premium, u.premiumTipo)} />
             <Campo rotulo="Status" valor={u.ativo ? 'Ativa' : 'Inativa'} />
           </div>
         </div>

@@ -24,7 +24,8 @@ type Aba = 'ARMAS' | 'HABITUALIDADE';
 export default function TelaAcervo() {
   const c = useCores();
   const s = useEstilos(folha);
-  const { armas, premium, progressoHabitualidade, sincronizarAgora } = useApp();
+  const { armas, premium, progressoHabitualidade, gerenciarHabitualidade, sincronizarAgora } =
+    useApp();
   const { aba: abaPedida } = useLocalSearchParams<{ aba?: string }>();
 
   const [aba, setAba] = useState<Aba>(abaPedida === 'habitualidade' ? 'HABITUALIDADE' : 'ARMAS');
@@ -36,7 +37,9 @@ export default function TelaAcervo() {
     else if (abaPedida === 'armas') setAba('ARMAS');
   }, [abaPedida]);
 
-  const ehHabitualidade = aba === 'HABITUALIDADE';
+  // Com o acompanhamento desligado nas configurações, a habitualidade some: o
+  // seletor nem aparece e a aba cai sempre no acervo.
+  const ehHabitualidade = gerenciarHabitualidade && aba === 'HABITUALIDADE';
   const podeAdicionar = podeCadastrarArma(armas.length, premium);
 
   const adicionar = () => {
@@ -47,9 +50,13 @@ export default function TelaAcervo() {
 
   // No seletor, o que importa é o que exige ação: quantos grupos estão
   // pendentes. Sem pendência, nenhum número — o silêncio já é a boa notícia.
-  const pendentes = progressoHabitualidade.exigido
-    ? progressoHabitualidade.grupos.length - progressoHabitualidade.cumpridos
-    : 0;
+  const pendentes = !progressoHabitualidade.exigido
+    ? 0
+    : progressoHabitualidade.generico
+      ? progressoHabitualidade.generico.cumprido
+        ? 0
+        : 1
+      : progressoHabitualidade.grupos.length - progressoHabitualidade.cumpridos;
 
   return (
     <Tela sobBarra aoAtualizar={sincronizarAgora}>
@@ -83,21 +90,23 @@ export default function TelaAcervo() {
         </Pressable>
       </View>
 
-      <View style={s.seletor}>
-        <Segmento
-          rotulo="Acervo"
-          icone="albums-outline"
-          ativo={!ehHabitualidade}
-          aoTocar={() => setAba('ARMAS')}
-        />
-        <Segmento
-          rotulo="Habitualidade"
-          icone="locate-outline"
-          ativo={ehHabitualidade}
-          badge={pendentes}
-          aoTocar={() => setAba('HABITUALIDADE')}
-        />
-      </View>
+      {gerenciarHabitualidade ? (
+        <View style={s.seletor}>
+          <Segmento
+            rotulo="Acervo"
+            icone="albums-outline"
+            ativo={!ehHabitualidade}
+            aoTocar={() => setAba('ARMAS')}
+          />
+          <Segmento
+            rotulo="Habitualidade"
+            icone="locate-outline"
+            ativo={ehHabitualidade}
+            badge={pendentes}
+            aoTocar={() => setAba('HABITUALIDADE')}
+          />
+        </View>
+      ) : null}
 
       {ehHabitualidade ? (
         <ConteudoHabitualidade aoRegistrar={() => router.push('/habitualidade/editar')} />

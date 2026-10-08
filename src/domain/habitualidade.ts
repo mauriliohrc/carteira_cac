@@ -1,18 +1,25 @@
 /**
  * Habitualidade: a regra e a contagem.
  *
- * O atirador desportivo precisa comprovar, **por grupo de armas**, no mínimo 8
- * sessões de tiro nos últimos 12 meses. Três coisas fazem a regra funcionar:
+ * O atirador desportivo precisa comprovar no mínimo 8 sessões de tiro nos
+ * últimos 12 meses. A obrigação é **da pessoa**, não da arma — por isso todo
+ * atirador a tem, mesmo sem arma. A arma só define *quais grupos* e *quantos*:
  *
- * 1. **Só o acervo de atirador exige.** Caça, coleção e defesa pessoal não
- *    pedem habitualidade, então um grupo só entra na cobrança se houver ao
- *    menos uma arma de acervo ATIRADOR nele. Quem só tem revólver de defesa
- *    pessoal não deve ver cobrança nenhuma.
- * 2. **A janela é móvel.** Não há "ano-calendário": a contagem é sempre dos
+ * 1. **Com arma de atirador: 8 por grupo.** Cada grupo balístico com ao menos
+ *    uma arma de acervo ATIRADOR exige suas próprias 8 sessões. Dez revólveres
+ *    do mesmo grupo continuam sendo 8; um revólver e uma espingarda viram 8 de
+ *    cada grupo. Caça, coleção e defesa pessoal não acrescentam grupo nenhum.
+ * 2. **Sem arma de atirador: 8 genéricas.** O atirador que ainda não tem arma
+ *    de atirador (nenhuma arma, ou só caça/coleção) treina com arma do clube —
+ *    deve 8 sessões de qualquer grupo. Com o acompanhamento desligado nas
+ *    configurações (`gerenciar` falso) nada é cobrado nem exibido. Acervo **só
+ *    de defesa pessoal** também não deve nada: é SINARM/PF, o sinal mais claro
+ *    de que a pessoa não é atiradora.
+ * 3. **A janela é móvel.** Não há "ano-calendário": a contagem é sempre dos
  *    últimos 12 meses contados de hoje, então uma sessão sai da conta sozinha
  *    ao completar 12 meses. É por isso que existe `perdeEm`: dá para avisar o
  *    dia em que o grupo deixa de estar em dia, antes de acontecer.
- * 3. **Uma sessão credita cada grupo uma vez.** Levar três pistolas do mesmo
+ * 4. **Uma sessão credita cada grupo uma vez.** Levar três pistolas do mesmo
  *    grupo num treino é uma habitualidade, não três. Levar uma pistola e uma
  *    espingarda é uma em cada grupo.
  *
@@ -77,10 +84,28 @@ export interface ProgressoGrupo {
   perdeEm: DataISO | null;
 }
 
+/**
+ * Exigência genérica do atirador sem arma de atirador: 8 sessões de qualquer
+ * grupo. Mesmos campos do grupo, sem o `grupo`/`armas` — não há grupo a contar.
+ */
+export interface ProgressoGenerico {
+  feitas: number;
+  faltam: number;
+  cumprido: boolean;
+  ultima: DataISO | null;
+  perdeEm: DataISO | null;
+}
+
 export interface ProgressoHabitualidade {
-  /** O acervo exige habitualidade de pelo menos um grupo. */
+  /** Há habitualidade a cumprir — por grupo ou genérica. */
   exigido: boolean;
   grupos: ProgressoGrupo[];
+  /**
+   * Preenchido no lugar de `grupos` quando o atirador não tem arma de atirador:
+   * uma única exigência de 8 sessões genéricas. Null quando há grupos ou quando
+   * a pessoa não é atiradora.
+   */
+  generico: ProgressoGenerico | null;
   /** Grupos com as 8 sessões em dia. */
   cumpridos: number;
   /** Soma das sessões que ainda faltam, somando todos os grupos. */
@@ -102,10 +127,17 @@ export interface ProgressoHabitualidade {
 export function calcularProgresso(
   armas: Arma[],
   sessoes: Habitualidade[],
-  hoje: DataISO = hojeISO()
+  hoje: DataISO = hojeISO(),
+  gerenciar = true
 ): ProgressoHabitualidade {
   const inicio = inicioJanela(hoje);
   const naJanela = sessoes.filter((s) => s.data >= inicio && s.data <= hoje);
+  const base = { inicio, hoje, sessoesNaJanela: naJanela.length };
+
+  // Acompanhamento desligado nas configurações: nada é cobrado nem exibido.
+  if (!gerenciar) {
+    return { exigido: false, grupos: [], generico: null, cumpridos: 0, faltamTotal: 0, ...base };
+  }
 
   // Datas de cada grupo, da mais recente para a mais antiga.
   const datasPorGrupo = new Map<Grupo, DataISO[]>();
@@ -140,14 +172,45 @@ export function calcularProgresso(
     };
   });
 
+  // Sem arma de atirador, a obrigação é uma só: 8 sessões de qualquer grupo.
+  // Conta cada sessão da janela uma vez (não por grupo) — treino com arma do
+  // clube não tem grupo fixo a cumprir.
+  if (grupos.length === 0) {
+    // Exceção: acervo só de defesa pessoal (SINARM/PF) não é de atirador — é o
+    // sinal mais forte de "não sou atirador". Aí nem a genérica é cobrada.
+    // (Sem arma nenhuma segue sendo genérica: é o atirador que ainda não comprou.)
+    const soDefesaPessoal = armas.length > 0 && armas.every((a) => a.acervo === 'DEFESA_PESSOAL');
+    if (soDefesaPessoal) {
+      return { exigido: false, grupos: [], generico: null, cumpridos: 0, faltamTotal: 0, ...base };
+    }
+
+    const datas = naJanela.map((s) => s.data).sort((a, b) => b.localeCompare(a));
+    const feitas = datas.length;
+    const cumprido = feitas >= MINIMO_POR_GRUPO;
+    const generico: ProgressoGenerico = {
+      feitas,
+      faltam: Math.max(0, MINIMO_POR_GRUPO - feitas),
+      cumprido,
+      ultima: datas[0] ?? null,
+      perdeEm: cumprido ? saiDaJanelaEm(datas[MINIMO_POR_GRUPO - 1]) : null,
+    };
+    return {
+      exigido: true,
+      grupos: [],
+      generico,
+      cumpridos: cumprido ? 1 : 0,
+      faltamTotal: generico.faltam,
+      ...base,
+    };
+  }
+
   return {
-    exigido: grupos.length > 0,
+    exigido: true,
     grupos,
+    generico: null,
     cumpridos: grupos.filter((g) => g.cumprido).length,
     faltamTotal: grupos.reduce((n, g) => n + g.faltam, 0),
-    sessoesNaJanela: naJanela.length,
-    inicio,
-    hoje,
+    ...base,
   };
 }
 
@@ -188,8 +251,29 @@ export function avisoDeHabitualidade(
   const curto = (g: Grupo) => GRUPO_POR_VALOR[g]?.curto ?? g;
   const plural = (n: number) => (n > 1 ? 's' : '');
 
-  const atrasados = progresso.grupos.filter((g) => !g.cumprido);
-  const aCair = progresso.grupos
+  // Grupos e exigência genérica viram uma lista só de itens — o aviso trata os
+  // dois do mesmo jeito: cada item tem rótulo, contagem e, se cumprido, prazo.
+  const itens = progresso.generico
+    ? [
+        {
+          rotulo: 'Habitualidade',
+          feitas: progresso.generico.feitas,
+          faltam: progresso.generico.faltam,
+          cumprido: progresso.generico.cumprido,
+          perdeEm: progresso.generico.perdeEm,
+        },
+      ]
+    : progresso.grupos.map((g) => ({
+        rotulo: curto(g.grupo),
+        feitas: g.feitas,
+        faltam: g.faltam,
+        cumprido: g.cumprido,
+        perdeEm: g.perdeEm,
+      }));
+  const ehGenerico = !!progresso.generico;
+
+  const atrasados = itens.filter((g) => !g.cumprido);
+  const aCair = itens
     .filter(
       (g) =>
         g.cumprido && g.perdeEm && diffDias(progresso.hoje, g.perdeEm) <= JANELA_ALERTA_DIAS
@@ -201,11 +285,11 @@ export function avisoDeHabitualidade(
   const linhas = [
     ...atrasados.map(
       (g) =>
-        `• ${curto(g.grupo)} — ${g.feitas}/${MINIMO_POR_GRUPO}, faltam ${g.faltam}`
+        `• ${g.rotulo} — ${g.feitas}/${MINIMO_POR_GRUPO}, faltam ${g.faltam}`
     ),
     ...aCair.map(
       (g) =>
-        `• ${curto(g.grupo)} — cai para ${MINIMO_POR_GRUPO - 1} em ${isoParaBR(g.perdeEm)}`
+        `• ${g.rotulo} — cai para ${MINIMO_POR_GRUPO - 1} em ${isoParaBR(g.perdeEm)}`
     ),
   ];
   const mostradas = linhas.slice(0, 4);
@@ -213,11 +297,16 @@ export function avisoDeHabitualidade(
 
   const diasParaCair = aCair.length ? diffDias(progresso.hoje, aCair[0].perdeEm!) : Infinity;
 
+  const subtituloAtrasado = ehGenerico
+    ? `Faltam ${atrasados[0]?.faltam ?? 0} de ${MINIMO_POR_GRUPO} sessões`
+    : `${atrasados.length} grupo${plural(atrasados.length)} abaixo de ${MINIMO_POR_GRUPO}`;
+  const subtituloACair = ehGenerico
+    ? `As ${MINIMO_POR_GRUPO} sessões caem em até ${JANELA_ALERTA_DIAS} dias`
+    : `${aCair.length} grupo${plural(aCair.length)} perde${aCair.length > 1 ? 'm' : ''} as ${MINIMO_POR_GRUPO} em até ${JANELA_ALERTA_DIAS} dias`;
+
   return {
     titulo: atrasados.length ? '🎯 Habitualidade incompleta' : '🎯 Habitualidade a vencer',
-    subtitulo: atrasados.length
-      ? `${atrasados.length} grupo${plural(atrasados.length)} abaixo de ${MINIMO_POR_GRUPO}`
-      : `${aCair.length} grupo${plural(aCair.length)} perde${aCair.length > 1 ? 'm' : ''} as ${MINIMO_POR_GRUPO} em até ${JANELA_ALERTA_DIAS} dias`,
+    subtitulo: atrasados.length ? subtituloAtrasado : subtituloACair,
     corpo: `${mostradas.join('\n')}${resto}`,
     // O grupo atrasado não fura o Foco: ele não tem data e seria cobrado todo
     // dia, o que transformaria "time sensitive" em ruído. Só a perda iminente

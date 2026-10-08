@@ -58,10 +58,12 @@ export async function reagendarAlertas(
   documentos: Documento[],
   armas: Arma[],
   habitualidades: Habitualidade[] = [],
+  gerenciar = true,
   hora: number = HORA_PADRAO
 ): Promise<ResultadoAgendamento> {
   void hora;
   void habitualidades;
+  void gerenciar;
   // Mesmo sem agendar, atualiza o título da aba com o que está em alerta hoje.
   const emAlerta = contarEmAlertaHoje(montarEntradas(documentos, armas), hojeISO());
   if (typeof document !== 'undefined') {

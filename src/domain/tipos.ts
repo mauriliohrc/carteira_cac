@@ -20,9 +20,11 @@ export type TipoDocumento =
   | 'HABITUALIDADE'
   | 'CERTIDAO'
   | 'AUTORIZACAO_COMPRA'
+  | 'AUTORIZACAO_MANEJO'
+  | 'AUTORIZACAO_IBAMA'
   | 'OUTRO';
 
-export type Orgao = 'PF' | 'EXERCITO' | 'CLUBE' | 'PROFISSIONAL' | 'OUTRO';
+export type Orgao = 'PF' | 'EXERCITO' | 'CLUBE' | 'PROFISSIONAL' | 'IBAMA' | 'OUTRO';
 
 export interface Arma {
   id: string;
@@ -59,6 +61,8 @@ export interface Documento {
   dataValidade: DataISO;
   origem: string | null;
   destino: string | null;
+  /** Local onde ocorre o manejo — usado só pela Autorização de Manejo. */
+  localManejo: string | null;
   observacoes: string | null;
   criadoEm: string;
   atualizadoEm: string;

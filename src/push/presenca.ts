@@ -1,6 +1,6 @@
 import { apiApp } from '@/conta/api';
 import { lerToken } from '@/conta/armazenamento';
-import { consultarPremiumCache } from '@/billing';
+import { consultarPremiumCache, consultarTipoPremiumCache } from '@/billing';
 
 let ultimoEnvio = 0;
 const INTERVALO_MIN_MS = 60_000; // no máximo um heartbeat por minuto
@@ -17,7 +17,8 @@ export async function registrarPresenca(): Promise<void> {
   ultimoEnvio = agora;
   try {
     const premium = await consultarPremiumCache();
-    await apiApp('/presenca', { metodo: 'POST', corpo: { premium }, token });
+    const premiumTipo = await consultarTipoPremiumCache();
+    await apiApp('/presenca', { metodo: 'POST', corpo: { premium, premiumTipo }, token });
   } catch {
     ultimoEnvio = 0; // falhou: permite tentar de novo na próxima
   }

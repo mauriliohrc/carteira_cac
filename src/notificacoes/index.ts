@@ -94,6 +94,7 @@ export async function reagendarAlertas(
   documentos: Documento[],
   armas: Arma[],
   habitualidades: Habitualidade[] = [],
+  gerenciar = true,
   hora: number = HORA_PADRAO
 ): Promise<ResultadoAgendamento> {
   await Notifications.cancelAllScheduledNotificationsAsync();
@@ -109,7 +110,7 @@ export async function reagendarAlertas(
   //
   // O domínio devolve os campos soltos, sem conhecer o `Aviso` do planejador —
   // a costura entre as duas formas é daqui, da camada de plataforma.
-  const frente = avisoDeHabitualidade(calcularProgresso(armas, habitualidades, hoje));
+  const frente = avisoDeHabitualidade(calcularProgresso(armas, habitualidades, hoje, gerenciar));
   const extra = frente
     ? {
         aviso: {

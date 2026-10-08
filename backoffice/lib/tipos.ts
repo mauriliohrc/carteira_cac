@@ -88,6 +88,8 @@ export interface UsuarioApp {
   ativo: boolean;
   emailVerificado?: boolean;
   premium: boolean;
+  /** Origem do premium: CUPOM | MENSAL | ANUAL | ANUAL_PARCEIRO. Nulo = desconhecido. */
+  premiumTipo?: string | null;
   entidades: VinculoEntidade[];
   ultimoAcessoEm: string | null;
   online: boolean;
@@ -186,6 +188,7 @@ export interface PerfilUsuarioApp {
     cpf: string;
     ativo: boolean;
     premium: boolean;
+    premiumTipo?: string | null;
     emailVerificado: boolean;
     entidades: VinculoEntidade[];
     ultimoAcessoEm: string | null;
@@ -196,6 +199,21 @@ export interface PerfilUsuarioApp {
   habitualidades: HabitualidadeApp[];
   locais: Record<string, unknown>[];
   arquivos: ArquivoApp[];
+}
+
+/** Rótulo do tipo de premium reportado pelo app. */
+export const ROTULO_PREMIUM: Record<string, string> = {
+  CUPOM: 'Cupom',
+  MENSAL: 'Mensal',
+  ANUAL: 'Anual',
+  ANUAL_PARCEIRO: 'Anual parceiro',
+};
+
+/** Texto do plano para exibir: "Grátis", "Premium" ou "Premium · <tipo>". */
+export function rotuloPlano(premium: boolean, premiumTipo?: string | null): string {
+  if (!premium) return 'Grátis';
+  const tipo = premiumTipo ? ROTULO_PREMIUM[premiumTipo] : undefined;
+  return tipo ? `Premium · ${tipo}` : 'Premium';
 }
 
 export const ROTULO_DOC: Record<string, string> = {

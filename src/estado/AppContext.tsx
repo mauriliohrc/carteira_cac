@@ -77,6 +77,9 @@ interface EstadoApp {
   /** Sincroniza com a nuvem (inclui importar da Shooting House) e recarrega. */
   sincronizarAgora: () => Promise<void>;
   definirPremium: (valor: boolean) => Promise<void>;
+  /** Acompanhar habitualidade no app. Default true; desligar some com ela. */
+  gerenciarHabitualidade: boolean;
+  definirGerenciarHabitualidade: (valor: boolean) => Promise<void>;
 }
 
 const Contexto = createContext<EstadoApp | null>(null);
@@ -91,6 +94,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [habitualidades, setHabitualidades] = useState<Habitualidade[]>([]);
   const [locais, setLocais] = useState<LocalTiro[]>([]);
   const [premium, setPremium] = useState(false);
+  const [gerenciarHabitualidade, setGerenciarHabitualidade] = useState(true);
   const [avisos, setAvisos] = useState<AvisoRecebido[]>([]);
   const [precisaOnboarding, setPrecisaOnboarding] = useState(false);
   const estadoAnterior = useRef<AppStateStatus>(AppState.currentState);
@@ -111,6 +115,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       listaHabitualidades,
       listaLocais,
       ehPremium,
+      valorGerenciar,
     ] = await Promise.all([
       listarArmas(),
       listarDocumentos(),
@@ -121,7 +126,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Cache local: rápido e nunca bloqueia a abertura. A checagem real na
       // App Store roda em segundo plano (ver efeito abaixo).
       consultarPremiumCache(),
+      lerConfig(CHAVES.gerenciarHabitualidade),
     ]);
+
+    // Default: acompanha habitualidade. Só o '0' explícito (quem desligou) desliga.
+    const gerencia = valorGerenciar !== '0';
 
     setArmas(listaArmas);
     setDocumentos(listaDocs);
@@ -130,10 +139,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setHabitualidades(ordenarSessoes(listaHabitualidades));
     setLocais(listaLocais);
     setPremium(ehPremium);
+    setGerenciarHabitualidade(gerencia);
 
     // Reagenda sempre: o conjunto de avisos depende da data de hoje — e agora
     // também da habitualidade, que entra no plano como uma frente.
-    void reagendarAlertas(listaDocs, listaArmas, listaHabitualidades);
+    void reagendarAlertas(listaDocs, listaArmas, listaHabitualidades, gerencia);
 
     // Recupera o que chegou enquanto o app estava fechado.
     await sincronizarCaixa();
@@ -242,6 +252,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPremium(valor);
   }, []);
 
+  const definirGerenciarHabitualidade = useCallback(
+    async (valor: boolean) => {
+      await gravarConfig(CHAVES.gerenciarHabitualidade, valor ? '1' : '0');
+      setGerenciarHabitualidade(valor);
+      // Recarrega para reagendar os alertas de habitualidade com a nova regra.
+      await carregar();
+    },
+    [carregar]
+  );
+
   const concluirOnboarding = useCallback(async () => {
     await gravarConfig(CHAVES.onboardingVisto, '1');
     // Acabou o 1º onboarding: deixa o convite de conta pendente para a Raiz
@@ -293,7 +313,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       fotosDaArma: (armaId: string) => fotos.filter((f) => f.armaId === armaId),
       habitualidades,
       locais,
-      progressoHabitualidade: calcularProgresso(armas, habitualidades),
+      progressoHabitualidade: calcularProgresso(armas, habitualidades, undefined, gerenciarHabitualidade),
       avisos,
       avisosNaoLidos: avisos.filter((a) => !a.lido).length,
       recarregarAvisos,
@@ -302,6 +322,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       recarregar: carregar,
       sincronizarAgora: sincronizarECarregar,
       definirPremium,
+      gerenciarHabitualidade,
+      definirGerenciarHabitualidade,
     };
   }, [
     apagarAvisos,
@@ -311,8 +333,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     carregar,
     concluirOnboarding,
     definirPremium,
+    definirGerenciarHabitualidade,
     documentos,
     erroInicial,
+    gerenciarHabitualidade,
     fotos,
     habitualidades,
     locais,
