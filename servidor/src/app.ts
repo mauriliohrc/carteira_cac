@@ -31,7 +31,22 @@ export function construirApp() {
   const app = Fastify({ logger: true, bodyLimit: 30 * 1024 * 1024 });
 
   app.register(cors, {
-    origin: ambiente.backofficeOrigem,
+    // Libera o backoffice e QUALQUER subdomínio de carteiracac.com — as páginas
+    // públicas de ranking agora rodam em 3gun.carteiracac.com, clube-x..., etc.
+    // Reflete a origem (não usa '*') porque credentials:true exige origem exata.
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // sem Origin: curl, app nativo, mesma origem
+      try {
+        const host = new URL(origin).hostname;
+        const ok =
+          origin === ambiente.backofficeOrigem ||
+          host === 'carteiracac.com' ||
+          host.endsWith('.carteiracac.com');
+        return cb(null, ok);
+      } catch {
+        return cb(null, false);
+      }
+    },
     credentials: true,
   });
 
