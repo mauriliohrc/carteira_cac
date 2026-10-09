@@ -16,6 +16,14 @@ import { conflito, naoEncontrado } from '../http/erros.js';
 import { exigirAdmin } from '../http/guardas.js';
 import { candidatosSubdominio } from '../dominio/subdominio.js';
 
+/** Mensagem do conflito de unicidade conforme a coluna que bateu (P2002). */
+function conflitoDe(err: Prisma.PrismaClientKnownRequestError): string {
+  const alvo = String((err.meta as { target?: unknown } | undefined)?.target ?? '');
+  if (alvo.includes('subdominio')) return 'Este subdomínio já está em uso';
+  if (alvo.includes('cnpj')) return 'Já existe uma entidade com este CNPJ';
+  return 'Registro duplicado';
+}
+
 /** Primeiro subdomínio livre derivado do nome (ou null se o nome não gera um). */
 async function escolherSubdominioLivre(nome: string): Promise<string | null> {
   for (const cand of candidatosSubdominio(nome)) {
@@ -68,14 +76,14 @@ export async function rotasEntidades(app: FastifyInstance) {
   app.post('/api/admin/entidades', async (req, reply) => {
     const dados = criarEntidadeSchema.parse(req.body);
     try {
-      // Subdomínio público nasce do nome: "3Gun" -> 3gun.carteiracac.com.
-      const subdominio = await escolherSubdominioLivre(dados.nome);
+      // Subdomínio: o que o admin digitou vale; vazio, o servidor gera do nome.
+      const subdominio = dados.subdominio ?? (await escolherSubdominioLivre(dados.nome));
       const e = await prisma.entidadeTiro.create({ data: { ...dados, subdominio } });
       reply.code(201);
       return { entidade: apresentarEntidade(e) };
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        throw conflito('Já existe uma entidade com este CNPJ');
+        throw conflito(conflitoDe(err));
       }
       throw err;
     }
@@ -90,7 +98,7 @@ export async function rotasEntidades(app: FastifyInstance) {
       return { entidade: apresentarEntidade(e) };
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        throw conflito('Já existe uma entidade com este CNPJ');
+        throw conflito(conflitoDe(err));
       }
       throw err;
     }

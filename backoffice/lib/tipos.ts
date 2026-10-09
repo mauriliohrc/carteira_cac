@@ -23,6 +23,8 @@ export interface Admin {
 export interface Entidade {
   id: string;
   nome: string;
+  /** Subdomínio público (ex.: "3gun" → 3gun.carteiracac.com). */
+  subdominio?: string | null;
   tipo: TipoEntidade;
   cr: string | null;
   cnpj: string | null;

@@ -6,6 +6,7 @@ import type { Entidade, TipoEntidade } from '@/lib/tipos';
 
 export interface DadosEntidade {
   nome: string;
+  subdominio: string;
   tipo: TipoEntidade;
   cr: string;
   cnpj: string;
@@ -23,6 +24,7 @@ export interface DadosEntidade {
 function inicial(e?: Entidade): DadosEntidade {
   return {
     nome: e?.nome ?? '',
+    subdominio: e?.subdominio ?? '',
     tipo: e?.tipo ?? 'CLUBE',
     cr: e?.cr ?? '',
     cnpj: e?.cnpj ?? '',
@@ -43,6 +45,7 @@ export function paraPayload(d: DadosEntidade) {
   const ou = (v: string) => (v.trim() === '' ? null : v.trim());
   const payload: Record<string, unknown> = {
     nome: d.nome.trim(),
+    subdominio: ou(d.subdominio),
     tipo: d.tipo,
     cr: ou(d.cr),
     cnpj: ou(d.cnpj),
@@ -98,6 +101,18 @@ export function FormularioEntidade({
         <div className="campo">
           <label>Nome *</label>
           <input value={d.nome} onChange={(e) => set('nome', e.target.value)} required />
+        </div>
+        <div className="campo">
+          <label>Subdomínio</label>
+          <input
+            value={d.subdominio}
+            onChange={(e) => set('subdominio', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+            placeholder="ex.: 3gun"
+            autoComplete="off"
+          />
+          <small style={{ color: 'var(--texto-suave)' }}>
+            {d.subdominio ? `${d.subdominio}.carteiracac.com` : 'Em branco: gerado do nome'}
+          </small>
         </div>
         <div className="campo">
           <label>Tipo *</label>

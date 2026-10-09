@@ -9,6 +9,7 @@ import {
   TIPOS_MIDIA,
 } from './tipos.js';
 import { limparCPF, validarCPF } from './cpf.js';
+import { SUBDOMINIOS_RESERVADOS } from './subdominio.js';
 
 const ufBR = z
   .string()
@@ -25,6 +26,18 @@ export const loginSchema = z.object({
 // ------------------------------------------------------------------- entidades
 export const criarEntidadeSchema = z.object({
   nome: z.string().trim().min(2, 'Nome muito curto'),
+  // Subdomínio público definido pelo admin (ex.: "3gun" -> 3gun.carteiracac.com).
+  // Opcional no cadastro: se vier vazio, o servidor gera a partir do nome.
+  subdominio: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(2, 'Subdomínio muito curto')
+    .max(40, 'Subdomínio muito longo')
+    .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/, 'Use só letras minúsculas, números e hífen')
+    .refine((s) => !SUBDOMINIOS_RESERVADOS.has(s), 'Subdomínio reservado pelo sistema')
+    .optional()
+    .nullable(),
   tipo: z.enum(TIPOS_ENTIDADE as [string, ...string[]]),
   cr: z.string().trim().optional().nullable(),
   cnpj: z.string().trim().optional().nullable(),
