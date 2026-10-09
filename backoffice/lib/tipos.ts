@@ -387,3 +387,18 @@ export interface PreviaAtirador {
   nome: string | null;
   origem: 'APP' | 'SHOOTING_HOUSE' | 'NAO_ENCONTRADO';
 }
+
+// ------------------------------------------------------------ contatos do site
+export interface Contato {
+  id: string;
+  nome: string;
+  telefone: string;
+  assunto: string;
+  mensagem: string;
+  tratado: boolean;
+  criadoEm: string;
+}
+export interface ListaContatos {
+  contatos: Contato[];
+  naoTratados: number;
+}

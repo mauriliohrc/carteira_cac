@@ -450,3 +450,19 @@ model UsuarioEntidade {
   @@index([entidadeId])
   @@map("usuarios_entidade")
 }
+
+/// Mensagem de contato recebida pelo formulário do site (sistema interno — sem
+/// e-mail). Listada e tratada no backoffice.
+model Contato {
+  id        String   @id @default(cuid())
+  nome      String
+  telefone  String
+  assunto   String
+  mensagem  String   @db.Text
+  /// Já foi atendido/respondido pela equipe.
+  tratado   Boolean  @default(false)
+  criadoEm  DateTime @default(now())
+
+  @@index([tratado, criadoEm])
+  @@map("contatos")
+}

@@ -12,6 +12,7 @@ const NAV = [
   { href: '/usuarios', rotulo: 'Usuários' },
   { href: '/push', rotulo: 'Push' },
   { href: '/cupons', rotulo: 'Cupons' },
+  { href: '/contatos', rotulo: 'Contatos' },
 ];
 
 /** Envolve páginas internas: redireciona para /login se não houver admin. */

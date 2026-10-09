@@ -286,3 +286,11 @@ export const criarUsuarioAdminSchema = z.object({
   senha: z.string().min(6, 'Senha deve ter ao menos 6 caracteres'),
   papel: z.enum(PAPEIS_ADMIN as [string, ...string[]]).optional(),
 });
+
+// ------------------------------------------------------- contato (site público)
+export const criarContatoSchema = z.object({
+  nome: z.string().trim().min(2, 'Informe seu nome').max(120),
+  telefone: z.string().trim().min(8, 'Informe um telefone válido').max(30),
+  assunto: z.string().trim().min(2, 'Informe o assunto').max(140),
+  mensagem: z.string().trim().min(5, 'Escreva sua mensagem').max(4000),
+});

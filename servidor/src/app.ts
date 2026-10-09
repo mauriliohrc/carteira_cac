@@ -10,6 +10,8 @@ import { rotasEntidadeCompeticoes } from './rotas/entidadeCompeticoes.js';
 import { rotasAdminCompeticoes } from './rotas/adminCompeticoes.js';
 import { rotasUploads } from './rotas/uploads.js';
 import { rotasPublicoCompeticoes } from './rotas/publicoCompeticoes.js';
+import { rotasPublicoContato } from './rotas/publicoContato.js';
+import { rotasContatosAdmin } from './rotas/contatosAdmin.js';
 import { rotasDashboardAdmin } from './rotas/dashboardAdmin.js';
 import { rotasNoticias } from './rotas/noticias.js';
 import { rotasPushAdmin } from './rotas/pushAdmin.js';
@@ -78,6 +80,8 @@ export function construirApp() {
   app.register(rotasAdminCompeticoes);
   app.register(rotasUploads);
   app.register(rotasPublicoCompeticoes);
+  app.register(rotasPublicoContato);
+  app.register(rotasContatosAdmin);
   app.register(rotasNoticias);
   app.register(rotasPushAdmin);
   app.register(rotasDashboardAdmin);
