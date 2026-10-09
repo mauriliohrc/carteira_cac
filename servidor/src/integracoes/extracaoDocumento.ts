@@ -1,23 +1,22 @@
 /**
- * Extração best-effort de campos a partir do TEXTO de um PDF (CRAF, guia, CR…).
+ * Extração best-effort de campos a partir do TEXTO de um PDF (CRAF, guia…).
  *
- * Só PDF com camada de texto (a maioria dos documentos digitais). Fotos/scans
- * não passam por aqui — o app nem chama para imagem. É assistência: o usuário
- * revisa tudo antes de salvar, e só preenchemos campos que vierem com confiança
- * razoável. Os rótulos variam entre layouts, então o parser é tolerante e, no
- * pior caso, devolve menos campos (nunca inventa).
+ * Só PDF com camada de texto (documentos digitais). O app nem chama para foto.
+ * É assistência: o usuário revisa antes de salvar. Há três layouts reais, bem
+ * diferentes, então o parser detecta o formato e usa um ramo para cada:
+ *   - Guia de Tráfego (GTE/PF): rótulos limpos ("Endereço e CEP:", "FINALIDADE").
+ *   - CRAF do Exército (SIGMA): cabeçalho de colunas + bloco de valores no fim.
+ *   - CRAF do SINARM (PF): rótulos em bloco e valores em bloco (posicional).
  */
 import { PDFParse } from 'pdf-parse';
 
 export interface CamposExtraidos {
-  // Documento
   numero?: string;
   dataValidade?: string; // ISO yyyy-mm-dd
   dataEmissao?: string;
   origem?: string;
   destino?: string;
   observacoes?: string;
-  // Arma (CRAF)
   numeroSerie?: string;
   marca?: string;
   modelo?: string;
@@ -40,123 +39,151 @@ export async function extrairTextoPdf(base64: string): Promise<string> {
   }
 }
 
+// ----------------------------------------------------------------- utilidades
 function normalizar(t: string): string {
   return t
     .replace(/\r/g, '\n')
     .replace(/[ \t]+/g, ' ')
+    .split('\n')
+    .map((l) => l.trim())
+    .join('\n')
     .replace(/\n{2,}/g, '\n');
 }
 
-/** Primeiro valor após um dos rótulos, na mesma linha. */
-function valorApos(texto: string, rotulos: string[], max = 80): string | undefined {
-  for (const r of rotulos) {
-    const m = texto.match(new RegExp(`${r}\\s*[:\\-]?\\s*([^\\n]+)`, 'i'));
-    const v = m?.[1]?.trim().slice(0, max).trim();
-    if (v) return v;
-  }
-  return undefined;
+const ESPECIE =
+  'carabina\\s*/\\s*fuzil|pistola|rev[óo]lver|carabina|fuzil|espingarda|rifle|garrucha|mosquet[ãa]o|submetralhadora';
+
+/** 'dd/mm/aaaa' → ISO. */
+function paraISO(br?: string | null): string | undefined {
+  if (!br) return undefined;
+  const m = br.match(/(\d{2})[/.\-](\d{2})[/.\-](\d{4})/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : undefined;
 }
 
-/**
- * Bloco multi-linha após um rótulo, até o próximo campo conhecido (stops).
- * Usado em origem/destino da guia, que trazem nome + endereço + CEP em linhas.
- */
-function blocoApos(texto: string, rotulos: string[], stops: string[]): string | undefined {
-  const stopRe = new RegExp(`\\n\\s*(?:${stops.join('|')})\\b`, 'i');
-  for (const r of rotulos) {
-    const m = texto.match(new RegExp(`${r}\\s*[:\\-]?\\s*([\\s\\S]{0,240})`, 'i'));
-    if (!m) continue;
-    let bloco = m[1];
-    const corte = bloco.search(stopRe);
-    if (corte >= 0) bloco = bloco.slice(0, corte);
-    const linhas = bloco
-      .split('\n')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (linhas.length) return linhas.join(', ').slice(0, 180);
-  }
-  return undefined;
+function limpo(o: CamposExtraidos): CamposExtraidos {
+  return Object.fromEntries(
+    Object.entries(o).filter(([, v]) => v != null && String(v).trim() !== '')
+  ) as CamposExtraidos;
 }
 
-/** Primeira data dd/mm/aaaa logo após um dos rótulos → ISO. */
-function dataApos(texto: string, rotulos: string[]): string | undefined {
-  for (const r of rotulos) {
-    const m = texto.match(new RegExp(`${r}[^0-9]{0,40}(\\d{2})[\\/.\\-](\\d{2})[\\/.\\-](\\d{4})`, 'i'));
-    if (m) return `${m[3]}-${m[2]}-${m[1]}`;
-  }
-  return undefined;
+/** Trecho entre dois marcadores (para isolar origem/destino da guia). */
+function secao(texto: string, de: RegExp, ate: RegExp): string {
+  const i = texto.search(de);
+  if (i < 0) return '';
+  const resto = texto.slice(i);
+  const j = resto.slice(1).search(ate);
+  return j < 0 ? resto : resto.slice(0, j + 1);
 }
 
-function limpo<T extends Record<string, string | undefined>>(o: T): Partial<T> {
-  return Object.fromEntries(Object.entries(o).filter(([, v]) => v)) as Partial<T>;
-}
+// --------------------------------------------------------------- Guia (GTE)
+function parseGuia(texto: string): CamposExtraidos {
+  const numero = texto.match(/GTE\s*N[º°o:]+\s*([0-9]{6,})/i)?.[1];
+  const val = texto.match(
+    /Validade:\s*(\d{2}\/\d{2}\/\d{4})\s*(?:à|a|at[ée])\s*(\d{2}\/\d{2}\/\d{4})/i
+  );
 
-/** Rótulos que encerram um bloco de endereço (origem/destino) da guia. */
-const PARADAS_ENDERECO = [
-  'pa[ií]s',
-  'cidade',
-  'uf',
-  'estado',
-  'munic[ií]pio',
-  'validade',
-  'meio',
-  'observ',
-  'finalidade',
-  'origem',
-  'destino',
-  'data',
-  'n[º°o]',
-];
+  const secOrigem = secao(texto, /LOCAL DE ORIGEM/i, /LOCAL DE DESTINO/i);
+  const secDestino = secao(texto, /LOCAL DE DESTINO/i, /\n\s*4\.\s*FINALIDADE|FINALIDADE/i);
 
-/** Mapeia o texto nos campos. `tipo` ajusta quais rótulos priorizar. */
-export function mapearCampos(textoBruto: string, tipo?: string): CamposExtraidos {
-  const texto = normalizar(textoBruto);
-
-  const campos: CamposExtraidos = {
-    numero: valorApos(texto, [
-      'n[uú]mero do craf',
-      'craf n[º°o]',
-      'n[uú]mero do registro',
-      'n[º°o] do registro',
-      'n[º°o] da guia',
-      'n[uú]mero da guia',
-      'n[uú]mero do cr',
-    ]),
-    dataValidade: dataApos(texto, ['validade', 'v[aá]lido at[eé]', 'vencimento', 'validade do registro']),
-    dataEmissao: dataApos(texto, ['expedi[cç][aã]o', 'emiss[aã]o', 'emitido em', 'data de expedi']),
-    numeroSerie: valorApos(texto, ['n[uú]mero de s[eé]rie', 'n[º°o] de s[eé]rie', 's[eé]rie']),
-    marca: valorApos(texto, ['marca']),
-    modelo: valorApos(texto, ['modelo']),
-    calibre: valorApos(texto, ['calibre']),
-    especie: valorApos(texto, ['esp[eé]cie', 'tipo de arma']),
-    fabricante: valorApos(texto, ['fabricante']),
-    paisOrigem: valorApos(texto, ['pa[ií]s de origem', 'pa[ií]s']),
-    anoFabricacao: valorApos(texto, ['ano de fabrica[cç][aã]o', 'ano de fabrica']),
-    // Origem/destino da guia: pega o bloco (nome, endereço, CEP) até o próximo
-    // campo — assim o destino traz o endereço e o CEP, não só o nome.
-    origem: blocoApos(texto, ['origem'], PARADAS_ENDERECO),
-    destino: blocoApos(texto, ['destino'], PARADAS_ENDERECO),
-    // Finalidade do tráfego → vai para as observações do documento.
-    observacoes: (() => {
-      const f = valorApos(texto, ['finalidade do tr[aá]fego', 'finalidade', 'motivo do transporte', 'motivo']);
-      return f ? `Finalidade: ${f}` : undefined;
-    })(),
+  const enderecoDe = (sec: string) => {
+    // "País" (acento no i) na origem e "Páis" (acento no a) no destino — cobre os dois.
+    const m = sec.match(/Endere[çc]o e CEP:\s*([\s\S]*?)(?:\n\s*P[aá][ií]s\s*\/|\n\s*Telefone|$)/i);
+    return m?.[1]?.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() || undefined;
   };
 
-  // Guia de tráfego não tem dados de arma; CRAF não tem origem/destino.
-  if (tipo === 'GUIA_TRAFEGO') {
-    delete campos.numeroSerie;
-    delete campos.marca;
-    delete campos.modelo;
-    delete campos.calibre;
-    delete campos.especie;
-    delete campos.fabricante;
-    delete campos.paisOrigem;
-    delete campos.anoFabricacao;
-  } else {
-    delete campos.origem;
-    delete campos.destino;
+  const finalidade = texto
+    .match(/\n\s*4\.\s*FINALIDADE\s*\n\s*([^\n]+)/i)?.[1]
+    ?.trim();
+
+  return limpo({
+    numero,
+    dataEmissao: paraISO(val?.[1]),
+    dataValidade: paraISO(val?.[2]),
+    origem: enderecoDe(secOrigem),
+    destino: enderecoDe(secDestino),
+    observacoes: finalidade ? `Finalidade: ${finalidade}` : undefined,
+  });
+}
+
+// ------------------------------------------------------ CRAF do Exército (SIGMA)
+function parseCrafExercito(texto: string): CamposExtraidos {
+  const linhas = texto.split('\n').map((l) => l.trim()).filter(Boolean);
+  const validade = paraISO(texto.match(/VALIDADE\s*\n\s*(\d{2}\/\d{2}\/\d{4})/i)?.[1]);
+
+  // Bloco de valores (fim do doc): [TIPO MARCA] / [CALIBRE] / [SÉRIE SIGMA] / [DATA].
+  // Âncora: a linha "SÉRIE SIGMA" = algo como "ACK443000 1975996".
+  const iSerie = linhas.findIndex((l) => /^[A-Z][A-Z0-9.\/-]{3,}\s+\d{6,}$/.test(l));
+  let numeroSerie: string | undefined;
+  let numero: string | undefined;
+  let especie: string | undefined;
+  let marca: string | undefined;
+  let calibre: string | undefined;
+  let dataEmissao: string | undefined;
+
+  if (iSerie >= 0) {
+    const mSerie = linhas[iSerie].match(/^([A-Z][A-Z0-9.\/-]{3,})\s+(\d{6,})$/);
+    numeroSerie = mSerie?.[1];
+    numero = mSerie?.[2]; // Nº SIGMA = registro
+    calibre = linhas[iSerie - 1]?.replace(/\s*\((?:restrito|permitido)\)\s*/i, '').trim();
+    const tipoMarca = linhas[iSerie - 2] ?? '';
+    const mTM = tipoMarca.match(new RegExp(`^(${ESPECIE})\\s+(.*)$`, 'i'));
+    if (mTM) {
+      especie = mTM[1].trim();
+      marca = mTM[2].trim();
+    } else {
+      marca = tipoMarca || undefined;
+    }
+    dataEmissao = paraISO(linhas[iSerie + 1]);
   }
 
-  return limpo(campos as Record<string, string | undefined>) as CamposExtraidos;
+  return limpo({ numero, dataValidade: validade, dataEmissao, numeroSerie, especie, marca, calibre });
+}
+
+// --------------------------------------------------------- CRAF do SINARM (PF)
+function parseCrafSinarm(texto: string): CamposExtraidos {
+  const mVal = texto.match(/Data de Validade:\s*(\d+)\s+(\d{2}\/\d{2}\/\d{4})/i);
+  const numero = mVal?.[1];
+  const dataValidade = paraISO(mVal?.[2]);
+
+  // Valores posicionais logo após o último rótulo do quadro da arma.
+  const apos = texto.split(/Comprimento dos Canos:/i)[1] ?? '';
+  const v = apos
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .filter((l) => !/Goi[âa]nia|Registro|Propriet|DELEGADO|REP[ÚU]BLICA/i.test(l));
+
+  let especie: string | undefined;
+  let marca: string | undefined;
+  let modelo: string | undefined;
+  let numeroSerie: string | undefined;
+  let calibre: string | undefined;
+  let paisOrigem: string | undefined;
+
+  if (v.length >= 4) {
+    especie = v[0].split(/\s+/).slice(1).join(' ') || undefined; // "SINARM PISTOLA" → PISTOLA
+    marca = v[1] || undefined;
+    const vm = v[2].split(/\s+/);
+    if (vm.length >= 2) {
+      numeroSerie = vm[vm.length - 1];
+      modelo = vm.slice(0, -1).join(' ');
+    } else {
+      modelo = v[2];
+    }
+    calibre = v[3].split(/\s+/)[0];
+    paisOrigem = marca?.match(/\(([^)]+)\)/)?.[1];
+  }
+  const dataEmissao = paraISO(texto.match(/Data da NF:\s*\n?[\s\S]*?(\d{2}\/\d{2}\/\d{4})/i)?.[1]);
+
+  return limpo({ numero, dataValidade, dataEmissao, numeroSerie, especie, marca, modelo, calibre, paisOrigem });
+}
+
+/** Detecta o formato pelo texto e delega ao parser certo. */
+export function mapearCampos(textoBruto: string, _tipo?: string): CamposExtraidos {
+  const texto = normalizar(textoBruto);
+  if (/GUIA DE TR[ÁA]FEGO|AUTORIZA[ÇC][ÃA]O PARA TR[ÁA]FEGO/i.test(texto)) return parseGuia(texto);
+  if (/EX[ÉE]RCITO BRASILEIRO/i.test(texto)) return parseCrafExercito(texto);
+  if (/SINARM/i.test(texto)) return parseCrafSinarm(texto);
+  // Formato desconhecido: nada extraído (o usuário preenche à mão).
+  return {};
 }
