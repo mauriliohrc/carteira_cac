@@ -1,7 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../../db/cliente.js';
 import { buscarCR, emailConfereNoSH } from '../../integracoes/shootinghouse.js';
+import { extrairTextoPdf, mapearCampos } from '../../integracoes/extracaoDocumento.js';
 import { exigirApp } from '../../http/guardas.js';
+import { invalido } from '../../http/erros.js';
 
 export interface DocumentoImportavel {
   tipo: string;
@@ -45,5 +47,21 @@ export async function rotasDocumentosAppV1(app: FastifyInstance) {
     }
 
     return { status: 'OK', documentos: [...porChave.values()] };
+  });
+
+  // Extrai campos do TEXTO de um PDF anexado (CRAF, guia, CR…), para o app
+  // pré-preencher o que estiver faltando. Só PDF digital; foto nem chega aqui.
+  // Aditivo: endpoint novo; app antigo nunca chama.
+  app.post('/app/documentos/extrair', { preHandler: exigirApp() }, async (req) => {
+    const corpo = (req.body ?? {}) as { base64?: string; tipo?: string };
+    if (!corpo.base64) throw invalido('PDF ausente.');
+    let texto: string;
+    try {
+      texto = await extrairTextoPdf(corpo.base64);
+    } catch {
+      return { campos: {}, semTexto: true };
+    }
+    if (!texto.trim()) return { campos: {}, semTexto: true };
+    return { campos: mapearCampos(texto, corpo.tipo) };
   });
 }

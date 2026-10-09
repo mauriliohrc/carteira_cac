@@ -13,7 +13,10 @@ import { ORGAO_POR_VALOR, TIPO_DOC_POR_VALOR } from '@/domain/catalogos';
 import { isoParaBR, textoPrazo } from '@/lib/data';
 import { avaliarComCor } from '@/domain/vencimento';
 import { nomeArma } from '@/domain/rotulos';
-import { removerDocumento } from '@/db/documentos';
+import { atualizarDocumento, removerDocumento } from '@/db/documentos';
+import { atualizarArma } from '@/db/armas';
+import { AnalisandoDocumento } from '@/ui/AnalisandoDocumento';
+import { extrairCamposDoPdf } from '@/integracoes/extracao';
 import {
   abrirNoSistema,
   apagarArquivo,
@@ -37,6 +40,7 @@ export default function DetalheDocumento() {
   const v = useEstilos(folha);
   const { documentos, recarregar } = useApp();
   const [anexando, setAnexando] = useState(false);
+  const [analisando, setAnalisando] = useState(false);
 
   const doc = useMemo(() => documentos.find((d) => d.id === id) ?? null, [documentos, id]);
   const def = doc ? TIPO_DOC_POR_VALOR[doc.tipo] : null;
@@ -51,6 +55,56 @@ export default function DetalheDocumento() {
 
   const info = avaliarComCor(doc.dataValidade, c);
 
+  // Lê o PDF no servidor e preenche só os campos AINDA VAZIOS do documento e,
+  // quando houver arma vinculada (CRAF), dela também. Nunca sobrescreve.
+  const analisarEEnriquecer = async (uri: string) => {
+    if (!doc) return;
+    setAnalisando(true);
+    try {
+      const campos = await extrairCamposDoPdf(uri, doc.tipo);
+      const vazio = (v?: string | null) => !v || !String(v).trim();
+      let preenchidos = 0;
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id: _i, criadoEm: _c, atualizadoEm: _a, arma, arquivos: _arq, ...docBase } = doc;
+      const docEntrada = { ...docBase };
+      let mudouDoc = false;
+      if (campos.numero && vazio(docEntrada.numero)) { docEntrada.numero = campos.numero; preenchidos++; mudouDoc = true; }
+      if (campos.dataEmissao && vazio(docEntrada.dataEmissao)) { docEntrada.dataEmissao = campos.dataEmissao; preenchidos++; mudouDoc = true; }
+      if (campos.origem && vazio(docEntrada.origem)) { docEntrada.origem = campos.origem; preenchidos++; mudouDoc = true; }
+      if (campos.destino && vazio(docEntrada.destino)) { docEntrada.destino = campos.destino; preenchidos++; mudouDoc = true; }
+      if (mudouDoc) await atualizarDocumento(doc.id, docEntrada);
+
+      if (arma) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { id: aid, criadoEm: _ac, atualizadoEm: _aa, ...armaBase } = arma;
+        const a = { ...armaBase };
+        let mudouArma = false;
+        if (campos.numeroSerie && vazio(a.numeroSerie)) { a.numeroSerie = campos.numeroSerie; preenchidos++; mudouArma = true; }
+        if (campos.marca && vazio(a.marca)) { a.marca = campos.marca; preenchidos++; mudouArma = true; }
+        if (campos.modelo && vazio(a.modelo)) { a.modelo = campos.modelo; preenchidos++; mudouArma = true; }
+        if (campos.calibre && vazio(a.calibre)) { a.calibre = campos.calibre; preenchidos++; mudouArma = true; }
+        if (campos.especie && vazio(a.especie)) { a.especie = campos.especie; preenchidos++; mudouArma = true; }
+        if (campos.fabricante && vazio(a.fabricante)) { a.fabricante = campos.fabricante; preenchidos++; mudouArma = true; }
+        if (campos.paisOrigem && vazio(a.paisOrigem)) { a.paisOrigem = campos.paisOrigem; preenchidos++; mudouArma = true; }
+        if (campos.anoFabricacao && vazio(a.anoFabricacao)) { a.anoFabricacao = campos.anoFabricacao; preenchidos++; mudouArma = true; }
+        if (mudouArma) await atualizarArma(aid, a);
+      }
+
+      await recarregar();
+      avisar(
+        preenchidos ? 'Documento analisado' : 'Nada a preencher',
+        preenchidos
+          ? `Preenchi ${preenchidos} campo(s) a partir do PDF. Confira antes de confiar.`
+          : 'Não encontrei campos novos no PDF (ou já estavam preenchidos).'
+      );
+    } catch (e) {
+      console.error('[CAC Brasil] falha ao analisar documento', e);
+    } finally {
+      setAnalisando(false);
+    }
+  };
+
   const anexar = async (obter: () => Promise<ArquivoEscolhido | null>) => {
     setAnexando(true);
     try {
@@ -58,6 +112,10 @@ export default function DetalheDocumento() {
       if (!escolhido) return;
       await guardarArquivo(doc.id, escolhido);
       await recarregar();
+      // Só PDF é analisado; foto/imagem segue como antes (nenhuma ação).
+      const ehPdfEscolhido =
+        (escolhido.mime ?? '').includes('pdf') || escolhido.nome.toLowerCase().endsWith('.pdf');
+      if (ehPdfEscolhido) await analisarEEnriquecer(escolhido.uri);
     } catch (e) {
       console.error('[CAC Brasil] falha ao anexar', e);
       avisar('Não foi possível anexar', e instanceof Error ? e.message : String(e));
@@ -206,6 +264,8 @@ export default function DetalheDocumento() {
         aoTocar={() => void excluir()}
         estilo={{ marginTop: espaco.xl }}
       />
+
+      <AnalisandoDocumento visivel={analisando} />
     </Tela>
   );
 }
