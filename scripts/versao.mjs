@@ -113,12 +113,12 @@ if (acao === 'bump') {
   console.log(`✓ set-build ${alvo} ${n}`);
   mostrar(lerEstado());
 } else if (acao === 'set-nome') {
-  if (!valor || !/^\d+\.\d+(\.\d+)?$/.test(valor)) {
+  if (!alvo || !/^\d+\.\d+(\.\d+)?$/.test(alvo)) {
     console.error('Use: set-nome <x.y.z>');
     process.exit(1);
   }
-  aplicar({ versao: valor, ios: e.ios, android: e.android });
-  console.log(`✓ set-nome ${valor}`);
+  aplicar({ versao: alvo, ios: e.ios, android: e.android });
+  console.log(`✓ set-nome ${alvo}`);
   mostrar(lerEstado());
 } else {
   console.error(`Ação desconhecida: ${acao}`);

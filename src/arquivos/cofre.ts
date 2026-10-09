@@ -15,7 +15,7 @@ import { novoId } from '@/db';
 import { registrarArquivo, removerRegistroArquivo } from '@/db/arquivos';
 import { registrarFoto, removerRegistroFoto, type Foto } from '@/db/fotos';
 import type { Arquivo } from '@/domain/tipos';
-import { avisar } from '@/ui/dialogo';
+import { avisar, escolher } from '@/ui/dialogo';
 
 const RAIZ = 'acervo';
 const RAIZ_FOTOS = 'fotos';
@@ -164,6 +164,27 @@ export async function escolherPdfOuImagem(): Promise<ArquivoEscolhido | null> {
     avisar('Não foi possível abrir os arquivos', e instanceof Error ? e.message : String(e));
     return null;
   }
+}
+
+/**
+ * Pergunta a origem (Arquivos ou Galeria) e devolve o arquivo escolhido.
+ * Cancelar a folha → null (segue sem anexar).
+ */
+export function escolherDocumento(): Promise<ArquivoEscolhido | null> {
+  return new Promise((resolve) => {
+    void escolher('Anexar documento', 'De onde você quer escolher?', [
+      {
+        rotulo: 'Arquivos',
+        icone: 'folder-outline',
+        acao: async () => resolve(await escolherPdfOuImagem()),
+      },
+      {
+        rotulo: 'Galeria',
+        icone: 'images-outline',
+        acao: async () => resolve(await escolherDaGaleria()),
+      },
+    ]).then(() => resolve(null)); // cancelou a folha → sem anexo
+  });
 }
 
 export async function escolherDaGaleria(): Promise<ArquivoEscolhido | null> {

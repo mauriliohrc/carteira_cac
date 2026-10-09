@@ -86,16 +86,23 @@ export default function EditorDocumento() {
 
   const def = TIPO_DOC_POR_VALOR[tipo];
   const ehDeArma = def.escopo === 'ARMA';
+  // "Outro" é genérico: pode pertencer a uma arma (quando cadastrado a partir
+  // dela) ou ser pessoal (quando cadastrado em "Meus documentos"). É o único
+  // tipo genérico que a ficha da arma exibe, então preserva o vínculo.
+  const ehDual = tipo === 'OUTRO';
+  const vinculavelArma = ehDeArma || (ehDual && !!armaId);
   const ehGuia = tipo === 'GUIA_TRAFEGO';
   const ehManejo = !!def.campos.local;
 
   // Trocar de tipo reposiciona o órgão emissor e solta o vínculo com a arma
-  // quando o documento passa a ser pessoal.
+  // quando o documento passa a ser estritamente pessoal. Tipos genéricos
+  // (Outro) preservam o contexto: se veio de uma arma, continua da arma.
   const trocarTipo = (novo: TipoDocumento) => {
     setTipo(novo);
-    setOrgao(TIPO_DOC_POR_VALOR[novo].orgaoPadrao);
-    if (TIPO_DOC_POR_VALOR[novo].escopo === 'PESSOAL') setArmaId(null);
-    else if (!armaId && armas.length === 1) setArmaId(armas[0].id);
+    const novoDef = TIPO_DOC_POR_VALOR[novo];
+    setOrgao(novoDef.orgaoPadrao);
+    if (novoDef.escopo === 'PESSOAL' && novo !== 'OUTRO') setArmaId(null);
+    else if (novoDef.escopo === 'ARMA' && !armaId && armas.length === 1) setArmaId(armas[0].id);
   };
 
   const validar = (): boolean => {
@@ -130,7 +137,7 @@ export default function EditorDocumento() {
     setSalvando(true);
     const entrada: EntradaDocumento = {
       tipo,
-      armaId: ehDeArma ? armaId : null,
+      armaId: ehDeArma || ehDual ? armaId : null,
       titulo,
       numero,
       orgao,
@@ -186,11 +193,11 @@ export default function EditorDocumento() {
             aoSelecionar={(v) => trocarTipo(v as TipoDocumento)}
           />
 
-          {ehDeArma ? (
+          {vinculavelArma ? (
             armas.length ? (
               <SeletorLista
                 rotulo="Arma"
-                obrigatorio
+                obrigatorio={ehDeArma}
                 tituloFolha="A qual arma pertence"
                 itens={armas.map((a) => ({
                   valor: a.id,
