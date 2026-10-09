@@ -50,7 +50,7 @@ export function AnalisandoDocumento({ visivel }: { visivel: boolean }) {
             <View style={s.cubo} />
           </Animated.View>
           <Text style={s.titulo}>Estamos analisando o documento.</Text>
-          <Text style={s.sub}>Lendo o PDF e preenchendo o que der automaticamente…</Text>
+          <Text style={s.sub}>Lendo o documento e preenchendo o que der automaticamente…</Text>
         </View>
       </View>
     </Modal>
