@@ -88,7 +88,14 @@ function parseGuia(texto: string): CamposExtraidos {
   const enderecoDe = (sec: string) => {
     // "País" (acento no i) na origem e "Páis" (acento no a) no destino — cobre os dois.
     const m = sec.match(/Endere[çc]o e CEP:\s*([\s\S]*?)(?:\n\s*P[aá][ií]s\s*\/|\n\s*Telefone|$)/i);
-    return m?.[1]?.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() || undefined;
+    if (!m) return undefined;
+    // Campos vazios na guia vêm como "XXX" — descarta esses pedaços.
+    const partes = m[1]
+      .replace(/\n/g, ' ')
+      .split(',')
+      .map((p) => p.replace(/\s+/g, ' ').trim())
+      .filter((p) => p && !/^X{2,}$/i.test(p));
+    return partes.join(', ') || undefined;
   };
 
   const finalidade = texto
@@ -226,8 +233,11 @@ export function mapearCampos(textoBruto: string, _tipo?: string): CamposExtraido
   const t = normalizar(textoBruto);
   if (/GUIA DE TR[ÁA]FEGO|AUTORIZA[ÇC][ÃA]O PARA TR[ÁA]FEGO/i.test(t)) return parseGuia(t);
   if (/AUTORIZA[ÇC][ÃA]O PARA AQUISI[ÇC][ÃA]O/i.test(t)) return parseAutorizacao(t);
-  if (/PORTE\s+(?:FEDERAL\s+)?DE ARMA/i.test(t)) return parsePorte(t);
+  // CRAF do Exército antes do porte: o CRAF traz o aviso "NÃO É VÁLIDO COMO
+  // PORTE DE ARMA DE FOGO", que não pode ser confundido com um porte de verdade.
   if (/CERTIFICADO DE REGISTRO DE ARMA DE FOGO/i.test(t)) return parseCrafExercito(t);
+  // Porte real: exige o título, não o aviso "…COMO PORTE…" do CRAF.
+  if (/(?<!COMO\s)PORTE\s+(?:FEDERAL\s+)?DE ARMA/i.test(t)) return parsePorte(t);
   if (/\bN[º°o]\s*CR\b|ATIVIDADES AUTORIZADAS/i.test(t)) return parseCR(t);
   if (/SINARM|CERTIFICADO DE REGISTRO FEDERAL DE ARMA DE FOGO|N[º°o] Cad\. SINARM/i.test(t))
     return parseCrafSinarm(t);

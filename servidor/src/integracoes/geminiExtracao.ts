@@ -19,12 +19,16 @@ export function geminiDisponivel(): boolean {
 }
 
 const CAMPOS_DESC = `
-- numero: número do documento (CRAF, CR, guia, certificado, autorização ou CRP do laudo)
+- numero: número/registro do documento (CRAF: Nº SIGMA ou registro; CR: Nº CR; guia: GTE Nº; porte: nº do certificado; autorização: Nº; laudo: nº do laudo ou CRP)
 - dataValidade: validade, formato ISO yyyy-mm-dd
 - dataEmissao: emissão/expedição, ISO yyyy-mm-dd
 - numeroSerie: número de série da arma
-- marca, modelo, calibre, especie, fabricante, paisOrigem, anoFabricacao: dados da arma
-- origem, destino: endereços (guia de tráfego) — destino com endereço e CEP
+- marca: fabricante/marca da arma (ex.: Forjas Taurus, Glock)
+- modelo: modelo da arma (ex.: G-25, TH9)
+- calibre: calibre (ex.: .380, 9mm, .357 Magnum)
+- especie: tipo da arma (revólver, pistola, carabina/fuzil, espingarda, rifle…)
+- fabricante, paisOrigem, anoFabricacao: demais dados da arma, quando houver
+- origem, destino: endereço COMPLETO com CEP de cada local (guia de tráfego)
 - observacoes: finalidade (guia), atividades autorizadas (CR) ou profissional/CRP (laudo)`;
 
 interface RespostaGemini {
@@ -39,10 +43,12 @@ export async function extrairComGemini(
 ): Promise<CamposExtraidos> {
   if (!geminiDisponivel()) return {};
   const prompt =
-    `Você lê documentos brasileiros de CAC (colecionador, atirador, caçador). ` +
+    `Você lê documentos brasileiros de CAC (colecionador, atirador, caçador): ` +
+    `CRAF, CR, guia de tráfego (GTE), porte, autorização e laudos. ` +
     `Extraia os campos abaixo deste documento${tipo ? ` (tipo: ${tipo})` : ''} e responda ` +
     `APENAS um JSON (sem markdown) com as chaves que encontrar. Datas em ISO (yyyy-mm-dd). ` +
-    `Omita chaves não encontradas. Campos:${CAMPOS_DESC}`;
+    `Ignore marcas d'água, QR codes, assinaturas e avisos legais (ex.: "NÃO É VÁLIDO COMO PORTE"). ` +
+    `Se um campo não existir ou vier preenchido como "XXX", omita a chave. Campos:${CAMPOS_DESC}`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO}:generateContent?key=${API_KEY}`;
   const corpo = {
