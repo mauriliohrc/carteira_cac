@@ -54,11 +54,13 @@ export function apresentarCategoria(cat: CategoriaCompeticao, totalResultados?: 
 type CompComContagem = Competicao & {
   categorias?: CategoriaCompeticao[];
   _count?: { categorias: number };
+  entidade?: { subdominio: string | null } | null;
 };
 export function apresentarCompeticao(c: CompComContagem) {
   return {
     id: c.id,
     entidadeId: c.entidadeId,
+    ...(c.entidade ? { entidadeSubdominio: c.entidade.subdominio } : {}),
     nome: c.nome,
     descricao: c.descricao,
     bannerUrl: c.bannerUrl,

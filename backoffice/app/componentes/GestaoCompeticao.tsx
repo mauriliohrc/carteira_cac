@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { ROTULO_ORDENAMENTO, type Competicao } from '@/lib/tipos';
+import { linkRankingPublico, ROTULO_ORDENAMENTO, type Competicao } from '@/lib/tipos';
 import {
   FormularioCompeticao,
   paraPayload as payloadCompeticao,
@@ -141,7 +141,7 @@ export function GestaoCompeticao({
             </div>
           </div>
 
-          <CompartilharRanking id={competicaoId} />
+          <CompartilharRanking competicao={comp} />
 
           {comp.bannerUrl && (
             // eslint-disable-next-line @next/next/no-img-element
@@ -172,8 +172,8 @@ export function GestaoCompeticao({
 }
 
 /** Link público do ranking — pronto para copiar e compartilhar. */
-function CompartilharRanking({ id }: { id: string }) {
-  const url = `https://backoffice.carteiracac.com/competicao/${id}`;
+function CompartilharRanking({ competicao }: { competicao: Competicao }) {
+  const url = linkRankingPublico(competicao);
   const [copiado, setCopiado] = useState(false);
 
   async function copiar() {

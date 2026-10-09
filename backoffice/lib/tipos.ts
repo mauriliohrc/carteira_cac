@@ -312,6 +312,8 @@ export const ROTULO_ORIGEM_NOME: Record<string, string> = {
 export interface Competicao {
   id: string;
   entidadeId: string;
+  /** Subdomínio público da entidade dona (quando houver), p/ o link bonito. */
+  entidadeSubdominio?: string | null;
   nome: string;
   descricao: string | null;
   bannerUrl: string | null;
@@ -323,6 +325,33 @@ export interface Competicao {
   atualizadoEm: string;
   totalCategorias?: number;
   categorias?: CategoriaCompeticao[];
+}
+
+/** Slug cosmético do nome da competição para a URL (o id no fim é o que vale). */
+export function slugCompeticao(nome: string): string {
+  return nome
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+}
+
+/**
+ * Link público do ranking. Com subdomínio da entidade vira
+ * `https://3gun.carteiracac.com/competicoes/nome-bonito-<id>`; sem ele, cai no
+ * domínio do backoffice (entidades antigas sem subdomínio ainda funcionam).
+ */
+export function linkRankingPublico(
+  comp: Pick<Competicao, 'id' | 'nome' | 'entidadeSubdominio'>
+): string {
+  if (comp.entidadeSubdominio) {
+    const slug = slugCompeticao(comp.nome);
+    const cauda = slug ? `${slug}-${comp.id}` : comp.id;
+    return `https://${comp.entidadeSubdominio}.carteiracac.com/competicoes/${cauda}`;
+  }
+  return `https://backoffice.carteiracac.com/competicao/${comp.id}`;
 }
 
 export interface CategoriaCompeticao {

@@ -63,6 +63,7 @@ export async function rotasEntidadeCompeticoes(app: FastifyInstance) {
     const comp = await prisma.competicao.findUnique({
       where: { id },
       include: {
+        entidade: { select: { subdominio: true } },
         categorias: {
           orderBy: { criadoEm: 'asc' },
           include: { _count: { select: { resultados: true } } },

@@ -16,7 +16,7 @@ export async function rotasPublicoCompeticoes(app: FastifyInstance) {
     const comp = await prisma.competicao.findUnique({
       where: { id },
       include: {
-        entidade: { select: { nome: true } },
+        entidade: { select: { nome: true, subdominio: true } },
         categorias: { orderBy: { criadoEm: 'asc' }, include: { resultados: true } },
       },
     });
@@ -32,6 +32,7 @@ export async function rotasPublicoCompeticoes(app: FastifyInstance) {
         dataInicio: comp.dataInicio,
         dataFim: comp.dataFim,
         entidadeNome: comp.entidade.nome,
+        entidadeSubdominio: comp.entidade.subdominio,
         categorias: comp.categorias.map((cat) => ({
           id: cat.id,
           nome: cat.nome,

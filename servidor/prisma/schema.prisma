@@ -105,6 +105,9 @@ model MidiaNoticia {
 model EntidadeTiro {
   id        String   @id @default(cuid())
   nome      String
+  /// Subdomínio público, gerado do nome no cadastro (ex.: "3Gun" -> "3gun" ->
+  /// 3gun.carteiracac.com). Único; nulo em entidades antigas até o backfill.
+  subdominio String? @unique
   /// CLUBE | LIGA | FEDERACAO  (validado por Zod)
   tipo      String
   /// Registro no Exército (CR), quando houver.

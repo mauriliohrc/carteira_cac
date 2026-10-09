@@ -87,6 +87,7 @@ export function apresentarEntidade(e: EntidadeTiro) {
   return {
     id: e.id,
     nome: e.nome,
+    subdominio: e.subdominio,
     tipo: e.tipo,
     cr: e.cr,
     cnpj: e.cnpj,

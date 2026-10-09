@@ -14,6 +14,19 @@ import {
 } from '../http/apresentadores.js';
 import { conflito, naoEncontrado } from '../http/erros.js';
 import { exigirAdmin } from '../http/guardas.js';
+import { candidatosSubdominio } from '../dominio/subdominio.js';
+
+/** Primeiro subdomínio livre derivado do nome (ou null se o nome não gera um). */
+async function escolherSubdominioLivre(nome: string): Promise<string | null> {
+  for (const cand of candidatosSubdominio(nome)) {
+    const existe = await prisma.entidadeTiro.findUnique({
+      where: { subdominio: cand },
+      select: { id: true },
+    });
+    if (!existe) return cand;
+  }
+  return null;
+}
 
 // Remove undefined para não sobrescrever campos num update parcial.
 function limpar<T extends Record<string, unknown>>(obj: T): Partial<T> {
@@ -55,7 +68,9 @@ export async function rotasEntidades(app: FastifyInstance) {
   app.post('/api/admin/entidades', async (req, reply) => {
     const dados = criarEntidadeSchema.parse(req.body);
     try {
-      const e = await prisma.entidadeTiro.create({ data: dados });
+      // Subdomínio público nasce do nome: "3Gun" -> 3gun.carteiracac.com.
+      const subdominio = await escolherSubdominioLivre(dados.nome);
+      const e = await prisma.entidadeTiro.create({ data: { ...dados, subdominio } });
       reply.code(201);
       return { entidade: apresentarEntidade(e) };
     } catch (err) {
