@@ -51,17 +51,27 @@ export async function rotasDocumentosAppV1(app: FastifyInstance) {
   });
 
   // Extrai campos de um documento anexado (CRAF, guia, CR, laudo…) para o app
-  // pré-preencher o que faltar. PDF com texto → parser regex (grátis/offline);
-  // foto ou PDF escaneado → OCR por visão (Gemini) quando configurado.
+  // pré-preencher o que faltar. A IA (Gemini) lê TODOS os documentos — PDF ou
+  // foto. O parser de texto fica só como fallback quando não há chave de IA.
   // Aditivo: endpoint existente; campo `mime` é opcional (default PDF).
   app.post('/app/documentos/extrair', { preHandler: exigirApp() }, async (req) => {
     const corpo = (req.body ?? {}) as { base64?: string; mime?: string; tipo?: string };
     if (!corpo.base64) throw invalido('Arquivo ausente.');
     const mime = corpo.mime ?? 'application/pdf';
-    const ehImagem = mime.startsWith('image/');
 
-    // PDF com texto → parser regex (grátis e offline). Senão, cai no OCR.
-    if (!ehImagem) {
+    // IA lê tudo (PDF e foto). Caminho padrão em produção.
+    if (geminiDisponivel()) {
+      try {
+        const campos = await extrairComGemini(corpo.base64, mime, corpo.tipo);
+        return { campos, origem: 'ia' };
+      } catch (e) {
+        req.log.error({ e }, 'falha extração IA');
+        return { campos: {}, erroOcr: true };
+      }
+    }
+
+    // Fallback sem chave de IA: texto do PDF (offline).
+    if (!mime.startsWith('image/')) {
       let texto = '';
       try {
         texto = await extrairTextoPdf(corpo.base64);
@@ -70,17 +80,6 @@ export async function rotasDocumentosAppV1(app: FastifyInstance) {
       }
       if (texto.replace(/\s+/g, '').length > 40) {
         return { campos: mapearCampos(texto, corpo.tipo), origem: 'texto' };
-      }
-    }
-
-    // Imagem ou PDF escaneado → visão (Gemini), se configurado.
-    if (geminiDisponivel()) {
-      try {
-        const campos = await extrairComGemini(corpo.base64, mime, corpo.tipo);
-        return { campos, origem: 'ocr' };
-      } catch (e) {
-        req.log.error({ e }, 'falha OCR Gemini');
-        return { campos: {}, erroOcr: true };
       }
     }
     return { campos: {}, semTexto: true };
