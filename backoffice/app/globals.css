@@ -273,3 +273,29 @@ tr:hover td { background: var(--superficie-2); }
   height: 0;
   pointer-events: none;
 }
+
+/* ============================ Responsivo (celular) ============================ */
+@media (max-width: 720px) {
+  html, body { font-size: 15.5px; }
+  .conteudo { padding: 18px 14px 48px; }
+
+  /* Header: marca + nav empilham; nav rola na horizontal (não quebra). */
+  .topo { flex-wrap: wrap; gap: 10px; padding: 12px 14px; }
+  .topo > .linha-acoes:first-child { flex-direction: column; align-items: flex-start; gap: 10px; width: 100%; }
+  .nav { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 16px; padding-bottom: 4px; }
+  .nav a { white-space: nowrap; }
+
+  /* Formulários/listas em 1 coluna e cabeçalhos de seção empilhados. */
+  .grade.cols-2 { grid-template-columns: 1fr; }
+  .cabeca-secao { flex-direction: column; align-items: stretch; gap: 12px; }
+  .busca { max-width: 100%; }
+
+  /* Tabelas: rolam dentro do cartão em vez de espremer/quebrar. */
+  .cartao { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  th, td { white-space: nowrap; }
+
+  .paginacao { flex-direction: column; gap: 10px; align-items: stretch; }
+  .paginacao .controles { justify-content: space-between; }
+  .linha-acoes { flex-wrap: wrap; }
+  textarea { min-height: 150px; }
+}

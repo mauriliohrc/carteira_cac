@@ -14,6 +14,8 @@ interface Dashboard {
     semDocumento: number;
     semCadastro: number;
   };
+  online: number;
+  minOnline: number;
   armasSistema: number;
   plataformas: { ios: number; android: number };
   diasAtivo: number;
@@ -68,6 +70,17 @@ function Conteudo() {
         </div>
       </div>
 
+      <div
+        className="cartao"
+        style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16, borderColor: 'rgba(48,164,108,.4)' }}
+      >
+        <span className="ponto online" style={{ width: 12, height: 12 }} />
+        <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1 }}>{d.online}</div>
+        <div style={{ color: 'var(--texto-suave)', fontSize: 14 }}>
+          online agora · ativos nos últimos {d.minOnline} min
+        </div>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14 }}>
         {cards.map((c) => (
           <Link key={c.chave} href={c.href ?? `/dashboard/${c.chave}`} style={{ textDecoration: 'none' }}>
@@ -88,6 +101,7 @@ function Conteudo() {
       </div>
 
       <GraficoCrescimento />
+      <GraficoAcessosHora />
     </>
   );
 }
@@ -172,12 +186,12 @@ function GraficoCrescimento() {
 }
 
 function Grafico({ pontos, escala }: { pontos: Ponto[]; escala: 'dia' | 'mes' }) {
-  const W = 760;
-  const H = 240;
-  const padL = 36;
-  const padB = 28;
-  const padT = 14;
-  const padR = 12;
+  const W = 780;
+  const H = 260;
+  const padL = 44; // espaço para os números do eixo Y
+  const padB = 30;
+  const padT = 20;
+  const padR = 46; // espaço para o rótulo do valor final (não cortar)
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
   const maxAcum = Math.max(1, ...pontos.map((p) => p.acumulado));
@@ -187,7 +201,6 @@ function Grafico({ pontos, escala }: { pontos: Ponto[]; escala: 'dia' | 'mes' })
   const larguraBarra = Math.max(2, (innerW / pontos.length) * 0.6);
   const linha = pontos.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${yAcum(p.acumulado)}`).join(' ');
 
-  // Rótulos esparsos: no máximo ~8 no eixo X.
   const passo = Math.max(1, Math.ceil(pontos.length / 8));
   const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
   const rotuloEixo = (r: string) => {
@@ -199,19 +212,36 @@ function Grafico({ pontos, escala }: { pontos: Ponto[]; escala: 'dia' | 'mes' })
     return `${dd}/${mm}`;
   };
 
+  const ultimo = pontos[pontos.length - 1]!;
+  const yFim = Math.max(padT + 10, yAcum(ultimo.acumulado)); // não deixa o rótulo subir demais
+
   return (
     <div style={{ overflowX: 'auto' }}>
-      <svg width={W} height={H} role="img" aria-label="Crescimento de usuários" style={{ maxWidth: '100%' }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        width="100%"
+        preserveAspectRatio="xMidYMid meet"
+        role="img"
+        aria-label="Crescimento de usuários"
+        style={{ display: 'block', minWidth: 560 }}
+      >
         {[0, 0.25, 0.5, 0.75, 1].map((f) => (
-          <line key={f} x1={padL} x2={W - padR} y1={padT + innerH * f} y2={padT + innerH * f} stroke="var(--borda)" strokeWidth={1} />
+          <g key={f}>
+            <line x1={padL} x2={W - padR} y1={padT + innerH * f} y2={padT + innerH * f} stroke="var(--borda)" strokeWidth={1} />
+            <text x={padL - 8} y={padT + innerH * f + 3.5} textAnchor="end" fontSize="10.5" fill="var(--texto-suave)">
+              {Math.round(maxAcum * (1 - f))}
+            </text>
+          </g>
         ))}
         {pontos.map((p, i) => {
           const h = (innerH * p.novos) / maxNovos;
           return (
             <g key={p.rotulo}>
-              <rect x={x(i) - larguraBarra / 2} y={padT + innerH - h} width={larguraBarra} height={h} rx={2} fill="var(--acento)" opacity={0.28} />
+              <rect x={x(i) - larguraBarra / 2} y={padT + innerH - h} width={larguraBarra} height={h} rx={2} fill="var(--acento)" opacity={0.28}>
+                <title>{`${rotuloEixo(p.rotulo)} · +${p.novos} novo(s) · ${p.acumulado} total`}</title>
+              </rect>
               {i % passo === 0 && (
-                <text x={x(i)} y={H - 10} textAnchor="middle" fontSize="10" fill="var(--texto-suave)">
+                <text x={x(i)} y={H - 10} textAnchor="middle" fontSize="10.5" fill="var(--texto-suave)">
                   {rotuloEixo(p.rotulo)}
                 </text>
               )}
@@ -221,12 +251,101 @@ function Grafico({ pontos, escala }: { pontos: Ponto[]; escala: 'dia' | 'mes' })
         <path d={linha} fill="none" stroke="var(--acento)" strokeWidth={2.5} />
         {pontos.length <= 31 &&
           pontos.map((p, i) => <circle key={`c-${p.rotulo}`} cx={x(i)} cy={yAcum(p.acumulado)} r={2.5} fill="var(--acento)" />)}
-        <text x={x(pontos.length - 1)} y={yAcum(pontos[pontos.length - 1]!.acumulado) - 8} textAnchor="end" fontSize="11" fontWeight={700} fill="var(--texto)">
-          {pontos[pontos.length - 1]!.acumulado}
+        <text x={Math.min(W - 4, x(pontos.length - 1) + 6)} y={yFim + 3.5} textAnchor="start" fontSize="11.5" fontWeight={700} fill="var(--texto)">
+          {ultimo.acumulado}
         </text>
       </svg>
       <p className="subtitulo" style={{ margin: '8px 0 0' }}>
         Linha = total acumulado · barras = novos cadastros por {escala === 'mes' ? 'mês' : 'dia'}.
+      </p>
+    </div>
+  );
+}
+
+interface HoraPonto {
+  hora: number;
+  total: number;
+}
+
+function GraficoAcessosHora() {
+  const [horas, setHoras] = useState<HoraPonto[] | null>(null);
+
+  useEffect(() => {
+    api<{ horas: HoraPonto[] }>('/api/admin/dashboard/acessos-hora')
+      .then((r) => setHoras(r.horas))
+      .catch(() => setHoras([]));
+  }, []);
+
+  return (
+    <>
+      <div className="cabeca-secao" style={{ marginTop: 32 }}>
+        <h2 style={{ margin: 0 }}>Acessos por horário</h2>
+      </div>
+      <div className="cartao">
+        {!horas ? <div className="vazio">Carregando…</div> : <BarrasHora horas={horas} />}
+      </div>
+    </>
+  );
+}
+
+function BarrasHora({ horas }: { horas: HoraPonto[] }) {
+  const W = 780;
+  const H = 220;
+  const padL = 40;
+  const padR = 12;
+  const padT = 16;
+  const padB = 28;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+  const max = Math.max(1, ...horas.map((h) => h.total));
+  const bw = innerW / 24;
+  const pico = horas.reduce((a, b) => (b.total > a.total ? b : a), horas[0] ?? { hora: 0, total: 0 });
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        width="100%"
+        preserveAspectRatio="xMidYMid meet"
+        role="img"
+        aria-label="Acessos por horário"
+        style={{ display: 'block', minWidth: 520 }}
+      >
+        {[0, 0.5, 1].map((f) => (
+          <g key={f}>
+            <line x1={padL} x2={W - padR} y1={padT + innerH * f} y2={padT + innerH * f} stroke="var(--borda)" strokeWidth={1} />
+            <text x={padL - 6} y={padT + innerH * f + 3.5} textAnchor="end" fontSize="10.5" fill="var(--texto-suave)">
+              {Math.round(max * (1 - f))}
+            </text>
+          </g>
+        ))}
+        {horas.map((h) => {
+          const barH = (innerH * h.total) / max;
+          const xb = padL + h.hora * bw;
+          return (
+            <g key={h.hora}>
+              <rect
+                x={xb + bw * 0.15}
+                y={padT + innerH - barH}
+                width={bw * 0.7}
+                height={barH}
+                rx={2}
+                fill="var(--acento)"
+                opacity={h.hora === pico.hora ? 0.95 : 0.6}
+              >
+                <title>{`${String(h.hora).padStart(2, '0')}h: ${h.total}`}</title>
+              </rect>
+              {h.hora % 3 === 0 && (
+                <text x={xb + bw / 2} y={H - 10} textAnchor="middle" fontSize="10.5" fill="var(--texto-suave)">
+                  {String(h.hora).padStart(2, '0')}h
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+      <p className="subtitulo" style={{ margin: '8px 0 0' }}>
+        Horário (BRT) do último acesso de cada usuário — padrão aproximado de uso.
       </p>
     </div>
   );

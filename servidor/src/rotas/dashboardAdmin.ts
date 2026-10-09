@@ -5,6 +5,7 @@ import { exigirAdmin } from '../http/guardas.js';
 import { buscarArmas } from '../integracoes/shootinghouse.js';
 
 const DIAS_ATIVO = 30;
+const MIN_ONLINE = 5;
 
 /** Filtros das métricas que viram listas de usuários (card → lista → CSV). */
 const FILTROS: Record<string, () => Prisma.UsuarioAppWhereInput> = {
@@ -21,10 +22,12 @@ export async function rotasDashboardAdmin(app: FastifyInstance) {
 
   app.get('/api/admin/dashboard', async () => {
     const corteAtivo = new Date(Date.now() - DIAS_ATIVO * 86_400_000);
-    const [total, ativos, semAtivar, semVinculo, semDocumento, anonimos, armasSistema] =
+    const corteOnline = new Date(Date.now() - MIN_ONLINE * 60_000);
+    const [total, ativos, online, semAtivar, semVinculo, semDocumento, anonimos, armasSistema] =
       await Promise.all([
         prisma.usuarioApp.count(),
         prisma.usuarioApp.count({ where: { ultimoAcessoEm: { gte: corteAtivo } } }),
+        prisma.usuarioApp.count({ where: { ultimoAcessoEm: { gte: corteOnline } } }),
         prisma.usuarioApp.count({ where: { emailVerificado: false } }),
         prisma.usuarioApp.count({ where: { vinculos: { none: {} } } }),
         prisma.usuarioApp.count({ where: { registrosSync: { none: { tipo: 'documentos', removido: false } } } }),
@@ -45,10 +48,27 @@ export async function rotasDashboardAdmin(app: FastifyInstance) {
 
     return {
       cards: { total, ativos, semAtivar, semVinculo, semDocumento, semCadastro: anonimos },
+      online,
+      minOnline: MIN_ONLINE,
       armasSistema,
       plataformas,
       diasAtivo: DIAS_ATIVO,
     };
+  });
+
+  // Distribuição de acesso por hora do dia (BRT). Base: último acesso de cada
+  // usuário (é o que guardamos) — dá o padrão aproximado de horário de uso.
+  app.get('/api/admin/dashboard/acessos-hora', async () => {
+    const usuarios = await prisma.usuarioApp.findMany({
+      where: { ultimoAcessoEm: { not: null } },
+      select: { ultimoAcessoEm: true },
+    });
+    const horas = Array.from({ length: 24 }, (_, h) => ({ hora: h, total: 0 }));
+    for (const u of usuarios) {
+      const h = (u.ultimoAcessoEm!.getUTCHours() - 3 + 24) % 24; // UTC -> BRT
+      horas[h]!.total += 1;
+    }
+    return { horas, base: 'ULTIMO_ACESSO', fuso: 'BRT' };
   });
 
   // Crescimento de usuários por período. `dias` = 7|30|60|90 (bucket diário);
