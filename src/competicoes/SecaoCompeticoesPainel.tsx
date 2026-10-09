@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { AppState, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
 import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { Secao } from '@/ui/base';
@@ -19,15 +19,29 @@ export function SecaoCompeticoesPainel() {
   const p = useEstilos(folha);
   const [itens, setItens] = useState<CompeticaoResumo[] | null>(null);
 
-  useEffect(() => {
+  const carregar = useCallback(() => {
     let vivo = true;
     listarCompeticoes()
       .then((r) => vivo && setItens(r))
-      .catch(() => vivo && setItens([]));
+      // Falha transitória não apaga uma lista que já veio — só mantém o estado.
+      .catch(() => vivo && setItens((atual) => atual ?? []));
     return () => {
       vivo = false;
     };
   }, []);
+
+  // Refaz ao FOCAR o Painel (troca de aba / cold start): pega o vínculo com a
+  // entidade que pode ter sido criado DEPOIS do primeiro carregamento (o
+  // reconhecimento na Shooting House roda em segundo plano no heartbeat).
+  useFocusEffect(carregar);
+
+  // E ao voltar do background estando no Painel (não há troca de foco aí).
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') carregar();
+    });
+    return () => sub.remove();
+  }, [carregar]);
 
   if (!itens || itens.length === 0) return null;
 

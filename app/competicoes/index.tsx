@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
@@ -39,9 +39,11 @@ export default function Competicoes() {
     }
   }, []);
 
-  useEffect(() => {
-    void carregar();
-  }, [carregar]);
+  useFocusEffect(
+    useCallback(() => {
+      void carregar();
+    }, [carregar])
+  );
 
   const aoAtualizar = useCallback(() => {
     setAtualizando(true);
