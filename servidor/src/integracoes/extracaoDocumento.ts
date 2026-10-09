@@ -16,6 +16,7 @@ export interface CamposExtraidos {
   dataEmissao?: string;
   origem?: string;
   destino?: string;
+  observacoes?: string;
   // Arma (CRAF)
   numeroSerie?: string;
   marca?: string;
@@ -56,6 +57,27 @@ function valorApos(texto: string, rotulos: string[], max = 80): string | undefin
   return undefined;
 }
 
+/**
+ * Bloco multi-linha após um rótulo, até o próximo campo conhecido (stops).
+ * Usado em origem/destino da guia, que trazem nome + endereço + CEP em linhas.
+ */
+function blocoApos(texto: string, rotulos: string[], stops: string[]): string | undefined {
+  const stopRe = new RegExp(`\\n\\s*(?:${stops.join('|')})\\b`, 'i');
+  for (const r of rotulos) {
+    const m = texto.match(new RegExp(`${r}\\s*[:\\-]?\\s*([\\s\\S]{0,240})`, 'i'));
+    if (!m) continue;
+    let bloco = m[1];
+    const corte = bloco.search(stopRe);
+    if (corte >= 0) bloco = bloco.slice(0, corte);
+    const linhas = bloco
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (linhas.length) return linhas.join(', ').slice(0, 180);
+  }
+  return undefined;
+}
+
 /** Primeira data dd/mm/aaaa logo após um dos rótulos → ISO. */
 function dataApos(texto: string, rotulos: string[]): string | undefined {
   for (const r of rotulos) {
@@ -68,6 +90,23 @@ function dataApos(texto: string, rotulos: string[]): string | undefined {
 function limpo<T extends Record<string, string | undefined>>(o: T): Partial<T> {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v)) as Partial<T>;
 }
+
+/** Rótulos que encerram um bloco de endereço (origem/destino) da guia. */
+const PARADAS_ENDERECO = [
+  'pa[ií]s',
+  'cidade',
+  'uf',
+  'estado',
+  'munic[ií]pio',
+  'validade',
+  'meio',
+  'observ',
+  'finalidade',
+  'origem',
+  'destino',
+  'data',
+  'n[º°o]',
+];
 
 /** Mapeia o texto nos campos. `tipo` ajusta quais rótulos priorizar. */
 export function mapearCampos(textoBruto: string, tipo?: string): CamposExtraidos {
@@ -93,8 +132,15 @@ export function mapearCampos(textoBruto: string, tipo?: string): CamposExtraidos
     fabricante: valorApos(texto, ['fabricante']),
     paisOrigem: valorApos(texto, ['pa[ií]s de origem', 'pa[ií]s']),
     anoFabricacao: valorApos(texto, ['ano de fabrica[cç][aã]o', 'ano de fabrica']),
-    origem: valorApos(texto, ['origem']),
-    destino: valorApos(texto, ['destino']),
+    // Origem/destino da guia: pega o bloco (nome, endereço, CEP) até o próximo
+    // campo — assim o destino traz o endereço e o CEP, não só o nome.
+    origem: blocoApos(texto, ['origem'], PARADAS_ENDERECO),
+    destino: blocoApos(texto, ['destino'], PARADAS_ENDERECO),
+    // Finalidade do tráfego → vai para as observações do documento.
+    observacoes: (() => {
+      const f = valorApos(texto, ['finalidade do tr[aá]fego', 'finalidade', 'motivo do transporte', 'motivo']);
+      return f ? `Finalidade: ${f}` : undefined;
+    })(),
   };
 
   // Guia de tráfego não tem dados de arma; CRAF não tem origem/destino.

@@ -73,6 +73,7 @@ export default function DetalheDocumento() {
       if (campos.dataEmissao && vazio(docEntrada.dataEmissao)) { docEntrada.dataEmissao = campos.dataEmissao; preenchidos++; mudouDoc = true; }
       if (campos.origem && vazio(docEntrada.origem)) { docEntrada.origem = campos.origem; preenchidos++; mudouDoc = true; }
       if (campos.destino && vazio(docEntrada.destino)) { docEntrada.destino = campos.destino; preenchidos++; mudouDoc = true; }
+      if (campos.observacoes && vazio(docEntrada.observacoes)) { docEntrada.observacoes = campos.observacoes; preenchidos++; mudouDoc = true; }
       if (mudouDoc) await atualizarDocumento(doc.id, docEntrada);
 
       if (arma) {

@@ -72,3 +72,4 @@ store/publicacoes/
 *.aab
 *.ipa
 ios/exportOptions.plist
+amostras/

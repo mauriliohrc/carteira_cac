@@ -13,6 +13,7 @@ export interface CamposExtraidos {
   dataEmissao?: string;
   origem?: string;
   destino?: string;
+  observacoes?: string;
   numeroSerie?: string;
   marca?: string;
   modelo?: string;

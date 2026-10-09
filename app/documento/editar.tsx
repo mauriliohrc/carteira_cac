@@ -78,7 +78,9 @@ export default function EditorDocumento() {
   const [origem, setOrigem] = useState(existente?.origem ?? camposExtraidos.origem ?? '');
   const [destino, setDestino] = useState(existente?.destino ?? camposExtraidos.destino ?? '');
   const [localManejo, setLocalManejo] = useState(existente?.localManejo ?? '');
-  const [observacoes, setObservacoes] = useState(existente?.observacoes ?? '');
+  const [observacoes, setObservacoes] = useState(
+    existente?.observacoes ?? camposExtraidos.observacoes ?? ''
+  );
   const [erros, setErros] = useState<Record<string, string>>({});
   const [salvando, setSalvando] = useState(false);
 
