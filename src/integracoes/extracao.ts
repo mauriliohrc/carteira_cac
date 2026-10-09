@@ -1,6 +1,7 @@
 /**
- * Cliente da extração de PDF: lê o anexo em base64 e pede ao servidor os campos.
- * Só para PDF (o chamador garante). Best-effort — devolve {} em qualquer falha.
+ * Cliente da extração: lê o anexo em base64 e pede ao servidor os campos.
+ * Serve PDF (texto) e foto/scan (OCR) — o servidor decide pelo mime.
+ * Best-effort — devolve {} em qualquer falha.
  */
 import * as FS from 'expo-file-system/legacy';
 
@@ -24,14 +25,18 @@ export interface CamposExtraidos {
   anoFabricacao?: string;
 }
 
-export async function extrairCamposDoPdf(uri: string, tipo?: string): Promise<CamposExtraidos> {
+export async function extrairCamposDoArquivo(
+  uri: string,
+  mime: string,
+  tipo?: string
+): Promise<CamposExtraidos> {
   try {
     const base64 = await FS.readAsStringAsync(uri, { encoding: FS.EncodingType.Base64 });
     const token = await lerToken();
     if (!token) return {}; // extração exige conta (endpoint autenticado)
     const r = await apiApp<{ campos?: CamposExtraidos }>('/documentos/extrair', {
       metodo: 'POST',
-      corpo: { base64, tipo },
+      corpo: { base64, mime, tipo },
       token,
     });
     return r.campos ?? {};

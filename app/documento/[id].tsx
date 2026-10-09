@@ -16,7 +16,7 @@ import { nomeArma } from '@/domain/rotulos';
 import { atualizarDocumento, removerDocumento } from '@/db/documentos';
 import { atualizarArma } from '@/db/armas';
 import { AnalisandoDocumento } from '@/ui/AnalisandoDocumento';
-import { extrairCamposDoPdf } from '@/integracoes/extracao';
+import { extrairCamposDoArquivo } from '@/integracoes/extracao';
 import {
   abrirNoSistema,
   apagarArquivo,
@@ -55,13 +55,14 @@ export default function DetalheDocumento() {
 
   const info = avaliarComCor(doc.dataValidade, c);
 
-  // Lê o PDF no servidor e preenche só os campos AINDA VAZIOS do documento e,
-  // quando houver arma vinculada (CRAF), dela também. Nunca sobrescreve.
-  const analisarEEnriquecer = async (uri: string) => {
+  // Lê o arquivo no servidor (PDF por texto; foto/scan por OCR) e preenche só
+  // os campos AINDA VAZIOS do documento e, quando houver arma vinculada (CRAF),
+  // dela também. Nunca sobrescreve.
+  const analisarEEnriquecer = async (uri: string, mime: string) => {
     if (!doc) return;
     setAnalisando(true);
     try {
-      const campos = await extrairCamposDoPdf(uri, doc.tipo);
+      const campos = await extrairCamposDoArquivo(uri, mime, doc.tipo);
       const vazio = (v?: string | null) => !v || !String(v).trim();
       let preenchidos = 0;
 
@@ -96,8 +97,8 @@ export default function DetalheDocumento() {
       avisar(
         preenchidos ? 'Documento analisado' : 'Nada a preencher',
         preenchidos
-          ? `Preenchi ${preenchidos} campo(s) a partir do PDF. Confira antes de confiar.`
-          : 'Não encontrei campos novos no PDF (ou já estavam preenchidos).'
+          ? `Preenchi ${preenchidos} campo(s) a partir do documento. Confira antes de confiar.`
+          : 'Não encontrei campos novos no documento (ou já estavam preenchidos).'
       );
     } catch (e) {
       console.error('[CAC Brasil] falha ao analisar documento', e);
@@ -113,10 +114,8 @@ export default function DetalheDocumento() {
       if (!escolhido) return;
       await guardarArquivo(doc.id, escolhido);
       await recarregar();
-      // Só PDF é analisado; foto/imagem segue como antes (nenhuma ação).
-      const ehPdfEscolhido =
-        (escolhido.mime ?? '').includes('pdf') || escolhido.nome.toLowerCase().endsWith('.pdf');
-      if (ehPdfEscolhido) await analisarEEnriquecer(escolhido.uri);
+      // PDF (texto) e foto/scan (OCR) são analisados para preencher o que faltar.
+      await analisarEEnriquecer(escolhido.uri, escolhido.mime ?? '');
     } catch (e) {
       console.error('[CAC Brasil] falha ao anexar', e);
       avisar('Não foi possível anexar', e instanceof Error ? e.message : String(e));
