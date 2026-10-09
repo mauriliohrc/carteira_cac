@@ -7,6 +7,8 @@ import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { useApp } from '@/estado/AppContext';
 import { Botao, Secao, Tela, TituloTela, Vazio } from '@/ui/base';
 import { CartaoDocumento } from '@/ui/cartoes';
+import { AnalisandoDocumento } from '@/ui/AnalisandoDocumento';
+import { useNovoDocumento } from '@/ui/useNovoDocumento';
 import { TIPOS_DOCUMENTO } from '@/domain/catalogos';
 import type { TipoDocumento } from '@/domain/tipos';
 
@@ -50,12 +52,9 @@ export default function Pessoais() {
     return mapa;
   }, [documentosPessoais]);
 
+  const { iniciar, analisando } = useNovoDocumento();
   const faltando = ORDEM.filter((t) => !SEM_SUGESTAO.includes(t) && !porTipo.has(t));
-  const novo = (tipo?: TipoDocumento) =>
-    router.push({
-      pathname: '/documento/editar',
-      params: { escopo: 'PESSOAL', ...(tipo ? { tipo } : {}) },
-    });
+  const novo = (tipo?: TipoDocumento) => void iniciar({ escopo: 'PESSOAL', tipo });
 
   return (
     <Tela sobBarra>
@@ -123,6 +122,8 @@ export default function Pessoais() {
           ) : null}
         </>
       )}
+
+      <AnalisandoDocumento visivel={analisando} />
     </Tela>
   );
 }

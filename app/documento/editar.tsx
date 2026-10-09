@@ -10,6 +10,7 @@ import { avisar } from '@/ui/dialogo';
 import { BlocoFormulario, Campo, CampoData, SeletorChips, SeletorLista } from '@/ui/formulario';
 import { ORGAOS, TIPOS_DOCUMENTO, TIPO_DOC_POR_VALOR } from '@/domain/catalogos';
 import { atualizarDocumento, criarDocumento, type EntradaDocumento } from '@/db/documentos';
+import { guardarArquivo } from '@/arquivos/cofre';
 import { nomeArma } from '@/domain/rotulos';
 import { avaliarComCor } from '@/domain/vencimento';
 import { diffDias, ehISOValida, hojeISO, isoParaBR, textoPrazo } from '@/lib/data';
@@ -21,7 +22,22 @@ export default function EditorDocumento() {
     armaId?: string;
     tipo?: TipoDocumento;
     escopo?: 'PESSOAL' | 'ARMA';
+    // Fluxo "escolher arquivo antes": arquivo pendente + campos extraídos do PDF.
+    arquivoUri?: string;
+    arquivoNome?: string;
+    arquivoMime?: string;
+    arquivoTamanho?: string;
+    campos?: string;
   }>();
+
+  // Campos pré-extraídos de um PDF (só em documento novo).
+  const camposExtraidos = useMemo<Record<string, string>>(() => {
+    try {
+      return params.campos ? JSON.parse(params.campos) : {};
+    } catch {
+      return {};
+    }
+  }, [params.campos]);
   const c = useCores();
   const s = useEstilos(folha);
   const { armas, documentos, recarregar } = useApp();
@@ -42,17 +58,25 @@ export default function EditorDocumento() {
     existente?.armaId ?? params.armaId ?? null
   );
   const [titulo, setTitulo] = useState(existente?.titulo ?? '');
-  const [numero, setNumero] = useState(existente?.numero ?? '');
+  const [numero, setNumero] = useState(existente?.numero ?? camposExtraidos.numero ?? '');
   const [orgao, setOrgao] = useState<Orgao>(
     existente?.orgao ?? TIPO_DOC_POR_VALOR[tipoInicial].orgaoPadrao
   );
-  const [emissao, setEmissao] = useState<string | null>(existente?.dataEmissao ?? null);
-  const [validade, setValidade] = useState<string | null>(existente?.dataValidade ?? null);
-  const [validadeBruta, setValidadeBruta] = useState(
-    existente ? isoParaBR(existente.dataValidade) : ''
+  const [emissao, setEmissao] = useState<string | null>(
+    existente?.dataEmissao ?? camposExtraidos.dataEmissao ?? null
   );
-  const [origem, setOrigem] = useState(existente?.origem ?? '');
-  const [destino, setDestino] = useState(existente?.destino ?? '');
+  const [validade, setValidade] = useState<string | null>(
+    existente?.dataValidade ?? camposExtraidos.dataValidade ?? null
+  );
+  const [validadeBruta, setValidadeBruta] = useState(
+    existente
+      ? isoParaBR(existente.dataValidade)
+      : camposExtraidos.dataValidade
+        ? isoParaBR(camposExtraidos.dataValidade)
+        : ''
+  );
+  const [origem, setOrigem] = useState(existente?.origem ?? camposExtraidos.origem ?? '');
+  const [destino, setDestino] = useState(existente?.destino ?? camposExtraidos.destino ?? '');
   const [localManejo, setLocalManejo] = useState(existente?.localManejo ?? '');
   const [observacoes, setObservacoes] = useState(existente?.observacoes ?? '');
   const [erros, setErros] = useState<Record<string, string>>({});
@@ -122,6 +146,15 @@ export default function EditorDocumento() {
         router.back();
       } else {
         const novoId = await criarDocumento(entrada);
+        // Anexa o arquivo escolhido lá no início do fluxo (se houve).
+        if (params.arquivoUri) {
+          await guardarArquivo(novoId, {
+            uri: params.arquivoUri,
+            nome: params.arquivoNome ?? 'documento',
+            mime: params.arquivoMime || null,
+            tamanho: Number(params.arquivoTamanho) || null,
+          });
+        }
         await recarregar();
         router.replace({ pathname: '/documento/[id]', params: { id: novoId, novo: '1' } });
       }

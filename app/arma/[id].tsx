@@ -13,6 +13,8 @@ import { ACERVO_POR_VALOR, corDe, GRUPO_POR_VALOR } from '@/domain/catalogos';
 import { nomeArma } from '@/domain/rotulos';
 import { removerArma } from '@/db/armas';
 import { apagarPastaDeFotos, apagarPastaDoDocumento } from '@/arquivos/cofre';
+import { AnalisandoDocumento } from '@/ui/AnalisandoDocumento';
+import { useNovoDocumento } from '@/ui/useNovoDocumento';
 import { avaliar } from '@/domain/vencimento';
 import { isoParaBR } from '@/lib/data';
 import type { DocumentoComContexto, TipoDocumento } from '@/domain/tipos';
@@ -95,6 +97,8 @@ export default function FichaArma() {
     [documentos]
   );
 
+  const { iniciar, analisando } = useNovoDocumento();
+
   if (!arma) {
     return (
       <Tela voltar>
@@ -111,7 +115,7 @@ export default function FichaArma() {
     router.push({ pathname: '/documento/[id]', params: { id: docId } });
 
   const adicionar = (t: TipoDocumento) =>
-    router.push({ pathname: '/documento/editar', params: { armaId: arma.id, tipo: t } });
+    void iniciar({ escopo: 'ARMA', armaId: arma.id, tipo: t });
 
   const excluir = async () => {
     const ok = await confirmar({
@@ -286,6 +290,8 @@ export default function FichaArma() {
         aoTocar={() => void excluir()}
         estilo={{ marginTop: espaco.xxl }}
       />
+
+      <AnalisandoDocumento visivel={analisando} />
     </Tela>
   );
 }
