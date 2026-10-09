@@ -8,6 +8,7 @@ import type { StatusNoticia } from '../dominio/tipos.js';
 import { apresentarNoticia } from '../http/apresentadores.js';
 import { invalido, naoEncontrado } from '../http/erros.js';
 import { exigirAdmin } from '../http/guardas.js';
+import { enviarPush } from '../push/expo.js';
 
 function limpar<T extends Record<string, unknown>>(obj: T): Partial<T> {
   return Object.fromEntries(
@@ -165,5 +166,56 @@ export async function rotasNoticias(app: FastifyInstance) {
       data: { status, publicadaEm: resolverPublicadaEm(status, atual.publicadaEm) },
     });
     return { noticia: apresentarNoticia(n) };
+  });
+
+  // Notificar usuários sobre a notícia (push), respeitando o alcance:
+  //  - notícia de entidade → só usuários vinculados a ela;
+  //  - notícia geral       → todos os aparelhos ativos.
+  // O data leva o noticiaId para o app abrir direto na notícia (deep-link).
+  app.post('/api/admin/noticias/:id/notificar', async (req) => {
+    const { id } = req.params as { id: string };
+    const n = await achar(id);
+    if (n.status !== 'PUBLICADA') throw invalido('Publique a notícia antes de notificar os usuários.');
+
+    let tokens: string[];
+    if (n.entidadeId) {
+      const usuarios = await prisma.usuarioApp.findMany({
+        where: { ativo: true, vinculos: { some: { entidadeId: n.entidadeId } } },
+        select: { id: true },
+      });
+      const ids = usuarios.map((u) => u.id);
+      const dispositivos = ids.length
+        ? await prisma.dispositivoPush.findMany({
+            where: { usuarioId: { in: ids }, ativo: true },
+            select: { token: true },
+          })
+        : [];
+      tokens = dispositivos.map((d) => d.token);
+    } else {
+      const dispositivos = await prisma.dispositivoPush.findMany({
+        where: { ativo: true },
+        select: { token: true },
+      });
+      tokens = dispositivos.map((d) => d.token);
+    }
+
+    const resultado = await enviarPush(tokens, {
+      titulo: n.titulo,
+      corpo: n.resumo ?? 'Toque para ler a notícia.',
+      dados: { noticiaId: n.id },
+    });
+
+    // Desativa tokens que a Expo recusou por não existirem mais.
+    const mortos = resultado.erros
+      .filter((e) => /DeviceNotRegistered/i.test(e.motivo))
+      .map((e) => e.token);
+    if (mortos.length) {
+      await prisma.dispositivoPush.updateMany({
+        where: { token: { in: mortos } },
+        data: { ativo: false },
+      });
+    }
+
+    return { enviados: resultado.aceitos, tokens: tokens.length, escopo: n.entidadeId ? 'ENTIDADE' : 'GERAL' };
   });
 }

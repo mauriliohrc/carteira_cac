@@ -2,8 +2,49 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { api } from '@/lib/api';
+import { api, ErroApi } from '@/lib/api';
 import { ROTULO_STATUS, type ListaNoticias } from '@/lib/tipos';
+
+type NoticiaItem = ListaNoticias['noticias'][number];
+
+/** Dispara o push desta notícia, respeitando o alcance (entidade x geral). */
+function BotaoNotificar({ noticia }: { noticia: NoticiaItem }) {
+  const [enviando, setEnviando] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  if (noticia.status !== 'PUBLICADA') {
+    return <span style={{ color: 'var(--texto-suave)', fontSize: 12 }}>publique p/ notificar</span>;
+  }
+
+  async function notificar() {
+    const escopo = noticia.entidadeId
+      ? `os sócios de ${noticia.entidadeNome ?? 'da entidade'}`
+      : 'TODOS os usuários do app';
+    if (!window.confirm(`Enviar notificação desta notícia para ${escopo}?`)) return;
+    setEnviando(true);
+    setMsg('');
+    try {
+      const r = await api<{ enviados: number; tokens: number }>(
+        `/api/admin/noticias/${noticia.id}/notificar`,
+        { metodo: 'POST' }
+      );
+      setMsg(`✓ ${r.enviados}/${r.tokens} enviado(s)`);
+    } catch (e) {
+      setMsg(e instanceof ErroApi ? e.message : 'Falha ao enviar');
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <button className="secundario pequeno" disabled={enviando} onClick={notificar}>
+        {enviando ? 'Enviando…' : '🔔 Notificar usuários'}
+      </button>
+      {msg && <span style={{ fontSize: 12, color: 'var(--texto-suave)' }}>{msg}</span>}
+    </div>
+  );
+}
 import { Protegido } from '../componentes/Protegido';
 
 export default function PaginaNoticias() {
@@ -66,6 +107,7 @@ function ListaDeNoticias() {
                 <th>Leituras</th>
                 <th>Publicada em</th>
                 <th>Criada em</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -91,6 +133,7 @@ function ListaDeNoticias() {
                   <td title="Pessoas que leram no app">👁 {n.leituras ?? 0}</td>
                   <td>{formatarData(n.publicadaEm)}</td>
                   <td>{formatarData(n.criadoEm)}</td>
+                  <td><BotaoNotificar noticia={n} /></td>
                 </tr>
               ))}
             </tbody>
