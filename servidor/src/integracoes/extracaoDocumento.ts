@@ -178,12 +178,59 @@ function parseCrafSinarm(texto: string): CamposExtraidos {
   return limpo({ numero, dataValidade, dataEmissao, numeroSerie, especie, marca, modelo, calibre, paisOrigem });
 }
 
+/** Valor na LINHA SEGUINTE a um rótulo isolado (layout do porte/CR). */
+function valorLinhaSeguinte(linhas: string[], rotulos: string[]): string | undefined {
+  for (let i = 0; i < linhas.length - 1; i++) {
+    if (rotulos.some((r) => new RegExp(`^${r}\\s*$`, 'i').test(linhas[i]))) {
+      const v = linhas[i + 1]?.trim();
+      if (v) return v;
+    }
+  }
+  return undefined;
+}
+
+// --------------------------------------------------- CR (Certificado de Registro)
+function parseCR(texto: string): CamposExtraidos {
+  const numero = texto.match(/N[º°o]\s*CR\s*([\d.\-]{6,})/i)?.[1];
+  const dataValidade = paraISO(texto.match(/VALIDADE\s*(\d{2}\/\d{2}\/\d{4})/i)?.[1]);
+  const atividades = texto
+    .match(/ATIVIDADES AUTORIZADAS\s*\n([\s\S]*?)(?:\nDocumento Assinado|\nQR|\nA Autenticidade|$)/i)?.[1]
+    ?.replace(/\s+/g, ' ')
+    .trim();
+  return limpo({ numero, dataValidade, observacoes: atividades ? `Atividades: ${atividades}` : undefined });
+}
+
+// --------------------------------------------------------- Porte Federal de Arma
+function parsePorte(texto: string): CamposExtraidos {
+  const linhas = texto.split('\n').map((l) => l.trim()).filter(Boolean);
+  return limpo({
+    numero: valorLinhaSeguinte(linhas, ['CERTIFICADO N[º°o]']),
+    numeroSerie: valorLinhaSeguinte(linhas, ['N[º°o] DA ARMA']),
+    especie: valorLinhaSeguinte(linhas, ['ESP[ÉE]CIE']),
+    marca: valorLinhaSeguinte(linhas, ['MARCA']),
+    dataValidade: paraISO(texto.match(/validade[^0-9]{0,20}(\d{2}\/\d{2}\/\d{4})/i)?.[1]),
+  });
+}
+
+// ----------------------------------------- Autorização de Aquisição (PCE/compra)
+function parseAutorizacao(texto: string): CamposExtraidos {
+  return limpo({
+    numero: texto.match(/Autoriza[çc][ãa]o\s*N[º°o]:?\s*\n?\s*([0-9]{6,})/i)?.[1],
+    dataEmissao: paraISO(texto.match(/Data de Emiss[ãa]o:\s*(\d{2}\/\d{2}\/\d{4})/i)?.[1]),
+    dataValidade: paraISO(texto.match(/Data de Validade:\s*(\d{2}\/\d{2}\/\d{4})/i)?.[1]),
+  });
+}
+
 /** Detecta o formato pelo texto e delega ao parser certo. */
 export function mapearCampos(textoBruto: string, _tipo?: string): CamposExtraidos {
-  const texto = normalizar(textoBruto);
-  if (/GUIA DE TR[ÁA]FEGO|AUTORIZA[ÇC][ÃA]O PARA TR[ÁA]FEGO/i.test(texto)) return parseGuia(texto);
-  if (/EX[ÉE]RCITO BRASILEIRO/i.test(texto)) return parseCrafExercito(texto);
-  if (/SINARM/i.test(texto)) return parseCrafSinarm(texto);
-  // Formato desconhecido: nada extraído (o usuário preenche à mão).
+  const t = normalizar(textoBruto);
+  if (/GUIA DE TR[ÁA]FEGO|AUTORIZA[ÇC][ÃA]O PARA TR[ÁA]FEGO/i.test(t)) return parseGuia(t);
+  if (/AUTORIZA[ÇC][ÃA]O PARA AQUISI[ÇC][ÃA]O/i.test(t)) return parseAutorizacao(t);
+  if (/PORTE\s+(?:FEDERAL\s+)?DE ARMA/i.test(t)) return parsePorte(t);
+  if (/CERTIFICADO DE REGISTRO DE ARMA DE FOGO/i.test(t)) return parseCrafExercito(t);
+  if (/\bN[º°o]\s*CR\b|ATIVIDADES AUTORIZADAS/i.test(t)) return parseCR(t);
+  if (/SINARM|CERTIFICADO DE REGISTRO FEDERAL DE ARMA DE FOGO|N[º°o] Cad\. SINARM/i.test(t))
+    return parseCrafSinarm(t);
+  // Sem camada de texto (scan) ou formato desconhecido → nada (preenche à mão).
   return {};
 }
