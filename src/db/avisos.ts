@@ -8,6 +8,8 @@ export interface AvisoRecebido {
   corpo: string | null;
   recebidoEm: string;
   lido: boolean;
+  /** Destino do toque (JSON de DadosNotificacao). Null em avisos antigos. */
+  rota: string | null;
 }
 
 interface LinhaAviso {
@@ -17,6 +19,7 @@ interface LinhaAviso {
   corpo: string | null;
   recebido_em: string;
   lido: number;
+  rota: string | null;
 }
 
 const daLinha = (l: LinhaAviso): AvisoRecebido => ({
@@ -26,6 +29,7 @@ const daLinha = (l: LinhaAviso): AvisoRecebido => ({
   corpo: l.corpo,
   recebidoEm: l.recebido_em,
   lido: l.lido === 1,
+  rota: l.rota ?? null,
 });
 
 /** Guarda os 200 últimos; acima disso o histórico deixa de ser útil. */
@@ -51,17 +55,19 @@ export async function registrarAviso(aviso: {
   subtitulo: string | null;
   corpo: string | null;
   recebidoEm: string;
+  rota?: string | null;
 }): Promise<void> {
   const db = await abrirBanco();
   await db.runAsync(
-    `INSERT INTO avisos (id, titulo, subtitulo, corpo, recebido_em, lido)
-     VALUES (?, ?, ?, ?, ?, 0)
+    `INSERT INTO avisos (id, titulo, subtitulo, corpo, recebido_em, lido, rota)
+     VALUES (?, ?, ?, ?, ?, 0, ?)
      ON CONFLICT(id) DO NOTHING`,
     aviso.id,
     aviso.titulo,
     aviso.subtitulo,
     aviso.corpo,
-    aviso.recebidoEm
+    aviso.recebidoEm,
+    aviso.rota ?? null
   );
 }
 

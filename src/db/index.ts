@@ -2,7 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import { Platform } from 'react-native';
 
 const NOME_BANCO = 'cacbrasil.db';
-const VERSAO_ALVO = 8;
+const VERSAO_ALVO = 9;
 
 let instancia: SQLite.SQLiteDatabase | null = null;
 let abrindo: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -193,6 +193,14 @@ const MIGRACOES: ((db: SQLite.SQLiteDatabase) => Promise<void>)[] = [
   // Autorização de Manejo preenche; os demais documentos a ignoram.
   async (db) => {
     await db.execAsync('ALTER TABLE documentos ADD COLUMN local_manejo TEXT;');
+  },
+
+  // v9 — rota de deep-link nos avisos da caixa (JSON de DadosNotificacao).
+  //
+  // Aditiva: nasce NULL. Avisos antigos, sem rota, não navegam ao toque — é de
+  // propósito, para não quebrar o comportamento de quem já tinha avisos.
+  async (db) => {
+    await db.execAsync('ALTER TABLE avisos ADD COLUMN rota TEXT;');
   },
 ];
 

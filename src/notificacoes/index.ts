@@ -80,6 +80,7 @@ export function montarEntradas(documentos: Documento[], armas: Arma[]): EntradaA
         ? `${rotuloTipoDoc(doc.tipo)} (${doc.titulo})`
         : rotuloTipoDoc(doc.tipo),
       validade: doc.dataValidade,
+      documentoId: doc.id,
     };
   });
 }
@@ -118,6 +119,8 @@ export async function reagendarAlertas(
           subtitulo: frente.subtitulo,
           corpo: frente.corpo,
           urgente: frente.urgente,
+          // Toque na habitualidade abre o painel de habitualidade.
+          dados: { tipo: 'habitualidade' as const },
         },
         pior: frente.pior,
         itens: frente.itens,
@@ -134,7 +137,8 @@ export async function reagendarAlertas(
         sound: true,
         badge: aviso.badge,
         interruptionLevel: aviso.urgente ? 'timeSensitive' : 'active',
-        data: { tela: '/(tabs)/avisos' },
+        // Destino do toque (deep-link). Retrocompat: sem destino → caixa de avisos.
+        data: (aviso.dados ?? { tela: '/(tabs)/avisos' }) as Record<string, unknown>,
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,

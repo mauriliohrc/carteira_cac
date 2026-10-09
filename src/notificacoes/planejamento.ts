@@ -25,6 +25,7 @@
  */
 import { diffDias, isoParaBR, somarDias, textoPrazo, type DataISO } from '@/lib/data';
 import { JANELA_ALERTA_DIAS } from '@/domain/vencimento';
+import type { DadosNotificacao } from './rotas';
 
 /** Teto de notificações por dia. */
 export const TETO_DIARIO = 10;
@@ -46,12 +47,15 @@ export interface EntradaAlerta {
   /** Como o documento aparece na linha: "CRAF", "Guia de Tráfego (Clube Alfa)". */
   rotulo: string;
   validade: DataISO;
+  /** Id do documento — para o aviso abrir direto nele quando é um só. */
+  documentoId?: string;
 }
 
 interface ItemAlerta {
   rotulo: string;
   validade: DataISO;
   dias: number;
+  documentoId?: string;
 }
 
 interface Grupo {
@@ -68,6 +72,8 @@ export interface Aviso {
   corpo: string;
   /** Vencido ou a ≤7 dias: fura o Foco/Não perturbe do iOS. */
   urgente: boolean;
+  /** Para onde o toque leva. Ausente → sem deep-link (abre a caixa). */
+  dados?: DadosNotificacao;
 }
 
 /**
@@ -101,7 +107,12 @@ export function agruparNoDia(data: DataISO, entradas: EntradaAlerta[]): Grupo[] 
     const dias = diffDias(data, entrada.validade);
     if (dias > JANELA_ALERTA_DIAS) continue;
 
-    const item: ItemAlerta = { rotulo: entrada.rotulo, validade: entrada.validade, dias };
+    const item: ItemAlerta = {
+      rotulo: entrada.rotulo,
+      validade: entrada.validade,
+      dias,
+      documentoId: entrada.documentoId,
+    };
     const grupo = grupos.get(entrada.grupoChave);
     if (grupo) {
       grupo.itens.push(item);
@@ -139,6 +150,7 @@ function rotuloCurto(dias: number): string {
 function avisoDoGrupo(grupo: Grupo): Aviso {
   const vencidos = grupo.itens.filter((i) => i.dias < 0).length;
   const urgente = grupo.pior <= 7;
+  const ehPessoal = grupo.chave === CHAVE_PESSOAL;
 
   if (grupo.itens.length === 1) {
     const i = grupo.itens[0];
@@ -147,6 +159,8 @@ function avisoDoGrupo(grupo: Grupo): Aviso {
       subtitulo: rotuloCurto(i.dias),
       corpo: `${i.rotulo} ${textoPrazo(i.dias)} — ${isoParaBR(i.validade)}.`,
       urgente,
+      // Um único documento → abre direto nele.
+      dados: i.documentoId ? { tipo: 'vencimento', documentoId: i.documentoId } : undefined,
     };
   }
 
@@ -161,6 +175,8 @@ function avisoDoGrupo(grupo: Grupo): Aviso {
     subtitulo: `${grupo.itens.length} documentos${vencidos ? ` · ${vencidos} vencido(s)` : ''}`,
     corpo: `${linhas}${resto}`,
     urgente,
+    // Vários documentos: leva à arma (ou aos documentos pessoais).
+    dados: ehPessoal ? { tela: '/(tabs)/pessoais' } : { tipo: 'vencimento', armaId: grupo.chave },
   };
 }
 

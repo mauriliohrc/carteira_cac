@@ -19,6 +19,7 @@ import { listarLocais } from '@/db/locais';
 import { CHAVES, gravarConfig, lerConfig } from '@/db/config';
 import {
   listarAvisos,
+  marcarAvisoLido,
   marcarTodosLidos,
   limparAvisos,
   type AvisoRecebido,
@@ -72,6 +73,8 @@ interface EstadoApp {
   avisosNaoLidos: number;
   recarregarAvisos: () => Promise<void>;
   marcarAvisosLidos: () => Promise<void>;
+  /** Marca um aviso específico como lido (ao abri-lo pela caixa). */
+  marcarUmAvisoLido: (id: string) => Promise<void>;
   apagarAvisos: () => Promise<void>;
   recarregar: () => Promise<void>;
   /** Sincroniza com a nuvem (inclui importar da Shooting House) e recarrega. */
@@ -241,6 +244,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await recarregarAvisos();
   }, [recarregarAvisos]);
 
+  const marcarUmAvisoLido = useCallback(
+    async (id: string) => {
+      await marcarAvisoLido(id);
+      await recarregarAvisos();
+    },
+    [recarregarAvisos]
+  );
+
   const apagarAvisos = useCallback(async () => {
     await limparAvisos();
     await limparCentral();
@@ -318,6 +329,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       avisosNaoLidos: avisos.filter((a) => !a.lido).length,
       recarregarAvisos,
       marcarAvisosLidos,
+      marcarUmAvisoLido,
       apagarAvisos,
       recarregar: carregar,
       sincronizarAgora: sincronizarECarregar,
@@ -341,6 +353,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     habitualidades,
     locais,
     marcarAvisosLidos,
+    marcarUmAvisoLido,
     precisaOnboarding,
     premium,
     pronto,

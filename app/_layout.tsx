@@ -7,6 +7,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { hrefDeDados, type DadosNotificacao } from '@/notificacoes/rotas';
 import { AppProvider, useApp } from '@/estado/AppContext';
 import { ContaProvider, useConta } from '@/conta/ContaContext';
 import { consumirContaOnboardingPendente } from '@/conta/intencaoOnboarding';
@@ -131,21 +132,13 @@ function Raiz() {
     }
   }, [stackMontada, logado, usuario, premium, armas.length]);
 
-  // Tocar na notificação: push de notícia abre a notícia; demais vão aos avisos.
+  // Tocar na notificação: abre direto no alvo (notícia, documento, arma,
+  // habitualidade…). Dados ausentes/desconhecidos → caixa de avisos.
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener((resposta) => {
-      const dados = resposta.notification.request.content.data as
-        | { noticiaId?: string; competicaoId?: string; tela?: string }
-        | undefined;
-      if (dados?.noticiaId) {
-        router.push({ pathname: '/noticias/[id]', params: { id: String(dados.noticiaId) } });
-      } else if (dados?.competicaoId) {
-        router.push({ pathname: '/competicoes/[id]', params: { id: String(dados.competicaoId) } });
-      } else if (dados?.tela) {
-        router.push(dados.tela as never);
-      } else {
-        router.push('/(tabs)/avisos');
-      }
+      const dados = resposta.notification.request.content.data as DadosNotificacao | undefined;
+      const destino = hrefDeDados(dados);
+      router.push((destino ?? '/(tabs)/avisos') as never);
     });
     return () => sub.remove();
   }, []);

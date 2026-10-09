@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
 import { espaco, MONO, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { useApp } from '@/estado/AppContext';
@@ -11,6 +11,7 @@ import { confirmar } from '@/ui/dialogo';
 import { sincronizarCaixa } from '@/notificacoes/caixa';
 import { ALERTAS_DISPONIVEIS, TETO_DIARIO } from '@/notificacoes';
 import { JANELA_ALERTA_DIAS } from '@/domain/vencimento';
+import { dadosDeJSON, hrefDeDados } from '@/notificacoes/rotas';
 import type { AvisoRecebido } from '@/db/avisos';
 
 /**
@@ -23,13 +24,32 @@ import type { AvisoRecebido } from '@/db/avisos';
 export default function Avisos() {
   const c = useCores();
   const a = useEstilos(folha);
-  const { avisos, avisosNaoLidos, pendencias, recarregarAvisos, marcarAvisosLidos, apagarAvisos } =
-    useApp();
+  const {
+    avisos,
+    avisosNaoLidos,
+    pendencias,
+    recarregarAvisos,
+    marcarAvisosLidos,
+    marcarUmAvisoLido,
+    apagarAvisos,
+  } = useApp();
 
   const atualizar = useCallback(async () => {
     await sincronizarCaixa();
     await recarregarAvisos();
   }, [recarregarAvisos]);
+
+  // Tocar num aviso com rota: abre no alvo e marca como lido. Avisos antigos
+  // (sem rota) não têm ação — ItemAviso nem vira botão.
+  const abrir = useCallback(
+    (aviso: AvisoRecebido) => {
+      const destino = hrefDeDados(dadosDeJSON(aviso.rota));
+      if (!destino) return;
+      void marcarUmAvisoLido(aviso.id);
+      router.push(destino as never);
+    },
+    [marcarUmAvisoLido]
+  );
 
   // Ao abrir a aba, recolhe o que chegou enquanto o app estava fora de foco.
   useFocusEffect(
@@ -93,7 +113,11 @@ export default function Avisos() {
       {avisos.length ? (
         <Secao titulo="Recebidos">
           {avisos.map((aviso) => (
-            <ItemAviso key={aviso.id} aviso={aviso} />
+            <ItemAviso
+              key={aviso.id}
+              aviso={aviso}
+              aoAbrir={hrefDeDados(dadosDeJSON(aviso.rota)) ? () => abrir(aviso) : undefined}
+            />
           ))}
         </Secao>
       ) : null}
@@ -108,14 +132,14 @@ export default function Avisos() {
   );
 }
 
-function ItemAviso({ aviso }: { aviso: AvisoRecebido }) {
+function ItemAviso({ aviso, aoAbrir }: { aviso: AvisoRecebido; aoAbrir?: () => void }) {
   const c = useCores();
   const a = useEstilos(folha);
   const urgente = (aviso.titulo ?? '').startsWith('🚨');
   const cor = urgente ? c.perigo : c.aviso;
 
-  return (
-    <View style={[a.aviso, { borderLeftColor: aviso.lido ? c.borda : cor }]}>
+  const conteudo = (
+    <>
       <View style={a.avisoTopo}>
         <Text
           style={[a.avisoTitulo, aviso.lido ? { color: c.textoMedio } : null]}
@@ -127,9 +151,24 @@ function ItemAviso({ aviso }: { aviso: AvisoRecebido }) {
       </View>
       {aviso.subtitulo ? <Text style={a.avisoSubtitulo}>{aviso.subtitulo}</Text> : null}
       {aviso.corpo ? <Text style={a.avisoCorpo}>{aviso.corpo}</Text> : null}
-      <Text style={a.avisoData}>{formatarRecebido(aviso.recebidoEm)}</Text>
-    </View>
+      <View style={a.avisoRodape}>
+        <Text style={a.avisoData}>{formatarRecebido(aviso.recebidoEm)}</Text>
+        {aoAbrir ? <Ionicons name="chevron-forward" size={15} color={c.textoFraco} /> : null}
+      </View>
+    </>
   );
+
+  const estilo = [a.aviso, { borderLeftColor: aviso.lido ? c.borda : cor }];
+
+  // Só vira botão quando há destino (aviso novo). Antigos seguem como View.
+  if (aoAbrir) {
+    return (
+      <Pressable onPress={aoAbrir} style={({ pressed }) => [estilo, pressed && { opacity: 0.6 }]}>
+        {conteudo}
+      </Pressable>
+    );
+  }
+  return <View style={estilo}>{conteudo}</View>;
 }
 
 function formatarRecebido(iso: string): string {
@@ -175,7 +214,13 @@ const folha = (c: Paleta) =>
     pontoNaoLido: { width: 7, height: 7, borderRadius: 4, marginTop: 6 },
     avisoSubtitulo: { ...tipo.legenda, fontWeight: '600', color: c.textoMedio, marginTop: 5 },
     avisoCorpo: { ...tipo.corpoPequeno, color: c.textoMedio, marginTop: 7 },
-    avisoData: { ...tipo.legenda, fontSize: 11, color: c.textoFraco, marginTop: espaco.md },
+    avisoRodape: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: espaco.md,
+    },
+    avisoData: { ...tipo.legenda, fontSize: 11, color: c.textoFraco },
 
     agendado: {
       flexDirection: 'row',

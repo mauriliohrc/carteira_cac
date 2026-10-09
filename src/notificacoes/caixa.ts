@@ -18,12 +18,18 @@ import { podarHistorico, registrarAviso } from '@/db/avisos';
 
 function daNotificacao(n: Notifications.Notification) {
   const { content } = n.request;
+  // Guarda o destino do toque (data) como JSON, para a caixa abrir no alvo.
+  // Sem data → null (aviso sem ação, como os antigos).
+  const dados = content.data;
+  const rota =
+    dados && typeof dados === 'object' && Object.keys(dados).length ? JSON.stringify(dados) : null;
   return {
     id: n.request.identifier,
     titulo: content.title ?? null,
     subtitulo: content.subtitle ?? null,
     corpo: content.body ?? null,
     recebidoEm: new Date(n.date || Date.now()).toISOString(),
+    rota,
   };
 }
 
