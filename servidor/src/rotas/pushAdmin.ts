@@ -96,6 +96,9 @@ export async function rotasPushAdmin(app: FastifyInstance) {
           return { ultimoAcessoEm: dir };
         case 'dispositivos':
           return { dispositivos: { _count: dir } };
+        case 'entidades':
+          // Ordena pela quantidade de vínculos de entidade (contagem no banco).
+          return { vinculos: { _count: dir } };
         case 'criadoEm':
         default:
           return { criadoEm: dir };
@@ -115,20 +118,39 @@ export async function rotasPushAdmin(app: FastifyInstance) {
       return { OR };
     })();
 
-    const [total, lista] = await Promise.all([
-      prisma.usuarioApp.count({ where }),
-      prisma.usuarioApp.findMany({
-        where,
-        orderBy,
-        skip: (pagina - 1) * limite,
-        take: limite,
-        include: {
-          vinculos: { include: { entidade: { select: { id: true, nome: true } } } },
-          dispositivos: { where: { ativo: true }, select: { plataforma: true } },
-          _count: { select: { registrosSync: { where: { tipo: 'armas', removido: false } } } },
-        },
-      }),
-    ]);
+    const include = {
+      vinculos: { include: { entidade: { select: { id: true, nome: true } } } },
+      dispositivos: { where: { ativo: true }, select: { plataforma: true } },
+      _count: { select: { registrosSync: { where: { tipo: 'armas', removido: false } } } },
+    } satisfies Prisma.UsuarioAppInclude;
+
+    let total: number;
+    let lista: Prisma.UsuarioAppGetPayload<{ include: typeof include }>[];
+
+    if (q.ordenar === 'armas') {
+      // "Armas" é uma contagem FILTRADA (registrosSync tipo=armas), que o Prisma
+      // não ordena no banco. Como a base de usuários é pequena (admin), carrega
+      // os que casam com a busca, ordena pela contagem e pagina em memória.
+      const todos = await prisma.usuarioApp.findMany({ where, include });
+      todos.sort((a, b) =>
+        dir === 'asc'
+          ? a._count.registrosSync - b._count.registrosSync
+          : b._count.registrosSync - a._count.registrosSync
+      );
+      total = todos.length;
+      lista = todos.slice((pagina - 1) * limite, (pagina - 1) * limite + limite);
+    } else {
+      [total, lista] = await Promise.all([
+        prisma.usuarioApp.count({ where }),
+        prisma.usuarioApp.findMany({
+          where,
+          orderBy,
+          skip: (pagina - 1) * limite,
+          take: limite,
+          include,
+        }),
+      ]);
+    }
 
     return {
       usuarios: lista.map((u) => ({

@@ -180,8 +180,8 @@ function ListaUsuarios() {
                 <Th coluna="emailVerificado">E-mail</Th>
                 <Th coluna="premium">Plano</Th>
                 <Th coluna="ultimoAcesso">Último acesso</Th>
-                <Th>Entidades</Th>
-                <Th>Armas</Th>
+                <Th coluna="entidades">Entidades</Th>
+                <Th coluna="armas">Armas</Th>
                 <Th coluna="armasSH">Armas SH</Th>
                 <Th coluna="dispositivos">Disp.</Th>
                 <Th></Th>

@@ -42,7 +42,8 @@ a { color: var(--acento-forte); text-decoration: none; }
 .marca img { width: 30px; height: 30px; border-radius: 7px; }
 .marca span { color: var(--latao); }
 
-.conteudo { max-width: 960px; margin: 0 auto; padding: 28px 24px 60px; }
+/* Usa a largura total do navegador (não só o miolo). */
+.conteudo { width: 100%; max-width: none; margin: 0; padding: 28px 32px 60px; }
 
 h1 { font-size: 22px; margin: 0 0 4px; }
 h2 { font-size: 17px; margin: 28px 0 12px; }
