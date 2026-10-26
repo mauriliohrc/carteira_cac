@@ -19,10 +19,13 @@ interface UsuarioLinha {
 }
 
 const TITULOS: Record<string, string> = {
-  todos: 'Todos os usuários',
+  todos: 'Usuários com conta',
   ativos: 'Usuários ativos',
-  semAtivar: 'Usuários sem ativar o e-mail',
+  contasAtivas: 'Contas ativas',
+  semAtivar: 'Usuários sem validar o e-mail',
   semVinculo: 'Usuários sem vínculo com entidade',
+  comVinculo: 'Usuários com vínculo de entidade',
+  comDocumento: 'Usuários com documentos',
   semDocumento: 'Usuários sem documentos',
 };
 

@@ -11,8 +11,11 @@ const MIN_ONLINE = 5;
 const FILTROS: Record<string, () => Prisma.UsuarioAppWhereInput> = {
   todos: () => ({}),
   ativos: () => ({ ultimoAcessoEm: { gte: new Date(Date.now() - DIAS_ATIVO * 86_400_000) } }),
+  contasAtivas: () => ({ ativo: true }),
   semAtivar: () => ({ emailVerificado: false }),
   semVinculo: () => ({ vinculos: { none: {} } }),
+  comVinculo: () => ({ vinculos: { some: {} } }),
+  comDocumento: () => ({ registrosSync: { some: { tipo: 'documentos', removido: false } } }),
   semDocumento: () => ({ registrosSync: { none: { tipo: 'documentos', removido: false } } }),
 };
 
@@ -23,17 +26,31 @@ export async function rotasDashboardAdmin(app: FastifyInstance) {
   app.get('/api/admin/dashboard', async () => {
     const corteAtivo = new Date(Date.now() - DIAS_ATIVO * 86_400_000);
     const corteOnline = new Date(Date.now() - MIN_ONLINE * 60_000);
-    const [total, ativos, online, semAtivar, semVinculo, semDocumento, anonimos, armasSistema] =
-      await Promise.all([
-        prisma.usuarioApp.count(),
-        prisma.usuarioApp.count({ where: { ultimoAcessoEm: { gte: corteAtivo } } }),
-        prisma.usuarioApp.count({ where: { ultimoAcessoEm: { gte: corteOnline } } }),
-        prisma.usuarioApp.count({ where: { emailVerificado: false } }),
-        prisma.usuarioApp.count({ where: { vinculos: { none: {} } } }),
-        prisma.usuarioApp.count({ where: { registrosSync: { none: { tipo: 'documentos', removido: false } } } }),
-        prisma.dispositivoPush.count({ where: { usuarioId: null } }),
-        prisma.registroSync.count({ where: { tipo: 'armas', removido: false } }),
-      ]);
+    const [
+      total,
+      contasAtivas,
+      ativos,
+      online,
+      semAtivar,
+      semVinculo,
+      comVinculo,
+      comDocumento,
+      semDocumento,
+      anonimos,
+      armasSistema,
+    ] = await Promise.all([
+      prisma.usuarioApp.count(),
+      prisma.usuarioApp.count({ where: { ativo: true } }),
+      prisma.usuarioApp.count({ where: { ultimoAcessoEm: { gte: corteAtivo } } }),
+      prisma.usuarioApp.count({ where: { ultimoAcessoEm: { gte: corteOnline } } }),
+      prisma.usuarioApp.count({ where: { emailVerificado: false } }),
+      prisma.usuarioApp.count({ where: { vinculos: { none: {} } } }),
+      prisma.usuarioApp.count({ where: { vinculos: { some: {} } } }),
+      prisma.usuarioApp.count({ where: { registrosSync: { some: { tipo: 'documentos', removido: false } } } }),
+      prisma.usuarioApp.count({ where: { registrosSync: { none: { tipo: 'documentos', removido: false } } } }),
+      prisma.dispositivoPush.count({ where: { usuarioId: null } }),
+      prisma.registroSync.count({ where: { tipo: 'armas', removido: false } }),
+    ]);
 
     // Distribuição de plataformas (aparelhos ativos).
     const porPlataforma = await prisma.dispositivoPush.groupBy({
@@ -47,7 +64,22 @@ export async function rotasDashboardAdmin(app: FastifyInstance) {
     };
 
     return {
-      cards: { total, ativos, semAtivar, semVinculo, semDocumento, semCadastro: anonimos },
+      cards: {
+        // Total geral = contas (ativas ou não) + instalações anônimas (sem conta).
+        totalGeral: total + anonimos,
+        comConta: total,
+        contasAtivas,
+        semConta: anonimos,
+        semAtivar,
+        comDocumento,
+        semDocumento,
+        comVinculo,
+        // Mantidos para compatibilidade com telas/drilldowns existentes.
+        total,
+        ativos,
+        semVinculo,
+        semCadastro: anonimos,
+      },
       online,
       minOnline: MIN_ONLINE,
       armasSistema,

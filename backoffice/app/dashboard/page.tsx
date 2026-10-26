@@ -7,11 +7,18 @@ import { Protegido } from '../componentes/Protegido';
 
 interface Dashboard {
   cards: {
+    totalGeral: number;
+    comConta: number;
+    contasAtivas: number;
+    semConta: number;
+    semAtivar: number;
+    comDocumento: number;
+    semDocumento: number;
+    comVinculo: number;
+    // compat
     total: number;
     ativos: number;
-    semAtivar: number;
     semVinculo: number;
-    semDocumento: number;
     semCadastro: number;
   };
   online: number;
@@ -52,13 +59,22 @@ function Conteudo() {
 
   if (!d) return <div className="vazio">Carregando…</div>;
 
-  const cards = [
-    { chave: 'todos', titulo: 'Usuários', valor: d.cards.total, dica: 'Contas criadas no app' },
-    { chave: 'ativos', titulo: `Ativos (${d.diasAtivo}d)`, valor: d.cards.ativos, dica: 'Acessaram recentemente' },
-    { chave: 'semAtivar', titulo: 'Sem ativar e-mail', valor: d.cards.semAtivar, dica: 'Não confirmaram o e-mail' },
-    { chave: 'semVinculo', titulo: 'Sem vínculo', valor: d.cards.semVinculo, dica: 'Sem entidade vinculada' },
-    { chave: 'semDocumento', titulo: 'Sem documentos', valor: d.cards.semDocumento, dica: 'Nenhum documento cadastrado' },
-    { chave: 'semCadastro', titulo: 'Sem cadastro', valor: d.cards.semCadastro, dica: 'Instalações anônimas', href: '/usuarios' },
+  // Ordem pedida: geral → com conta → ativas → sem conta → sem validar e-mail
+  // → com documentos → sem documentos → com vínculo.
+  const cards: {
+    titulo: string;
+    valor: number;
+    dica: string;
+    href?: string; // ausente = card não clicável (ex.: agregado)
+  }[] = [
+    { titulo: 'Total geral', valor: d.cards.totalGeral, dica: 'Contas + instalações anônimas' },
+    { titulo: 'Com conta', valor: d.cards.comConta, dica: 'Contas criadas no app', href: '/dashboard/todos' },
+    { titulo: 'Contas ativas', valor: d.cards.contasAtivas, dica: 'Conta habilitada', href: '/dashboard/contasAtivas' },
+    { titulo: 'Sem conta', valor: d.cards.semConta, dica: 'Instalações anônimas', href: '/usuarios' },
+    { titulo: 'Sem validar e-mail', valor: d.cards.semAtivar, dica: 'Não confirmaram o e-mail', href: '/dashboard/semAtivar' },
+    { titulo: 'Com documentos', valor: d.cards.comDocumento, dica: 'Têm documentos cadastrados', href: '/dashboard/comDocumento' },
+    { titulo: 'Sem documentos', valor: d.cards.semDocumento, dica: 'Nenhum documento cadastrado', href: '/dashboard/semDocumento' },
+    { titulo: 'Com vínculo', valor: d.cards.comVinculo, dica: 'Vinculados a uma entidade', href: '/dashboard/comVinculo' },
   ];
 
   return (
@@ -82,15 +98,25 @@ function Conteudo() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14 }}>
-        {cards.map((c) => (
-          <Link key={c.chave} href={c.href ?? `/dashboard/${c.chave}`} style={{ textDecoration: 'none' }}>
-            <div className="cartao" style={{ cursor: 'pointer' }}>
+        {cards.map((c) => {
+          const corpo = (
+            <div className="cartao" style={{ cursor: c.href ? 'pointer' : 'default', height: '100%' }}>
               <div style={{ fontSize: 32, fontWeight: 800, lineHeight: 1 }}>{c.valor}</div>
               <div style={{ fontWeight: 600, marginTop: 6 }}>{c.titulo}</div>
-              <div style={{ color: 'var(--texto-suave)', fontSize: 12.5, marginTop: 2 }}>{c.dica} ›</div>
+              <div style={{ color: 'var(--texto-suave)', fontSize: 12.5, marginTop: 2 }}>
+                {c.dica}
+                {c.href ? ' ›' : ''}
+              </div>
             </div>
-          </Link>
-        ))}
+          );
+          return c.href ? (
+            <Link key={c.titulo} href={c.href} style={{ textDecoration: 'none' }}>
+              {corpo}
+            </Link>
+          ) : (
+            <div key={c.titulo}>{corpo}</div>
+          );
+        })}
       </div>
 
       <div className="cabeca-secao" style={{ marginTop: 32 }}>
