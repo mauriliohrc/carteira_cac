@@ -135,10 +135,16 @@ function Conteudo() {
         <GraficoPlataformas ios={d.plataformas.ios} android={d.plataformas.android} />
       </div>
 
-      {/* Crescimento × Acessos por horário, lado a lado (uma coluna cada). */}
+      {/* Crescimento × Acessos por horário, lado a lado (uma coluna cada).
+          Cada gráfico vai num wrapper próprio: senão o fragment (cabeçalho +
+          cartão) espalha 4 itens no grid e desalinha. */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 20, alignItems: 'start' }}>
-        <GraficoCrescimento />
-        <GraficoAcessosHora />
+        <div style={{ minWidth: 0 }}>
+          <GraficoCrescimento />
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <GraficoAcessosHora />
+        </div>
       </div>
     </>
   );
