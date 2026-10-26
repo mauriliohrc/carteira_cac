@@ -88,6 +88,8 @@ export async function rotasPushAdmin(app: FastifyInstance) {
           return { nome: dir };
         case 'email':
           return { email: dir };
+        case 'celular':
+          return { celular: dir };
         case 'premium':
           return { premium: dir };
         case 'emailVerificado':

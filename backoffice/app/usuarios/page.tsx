@@ -178,6 +178,7 @@ function ListaUsuarios() {
               <tr>
                 <Th coluna="nome">Usuário</Th>
                 <Th coluna="emailVerificado">E-mail</Th>
+                <Th coluna="celular">Telefone</Th>
                 <Th coluna="premium">Plano</Th>
                 <Th coluna="ultimoAcesso">Último acesso</Th>
                 <Th coluna="entidades">Entidades</Th>
@@ -193,9 +194,6 @@ function ListaUsuarios() {
                   <td>
                     <Link href={`/usuarios/${u.id}`}>{u.nome}</Link>
                     <div style={{ color: 'var(--texto-suave)', fontSize: 12 }}>{u.email}</div>
-                    {formatarCelular(u.celular) && (
-                      <div style={{ color: 'var(--texto-suave)', fontSize: 12 }}>📱 {formatarCelular(u.celular)}</div>
-                    )}
                   </td>
                   <td style={{ textAlign: 'center' }}>
                     {u.emailVerificado ? (
@@ -207,6 +205,9 @@ function ListaUsuarios() {
                         ⧗
                       </span>
                     )}
+                  </td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {formatarCelular(u.celular) ?? <span style={{ color: 'var(--texto-suave)' }}>—</span>}
                   </td>
                   <td>
                     <span className={`etiqueta ${u.premium ? 'publicada' : 'rascunho'}`}>

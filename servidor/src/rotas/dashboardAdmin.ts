@@ -7,6 +7,45 @@ import { buscarArmas } from '../integracoes/shootinghouse.js';
 const DIAS_ATIVO = 30;
 const MIN_ONLINE = 5;
 
+/** DDD → UF. Base para o "mapa de calor" por estado (identificação via celular). */
+const DDD_UF: Record<string, string> = {
+  '11': 'SP', '12': 'SP', '13': 'SP', '14': 'SP', '15': 'SP', '16': 'SP', '17': 'SP', '18': 'SP', '19': 'SP',
+  '21': 'RJ', '22': 'RJ', '24': 'RJ',
+  '27': 'ES', '28': 'ES',
+  '31': 'MG', '32': 'MG', '33': 'MG', '34': 'MG', '35': 'MG', '37': 'MG', '38': 'MG',
+  '41': 'PR', '42': 'PR', '43': 'PR', '44': 'PR', '45': 'PR', '46': 'PR',
+  '47': 'SC', '48': 'SC', '49': 'SC',
+  '51': 'RS', '53': 'RS', '54': 'RS', '55': 'RS',
+  '61': 'DF',
+  '62': 'GO', '64': 'GO',
+  '63': 'TO',
+  '65': 'MT', '66': 'MT',
+  '67': 'MS',
+  '68': 'AC',
+  '69': 'RO',
+  '71': 'BA', '73': 'BA', '74': 'BA', '75': 'BA', '77': 'BA',
+  '79': 'SE',
+  '81': 'PE', '87': 'PE',
+  '82': 'AL',
+  '83': 'PB',
+  '84': 'RN',
+  '85': 'CE', '88': 'CE',
+  '86': 'PI', '89': 'PI',
+  '91': 'PA', '93': 'PA', '94': 'PA',
+  '92': 'AM', '97': 'AM',
+  '95': 'RR',
+  '96': 'AP',
+  '98': 'MA', '99': 'MA',
+};
+
+/** Extrai o DDD (2 dígitos) de um celular só-dígitos; null se não der. */
+function extrairDDD(celular: string): string | null {
+  let n = celular.replace(/\D/g, '');
+  if (n.length > 11 && n.startsWith('55')) n = n.slice(2); // tira o DDI
+  if (n.length < 10) return null;
+  return n.slice(0, 2);
+}
+
 /** Filtros das métricas que viram listas de usuários (card → lista → CSV). */
 const FILTROS: Record<string, () => Prisma.UsuarioAppWhereInput> = {
   todos: () => ({}),
@@ -17,6 +56,9 @@ const FILTROS: Record<string, () => Prisma.UsuarioAppWhereInput> = {
   comVinculo: () => ({ vinculos: { some: {} } }),
   comDocumento: () => ({ registrosSync: { some: { tipo: 'documentos', removido: false } } }),
   semDocumento: () => ({ registrosSync: { none: { tipo: 'documentos', removido: false } } }),
+  planoAnual: () => ({ premium: true, premiumTipo: { in: ['ANUAL', 'ANUAL_PARCEIRO'] } }),
+  planoMensal: () => ({ premium: true, premiumTipo: 'MENSAL' }),
+  premiumGratis: () => ({ premium: true, premiumTipo: 'CUPOM' }),
 };
 
 /** Dashboard do admin do app: números, listas por métrica e crescimento. */
@@ -36,6 +78,9 @@ export async function rotasDashboardAdmin(app: FastifyInstance) {
       comVinculo,
       comDocumento,
       semDocumento,
+      planoAnual,
+      planoMensal,
+      premiumGratis,
       anonimos,
       armasSistema,
     ] = await Promise.all([
@@ -48,6 +93,9 @@ export async function rotasDashboardAdmin(app: FastifyInstance) {
       prisma.usuarioApp.count({ where: { vinculos: { some: {} } } }),
       prisma.usuarioApp.count({ where: { registrosSync: { some: { tipo: 'documentos', removido: false } } } }),
       prisma.usuarioApp.count({ where: { registrosSync: { none: { tipo: 'documentos', removido: false } } } }),
+      prisma.usuarioApp.count({ where: { premium: true, premiumTipo: { in: ['ANUAL', 'ANUAL_PARCEIRO'] } } }),
+      prisma.usuarioApp.count({ where: { premium: true, premiumTipo: 'MENSAL' } }),
+      prisma.usuarioApp.count({ where: { premium: true, premiumTipo: 'CUPOM' } }),
       prisma.dispositivoPush.count({ where: { usuarioId: null } }),
       prisma.registroSync.count({ where: { tipo: 'armas', removido: false } }),
     ]);
@@ -74,6 +122,9 @@ export async function rotasDashboardAdmin(app: FastifyInstance) {
         comDocumento,
         semDocumento,
         comVinculo,
+        planoAnual,
+        planoMensal,
+        premiumGratis,
         // Mantidos para compatibilidade com telas/drilldowns existentes.
         total,
         ativos,
@@ -85,6 +136,30 @@ export async function rotasDashboardAdmin(app: FastifyInstance) {
       armasSistema,
       plataformas,
       diasAtivo: DIAS_ATIVO,
+    };
+  });
+
+  // Mapa de calor por estado: conta usuários por UF a partir do DDD do celular.
+  app.get('/api/admin/dashboard/regioes', async () => {
+    const comConta = await prisma.usuarioApp.count();
+    const usuarios = await prisma.usuarioApp.findMany({
+      where: { celular: { not: null } },
+      select: { celular: true },
+    });
+    const ufs: Record<string, number> = {};
+    let semDDD = 0; // tem celular, mas DDD inválido/desconhecido
+    for (const u of usuarios) {
+      const ddd = u.celular ? extrairDDD(u.celular) : null;
+      const uf = ddd ? DDD_UF[ddd] : undefined;
+      if (uf) ufs[uf] = (ufs[uf] ?? 0) + 1;
+      else semDDD += 1;
+    }
+    return {
+      ufs,
+      semDDD,
+      semTelefone: comConta - usuarios.length, // sem celular cadastrado
+      comTelefone: usuarios.length,
+      total: comConta,
     };
   });
 

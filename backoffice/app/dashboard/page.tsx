@@ -15,6 +15,9 @@ interface Dashboard {
     comDocumento: number;
     semDocumento: number;
     comVinculo: number;
+    planoAnual: number;
+    planoMensal: number;
+    premiumGratis: number;
     // compat
     total: number;
     ativos: number;
@@ -120,6 +123,27 @@ function Conteudo() {
       </div>
 
       <div className="cabeca-secao" style={{ marginTop: 32 }}>
+        <h2 style={{ margin: 0 }}>Planos premium</h2>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14 }}>
+        {[
+          { titulo: 'Plano anual ativo', valor: d.cards.planoAnual, dica: 'Assinantes anuais', chave: 'planoAnual' },
+          { titulo: 'Plano mensal ativo', valor: d.cards.planoMensal, dica: 'Assinantes mensais', chave: 'planoMensal' },
+          { titulo: 'Premium grátis', valor: d.cards.premiumGratis, dica: 'Premium via cupom', chave: 'premiumGratis' },
+        ].map((c) => (
+          <Link key={c.chave} href={`/dashboard/${c.chave}`} style={{ textDecoration: 'none' }}>
+            <div className="cartao" style={{ cursor: 'pointer', height: '100%' }}>
+              <div style={{ fontSize: 32, fontWeight: 800, lineHeight: 1 }}>{c.valor}</div>
+              <div style={{ fontWeight: 600, marginTop: 6 }}>{c.titulo}</div>
+              <div style={{ color: 'var(--texto-suave)', fontSize: 12.5, marginTop: 2 }}>{c.dica} ›</div>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      <MapaRegioes />
+
+      <div className="cabeca-secao" style={{ marginTop: 32 }}>
         <h2 style={{ margin: 0 }}>Plataformas</h2>
       </div>
       <div className="cartao">
@@ -128,6 +152,158 @@ function Conteudo() {
 
       <GraficoCrescimento />
       <GraficoAcessosHora />
+    </>
+  );
+}
+
+// ------------------------------------------------- mapa de calor por estado
+interface Regioes {
+  ufs: Record<string, number>;
+  semDDD: number;
+  semTelefone: number;
+  comTelefone: number;
+  total: number;
+}
+
+/** Posição de cada UF num cartograma (grade ~geográfica): [linha, coluna]. */
+const GRID_UF: Record<string, [number, number]> = {
+  RR: [1, 3], AP: [1, 4],
+  AM: [2, 2], PA: [2, 3], MA: [2, 4], CE: [2, 5], RN: [2, 6],
+  AC: [3, 1], RO: [3, 2], TO: [3, 3], PI: [3, 4], PE: [3, 5], PB: [3, 6],
+  MT: [4, 2], BA: [4, 4], SE: [4, 5], AL: [4, 6],
+  MS: [5, 2], GO: [5, 3], DF: [5, 4], MG: [5, 5],
+  SP: [6, 4], RJ: [6, 5], ES: [6, 6],
+  PR: [7, 4], SC: [8, 4], RS: [9, 3],
+};
+
+const REGIOES: Record<string, string[]> = {
+  Norte: ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'],
+  Nordeste: ['AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE'],
+  'Centro-Oeste': ['DF', 'GO', 'MT', 'MS'],
+  Sudeste: ['ES', 'MG', 'RJ', 'SP'],
+  Sul: ['PR', 'RS', 'SC'],
+};
+
+const NOME_UF: Record<string, string> = {
+  AC: 'Acre', AL: 'Alagoas', AP: 'Amapá', AM: 'Amazonas', BA: 'Bahia', CE: 'Ceará', DF: 'Distrito Federal',
+  ES: 'Espírito Santo', GO: 'Goiás', MA: 'Maranhão', MT: 'Mato Grosso', MS: 'Mato Grosso do Sul', MG: 'Minas Gerais',
+  PA: 'Pará', PB: 'Paraíba', PR: 'Paraná', PE: 'Pernambuco', PI: 'Piauí', RJ: 'Rio de Janeiro', RN: 'Rio Grande do Norte',
+  RS: 'Rio Grande do Sul', RO: 'Rondônia', RR: 'Roraima', SC: 'Santa Catarina', SP: 'São Paulo', SE: 'Sergipe', TO: 'Tocantins',
+};
+
+function MapaRegioes() {
+  const [d, setD] = useState<Regioes | null>(null);
+  const [regiao, setRegiao] = useState<string>('Todas');
+
+  useEffect(() => {
+    api<Regioes>('/api/admin/dashboard/regioes').then(setD).catch(() => setD(null));
+  }, []);
+
+  const ufsVisiveis = regiao === 'Todas' ? Object.keys(GRID_UF) : REGIOES[regiao] ?? [];
+  const max = Math.max(1, ...ufsVisiveis.map((uf) => d?.ufs[uf] ?? 0));
+  const totalRegiao = ufsVisiveis.reduce((s, uf) => s + (d?.ufs[uf] ?? 0), 0);
+
+  // Ranking (maiores primeiro) dos estados no escopo atual.
+  const ranking = ufsVisiveis
+    .map((uf) => ({ uf, n: d?.ufs[uf] ?? 0 }))
+    .filter((r) => r.n > 0)
+    .sort((a, b) => b.n - a.n);
+
+  function cor(uf: string): string {
+    const noEscopo = regiao === 'Todas' || (REGIOES[regiao] ?? []).includes(uf);
+    const n = d?.ufs[uf] ?? 0;
+    if (!noEscopo) return 'var(--superficie-2)';
+    if (n === 0) return 'var(--superficie-2)';
+    const alpha = 0.18 + 0.82 * (n / max);
+    return `rgba(147, 173, 101, ${alpha.toFixed(3)})`;
+  }
+
+  return (
+    <>
+      <div className="cabeca-secao" style={{ marginTop: 32 }}>
+        <h2 style={{ margin: 0 }}>Usuários por estado (via DDD)</h2>
+        <select value={regiao} onChange={(e) => setRegiao(e.target.value)} style={{ width: 'auto' }}>
+          <option value="Todas">Todas as regiões</option>
+          {Object.keys(REGIOES).map((r) => (
+            <option key={r} value={r}>{r}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="cartao">
+        {!d ? (
+          <div className="vazio">Carregando…</div>
+        ) : (
+          <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            {/* Cartograma */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(6, 46px)',
+                gridAutoRows: '46px',
+                gap: 5,
+              }}
+            >
+              {Object.entries(GRID_UF).map(([uf, [row, col]]) => {
+                const n = d.ufs[uf] ?? 0;
+                const noEscopo = regiao === 'Todas' || (REGIOES[regiao] ?? []).includes(uf);
+                return (
+                  <div
+                    key={uf}
+                    title={`${NOME_UF[uf]} — ${n} usuário(s)`}
+                    style={{
+                      gridRow: row,
+                      gridColumn: col,
+                      background: cor(uf),
+                      border: '1px solid var(--borda)',
+                      borderRadius: 7,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      opacity: noEscopo ? 1 : 0.25,
+                      lineHeight: 1,
+                    }}
+                  >
+                    <span style={{ fontSize: 11, fontWeight: 700 }}>{uf}</span>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, marginTop: 2 }}>{n}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Resumo + ranking */}
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1 }}>{totalRegiao}</div>
+                  <div className="subtitulo" style={{ margin: 0 }}>
+                    {regiao === 'Todas' ? 'com DDD identificado' : `na região ${regiao}`}
+                  </div>
+                </div>
+              </div>
+              {ranking.length === 0 ? (
+                <p className="subtitulo" style={{ margin: 0 }}>Sem dados de DDD neste escopo.</p>
+              ) : (
+                <div style={{ display: 'grid', gap: 6 }}>
+                  {ranking.slice(0, 8).map((r) => (
+                    <div key={r.uf} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ width: 30, fontWeight: 700, fontSize: 13 }}>{r.uf}</span>
+                      <div style={{ flex: 1, height: 10, background: 'var(--superficie-2)', borderRadius: 5, overflow: 'hidden' }}>
+                        <div style={{ width: `${(r.n / max) * 100}%`, height: '100%', background: 'var(--acento)' }} />
+                      </div>
+                      <span style={{ width: 36, textAlign: 'right', fontSize: 13 }}>{r.n}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="subtitulo" style={{ margin: '12px 0 0', fontSize: 12.5 }}>
+                {d.semTelefone} sem telefone · {d.semDDD} com DDD não reconhecido · {d.comTelefone} com telefone.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
     </>
   );
 }

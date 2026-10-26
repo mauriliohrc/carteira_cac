@@ -27,6 +27,9 @@ const TITULOS: Record<string, string> = {
   comVinculo: 'Usuários com vínculo de entidade',
   comDocumento: 'Usuários com documentos',
   semDocumento: 'Usuários sem documentos',
+  planoAnual: 'Assinantes do plano anual',
+  planoMensal: 'Assinantes do plano mensal',
+  premiumGratis: 'Premium grátis (cupom)',
 };
 
 export default function PaginaMetrica() {
