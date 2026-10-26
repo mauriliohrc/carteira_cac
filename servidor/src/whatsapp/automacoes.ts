@@ -1,5 +1,11 @@
 import { prisma } from '../db/cliente.js';
-import { CHAVE_AUTOMACOES, lerBool } from '../config/configStore.js';
+import {
+  CHAVE_AUTOMACOES,
+  CHAVE_MARCO_AUTOMACOES,
+  gravarTexto,
+  lerBool,
+  lerTexto,
+} from '../config/configStore.js';
 import { enviarPush } from '../push/expo.js';
 import { enviarTexto, estaConectado } from './cliente.js';
 import { aplicarNome } from './mensagens.js';
@@ -115,7 +121,7 @@ export async function dispararGatilho(usuario: UsuarioAlvo, gatilho: Gatilho): P
       if (!usuario.celular) continue; // sem telefone: nunca vai por WhatsApp
       if (!estaConectado()) continue; // offline: tenta de novo na próxima rodada
       try {
-        await enviarTexto(usuario.celular, aplicarNome(modelo.corpo, usuario.nome));
+        await enviarTexto(usuario.celular, aplicarNome(modelo.corpo, usuario.nome), usuario.nome);
         await registrar(usuario.id, gatilho, canal, 'OK');
       } catch (e) {
         // Número sem WhatsApp etc.: trava para não insistir num caso perdido.
@@ -145,9 +151,26 @@ async function registrar(usuarioId: string, gatilho: Gatilho, canal: Canal, stat
   });
 }
 
-/** Chamado no cadastro (best-effort, imediato). Não bloqueia a resposta. */
+/**
+ * Chamado SÓ no momento do cadastro (best-effort, imediato). Não bloqueia a
+ * resposta. Boas-vindas NÃO tem varredura retroativa de propósito: nunca deve
+ * sair para a base histórica, apenas para quem acabou de criar a conta.
+ */
 export function dispararBoasVindas(usuario: UsuarioAlvo): void {
   void dispararGatilho(usuario, 'BOAS_VINDAS').catch(() => {});
+}
+
+/**
+ * Marco de ativação das automações de tempo. Fixado na 1ª execução da varredura
+ * (lazy). A partir daí, só usuários que cruzam o prazo DEPOIS do marco entram —
+ * a base antiga nunca "vence de uma vez".
+ */
+async function marcoDeAtivacao(): Promise<Date> {
+  const txt = await lerTexto(CHAVE_MARCO_AUTOMACOES);
+  if (txt) return new Date(txt);
+  const agora = new Date();
+  await gravarTexto(CHAVE_MARCO_AUTOMACOES, agora.toISOString());
+  return agora;
 }
 
 /**
@@ -180,9 +203,12 @@ async function candidatos(
 let rodandoSweep = false;
 
 /**
- * Varredura periódica: reprocessa boas-vindas que ficaram para trás (WhatsApp
- * estava offline) e envia o lembrete de 7 dias sem arma. Espaça os envios de
- * WhatsApp para não disparar em rajada.
+ * Varredura periódica: APENAS o lembrete de 7 dias sem arma. Boas-vindas não
+ * entra aqui (só no cadastro). Para não atingir a base histórica, considera só
+ * quem completa os 7 dias DEPOIS do marco de ativação:
+ *   criadoEm ∈ [marco - 7d, agora - 7d)   (e sem arma, ativo)
+ * No instante do marco a janela é vazia; com o tempo ela inclui, aos poucos, só
+ * quem naturalmente cruza o prazo. Espaça os envios para não disparar em rajada.
  */
 export async function processarAutomacoes(): Promise<void> {
   if (rodandoSweep) return;
@@ -190,34 +216,27 @@ export async function processarAutomacoes(): Promise<void> {
   rodandoSweep = true;
   try {
     await garantirModelosPadrao();
+    const marco = await marcoDeAtivacao();
 
-    // Candidatos a boas-vindas: cadastros recentes ainda sem disparo registrado.
-    const recenteCorte = new Date(Date.now() - 3 * 86_400_000);
-    const boasVindas = await candidatos(
-      { ativo: true, criadoEm: { gt: recenteCorte } },
-      'BOAS_VINDAS'
-    );
+    const agora = Date.now();
+    const limiteSuperior = new Date(agora - DIAS_SEM_ARMA * 86_400_000); // completou 7d
+    const limiteInferior = new Date(marco.getTime() - DIAS_SEM_ARMA * 86_400_000); // só pós-marco
 
-    // 7 dias sem arma: conta antiga o bastante e sem acervo de armas.
-    const semArmaCorte = new Date(Date.now() - DIAS_SEM_ARMA * 86_400_000);
     const semArma = await candidatos(
       {
         ativo: true,
-        criadoEm: { lt: semArmaCorte },
+        criadoEm: { gte: limiteInferior, lt: limiteSuperior },
         registrosSync: { none: { tipo: 'armas', removido: false } },
       },
       'SEM_ARMA_7D'
     );
 
     let primeiro = true;
-    const passar = async (u: UsuarioAlvo, g: Gatilho) => {
+    for (const u of semArma) {
       if (!primeiro) await sleep(sorteia(AUTO_MIN_SEG, AUTO_MAX_SEG));
       primeiro = false;
-      await dispararGatilho(u, g);
-    };
-
-    for (const u of boasVindas) await passar(u, 'BOAS_VINDAS');
-    for (const u of semArma) await passar(u, 'SEM_ARMA_7D');
+      await dispararGatilho(u, 'SEM_ARMA_7D');
+    }
   } finally {
     rodandoSweep = false;
   }

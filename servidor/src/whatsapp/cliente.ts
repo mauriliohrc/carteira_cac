@@ -10,6 +10,8 @@ import {
 import pino from 'pino';
 import QRCode from 'qrcode';
 import { ambiente } from '../config/ambiente.js';
+import { CHAVE_SALVAR_CONTATO, lerBool } from '../config/configStore.js';
+import { primeiroNome } from './mensagens.js';
 
 /**
  * Gerenciador da conexão de WhatsApp (Baileys) — singleton isolado do resto do
@@ -35,6 +37,10 @@ let conectarDesejado = false;
 let iniciando = false;
 /** Callback do dispatcher para retomar envios quando a conexão abre. */
 let aoConectar: (() => void) | null = null;
+/** JIDs já presentes na agenda (sincronizados pelo WA ou salvos por nós). */
+const contatosConhecidos = new Set<string>();
+
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function registrarAoConectar(fn: () => void) {
   aoConectar = fn;
@@ -76,6 +82,14 @@ export async function iniciar(): Promise<void> {
     });
 
     sock.ev.on('creds.update', saveCreds);
+
+    // Mantém o conjunto de contatos conhecidos a partir da sincronização do WA,
+    // para não re-gravar na agenda quem já é contato a cada envio.
+    const registrarIds = (lista?: { id?: string | null }[]) =>
+      lista?.forEach((c) => c.id && contatosConhecidos.add(c.id));
+    sock.ev.on('contacts.upsert', (cs) => registrarIds(cs));
+    sock.ev.on('contacts.update', (cs) => registrarIds(cs));
+    sock.ev.on('messaging-history.set', ({ contacts }) => registrarIds(contacts));
 
     sock.ev.on('connection.update', async (u) => {
       const { connection, lastDisconnect, qr } = u;
@@ -161,14 +175,43 @@ export async function resolverJid(celular: string): Promise<string | null> {
   return achado?.jid ?? null;
 }
 
-/** Envia um texto. Lança se não conectado ou se o número não tem WhatsApp. */
-export async function enviarTexto(celular: string, texto: string): Promise<void> {
+/**
+ * Salva o número na agenda do WhatsApp (se ainda não for contato). WhatsApp
+ * trata melhor mensagens para contatos salvos. Retorna true se gravou agora.
+ */
+export async function salvarContatoSeNovo(jid: string, nome: string): Promise<boolean> {
+  if (!sock || contatosConhecidos.has(jid)) return false;
+  try {
+    const nomeCompleto = (nome || '').trim() || jid.split('@')[0];
+    await sock.addOrEditContact(jid, {
+      fullName: nomeCompleto,
+      firstName: primeiroNome(nomeCompleto),
+      saveOnPrimaryAddressbook: true,
+    });
+    contatosConhecidos.add(jid);
+    return true;
+  } catch {
+    // Não bloqueia o envio se a gravação do contato falhar.
+    return false;
+  }
+}
+
+/**
+ * Envia um texto. Lança se não conectado ou se o número não tem WhatsApp.
+ * Se a opção estiver ligada, garante o número como contato antes de enviar.
+ */
+export async function enviarTexto(celular: string, texto: string, nome?: string): Promise<void> {
   if (!sock || estado !== 'CONECTADO') {
     throw new Error('WhatsApp não conectado');
   }
   const jid = await resolverJid(celular);
   if (!jid) {
     throw new Error('Número sem WhatsApp');
+  }
+  if (await lerBool(CHAVE_SALVAR_CONTATO, true)) {
+    const gravou = await salvarContatoSeNovo(jid, nome ?? '');
+    // Pequena pausa após gravar o contato, antes de mandar a mensagem.
+    if (gravou) await delay(2000 + Math.floor(Math.random() * 2000));
   }
   await sock.sendMessage(jid, { text: texto });
 }

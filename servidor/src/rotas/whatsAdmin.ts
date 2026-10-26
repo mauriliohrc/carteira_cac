@@ -12,7 +12,7 @@ import { resolverDestinatarios } from '../whatsapp/filtros.js';
 import { cutucar } from '../whatsapp/dispatcher.js';
 import { aplicarNome } from '../whatsapp/mensagens.js';
 import { GATILHOS, garantirModelosPadrao } from '../whatsapp/automacoes.js';
-import { CHAVE_AUTOMACOES, gravarBool, lerBool } from '../config/configStore.js';
+import { CHAVE_AUTOMACOES, CHAVE_SALVAR_CONTATO, gravarBool, lerBool } from '../config/configStore.js';
 import { z } from 'zod';
 
 /** Esconde o miolo do número no retorno da prévia (privacidade na tela). */
@@ -26,7 +26,17 @@ export async function rotasWhatsAdmin(app: FastifyInstance) {
   app.addHook('preHandler', exigirAdmin());
 
   // --------------------------------------------------------------- conexão
-  app.get('/api/admin/whatsapp/status', async () => status());
+  app.get('/api/admin/whatsapp/status', async () => {
+    const salvarContato = await lerBool(CHAVE_SALVAR_CONTATO, true);
+    return { ...status(), salvarContato };
+  });
+
+  // Opções do WhatsApp (ex.: salvar o número como contato antes de enviar).
+  app.patch('/api/admin/whatsapp/config', async (req) => {
+    const { salvarContato } = z.object({ salvarContato: z.boolean() }).parse(req.body);
+    await gravarBool(CHAVE_SALVAR_CONTATO, salvarContato);
+    return { ok: true, salvarContato };
+  });
 
   app.post('/api/admin/whatsapp/conectar', async () => {
     await iniciar();

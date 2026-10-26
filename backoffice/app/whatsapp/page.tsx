@@ -75,6 +75,11 @@ function Conexao() {
     }
   }
 
+  async function alternarSalvarContato(v: boolean) {
+    setSt((s) => (s ? { ...s, salvarContato: v } : s)); // otimista
+    await api('/api/admin/whatsapp/config', { metodo: 'PATCH', corpo: { salvarContato: v } });
+  }
+
   async function desconectar() {
     if (!confirm('Desconectar o WhatsApp e apagar a sessão? Será preciso ler o QR de novo.')) return;
     setOcupado(true);
@@ -128,9 +133,20 @@ function Conexao() {
           )}
         </div>
 
+        <label className="radio-opcao" style={{ width: 'fit-content', marginTop: 10 }}>
+          <input
+            type="checkbox"
+            checked={st?.salvarContato ?? true}
+            onChange={(e) => alternarSalvarContato(e.target.checked)}
+            style={{ width: 'auto' }}
+          />
+          Salvar o número como contato antes de enviar
+        </label>
+
         <p className="subtitulo" style={{ marginBottom: 0 }}>
           ⚠️ WhatsApp não-oficial (Baileys). Disparo em massa pode levar a bloqueio do número — use
-          com moderação e intervalos espaçados.
+          com moderação e intervalos espaçados. Salvar como contato ajuda um pouco, mas o que mais
+          conta é volume baixo e falar só com quem espera.
         </p>
       </div>
     </>

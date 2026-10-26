@@ -296,6 +296,8 @@ export interface StatusWhatsapp {
   qr?: string | null;
   /** Número conectado (só dígitos), quando CONECTADO. */
   numero?: string | null;
+  /** Salvar o número como contato antes de enviar. */
+  salvarContato?: boolean;
 }
 
 /** Filtros combináveis (E/AND) para segmentar destinatários. */

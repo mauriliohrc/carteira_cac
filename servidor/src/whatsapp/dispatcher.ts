@@ -85,7 +85,7 @@ async function rodar(): Promise<void> {
     }
 
     try {
-      await enviarTexto(envio.celular, envio.mensagem);
+      await enviarTexto(envio.celular, envio.mensagem, envio.nome);
       await prisma.envioWhats.update({
         where: { id: envio.id },
         data: { status: 'ENVIADO', enviadoEm: new Date() },
