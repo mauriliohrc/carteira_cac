@@ -4,3 +4,4 @@ dist/
 prisma/dados/
 *.db
 *.db-journal
+.whatsapp-auth/

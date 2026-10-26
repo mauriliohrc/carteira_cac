@@ -22,17 +22,17 @@ datasource db {
 /// Administrador do APLICATIVO (dono/operador do backoffice).
 /// NÃO confundir com os usuários administrativos das entidades.
 model UsuarioAdmin {
-  id        String   @id @default(cuid())
-  nome      String
-  email     String   @unique
-  senhaHash String
+  id           String   @id @default(cuid())
+  nome         String
+  email        String   @unique
+  senhaHash    String
   /// SUPER_ADMIN | SUPORTE  (validado por Zod)
-  papel     String   @default("SUPER_ADMIN")
-  ativo     Boolean  @default(true)
-  criadoEm  DateTime @default(now())
+  papel        String   @default("SUPER_ADMIN")
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  noticias  Noticia[]
+  noticias Noticia[]
 
   @@map("usuarios_admin")
 }
@@ -40,26 +40,26 @@ model UsuarioAdmin {
 /// Notícia publicada pelo admin do app e exibida no aplicativo.
 /// Só aparece no app quando status = PUBLICADA.
 model Noticia {
-  id          String    @id @default(cuid())
-  titulo      String
-  resumo      String?   @db.Text
-  conteudo    String    @db.LongText
-  imagemUrl   String?   @db.Text
+  id           String    @id @default(cuid())
+  titulo       String
+  resumo       String?   @db.Text
+  conteudo     String    @db.LongText
+  imagemUrl    String?   @db.Text
   /// RASCUNHO | PUBLICADA  (validado por Zod)
-  status      String    @default("RASCUNHO")
+  status       String    @default("RASCUNHO")
   /// Marca quando foi publicada; null enquanto rascunho. Ordena a lista do app.
-  publicadaEm DateTime?
-  autorId     String?
+  publicadaEm  DateTime?
+  autorId      String?
   /// Alcance da notícia: null = GERAL (todos os usuários do app veem).
   /// Preenchido = restrita aos usuários vinculados a esta entidade.
-  entidadeId  String?
-  criadoEm    DateTime  @default(now())
-  atualizadoEm DateTime @updatedAt
+  entidadeId   String?
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
 
-  autor       UsuarioAdmin? @relation(fields: [autorId], references: [id], onDelete: SetNull)
-  entidade    EntidadeTiro? @relation(fields: [entidadeId], references: [id], onDelete: Cascade)
-  midias      MidiaNoticia[]
-  leituras    LeituraNoticia[]
+  autor    UsuarioAdmin?    @relation(fields: [autorId], references: [id], onDelete: SetNull)
+  entidade EntidadeTiro?    @relation(fields: [entidadeId], references: [id], onDelete: Cascade)
+  midias   MidiaNoticia[]
+  leituras LeituraNoticia[]
 
   @@index([status, publicadaEm])
   @@index([entidadeId, status, publicadaEm])
@@ -74,8 +74,8 @@ model LeituraNoticia {
   usuarioId String
   criadoEm  DateTime @default(now())
 
-  noticia   Noticia    @relation(fields: [noticiaId], references: [id], onDelete: Cascade)
-  usuario   UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  noticia Noticia    @relation(fields: [noticiaId], references: [id], onDelete: Cascade)
+  usuario UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@unique([noticiaId, usuarioId])
   @@index([noticiaId])
@@ -95,7 +95,7 @@ model MidiaNoticia {
   ordem     Int      @default(0)
   criadoEm  DateTime @default(now())
 
-  noticia   Noticia  @relation(fields: [noticiaId], references: [id], onDelete: Cascade)
+  noticia Noticia @relation(fields: [noticiaId], references: [id], onDelete: Cascade)
 
   @@index([noticiaId])
   @@map("midias_noticia")
@@ -103,37 +103,37 @@ model MidiaNoticia {
 
 /// Entidade de tiro: clube, liga ou federação. Criada e gerida pelo admin do app.
 model EntidadeTiro {
-  id        String   @id @default(cuid())
-  nome      String
+  id         String  @id @default(cuid())
+  nome       String
   /// Subdomínio público, gerado do nome no cadastro (ex.: "3Gun" -> "3gun" ->
   /// 3gun.carteiracac.com). Único; nulo em entidades antigas até o backfill.
   subdominio String? @unique
   /// CLUBE | LIGA | FEDERACAO  (validado por Zod)
-  tipo      String
+  tipo       String
   /// Registro no Exército (CR), quando houver.
-  cr        String?
-  cnpj      String?  @unique
-  email     String?
-  telefone  String?
-  cidade    String?
-  uf        String?
-  ativo     Boolean  @default(true)
+  cr         String?
+  cnpj       String? @unique
+  email      String?
+  telefone   String?
+  cidade     String?
+  uf         String?
+  ativo      Boolean @default(true)
 
   // ---- Integração Shooting House (API de parceiros) ----
   shIntegracaoAtiva Boolean @default(false)
   /// Base da API; se nulo, usa o padrão (beta). Ex.: https://apibeta.shootinghouse.com.br/v1/partners
-  shBaseUrl String?  @db.Text
+  shBaseUrl         String? @db.Text
   /// Credenciais Basic do parceiro na Shooting House.
-  shLogin   String?
-  shSenha   String?
+  shLogin           String?
+  shSenha           String?
 
-  criadoEm  DateTime @default(now())
+  criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  usuarios     UsuarioEntidade[]
-  vinculosApp  VinculoEntidade[]
-  noticias     Noticia[]
-  competicoes  Competicao[]
+  usuarios    UsuarioEntidade[]
+  vinculosApp VinculoEntidade[]
+  noticias    Noticia[]
+  competicoes Competicao[]
 
   @@map("entidades_tiro")
 }
@@ -141,11 +141,11 @@ model EntidadeTiro {
 /// Arquivo enviado pelo backoffice (ex.: banner de competição). Guardado no
 /// banco (como os anexos do app) e servido em GET /uploads/:id.
 model Upload {
-  id        String   @id @default(cuid())
-  mime      String
-  tamanho   Int
-  dados     Bytes
-  criadoEm  DateTime @default(now())
+  id       String   @id @default(cuid())
+  mime     String
+  tamanho  Int
+  dados    Bytes
+  criadoEm DateTime @default(now())
 
   @@map("uploads")
 }
@@ -153,23 +153,23 @@ model Upload {
 /// Competição criada por uma ENTIDADE. Agrupa categorias; cada categoria tem
 /// seu próprio ranking. Só aparece no app enquanto `ativo` e dentro do prazo.
 model Competicao {
-  id          String   @id @default(cuid())
-  entidadeId  String
-  nome        String
+  id           String   @id @default(cuid())
+  entidadeId   String
+  nome         String
   /// Descrição/apresentação da competição.
-  descricao   String?  @db.Text
+  descricao    String?  @db.Text
   /// Foto/banner (URL). Exibido no app.
-  bannerUrl   String?  @db.Text
+  bannerUrl    String?  @db.Text
   /// Regulamento completo (texto livre).
-  regras      String?  @db.LongText
-  dataInicio  DateTime
-  dataFim     DateTime
-  ativo       Boolean  @default(true)
-  criadoEm    DateTime @default(now())
+  regras       String?  @db.LongText
+  dataInicio   DateTime
+  dataFim      DateTime
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  entidade    EntidadeTiro          @relation(fields: [entidadeId], references: [id], onDelete: Cascade)
-  categorias  CategoriaCompeticao[]
+  entidade   EntidadeTiro          @relation(fields: [entidadeId], references: [id], onDelete: Cascade)
+  categorias CategoriaCompeticao[]
 
   @@index([entidadeId])
   @@index([ativo, dataFim])
@@ -179,20 +179,20 @@ model Competicao {
 /// Categoria dentro de uma competição. Tem o próprio ranking e o sentido do
 /// ordenamento: MAIOR (maior pontuação vence) ou MENOR (menor vence, ex.: tempo).
 model CategoriaCompeticao {
-  id            String   @id @default(cuid())
-  competicaoId  String
-  nome          String
-  descricao     String?  @db.Text
-  regras        String?  @db.LongText
-  dataInicio    DateTime?
-  dataFim       DateTime?
+  id           String    @id @default(cuid())
+  competicaoId String
+  nome         String
+  descricao    String?   @db.Text
+  regras       String?   @db.LongText
+  dataInicio   DateTime?
+  dataFim      DateTime?
   /// MAIOR | MENOR  (validado por Zod). Sentido do ranking.
-  ordenamento   String   @default("MAIOR")
-  criadoEm      DateTime @default(now())
-  atualizadoEm  DateTime @updatedAt
+  ordenamento  String    @default("MAIOR")
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
 
-  competicao    Competicao            @relation(fields: [competicaoId], references: [id], onDelete: Cascade)
-  resultados    ResultadoCompeticao[]
+  competicao Competicao            @relation(fields: [competicaoId], references: [id], onDelete: Cascade)
+  resultados ResultadoCompeticao[]
 
   @@index([competicaoId])
   @@map("categorias_competicao")
@@ -218,8 +218,8 @@ model ResultadoCompeticao {
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  categoria    CategoriaCompeticao @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
-  usuario      UsuarioApp?         @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  categoria CategoriaCompeticao @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
+  usuario   UsuarioApp?         @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
   @@unique([categoriaId, cpf])
   @@index([categoriaId])
@@ -231,27 +231,27 @@ model ResultadoCompeticao {
 /// offline sem ela. Não se confunde com UsuarioAdmin nem UsuarioEntidade.
 /// Futuramente poderá ser vinculado a uma ou mais entidades.
 model UsuarioApp {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   /// CPF só com dígitos (11). Único.
-  cpf             String   @unique
-  email           String   @unique
+  cpf             String    @unique
+  email           String    @unique
   nome            String
   senhaHash       String
   /// Celular para contato/suporte (opcional). Só dígitos.
   celular         String?
-  emailVerificado Boolean  @default(false)
-  ativo           Boolean  @default(true)
+  emailVerificado Boolean   @default(false)
+  ativo           Boolean   @default(true)
   /// Última atividade do usuário (heartbeat do app). "Online" = recente.
   ultimoAcessoEm  DateTime?
   /// Última verificação automática de vínculos na Shooting House (throttle).
   vinculosCheckEm DateTime?
   /// Premium reportado pelo app (assinatura/cupom ativos neste aparelho).
-  premium         Boolean  @default(false)
+  premium         Boolean   @default(false)
   /// Origem do premium reportada pelo app: CUPOM | MENSAL | ANUAL | ANUAL_PARCEIRO.
   /// Nulo quando desconhecido (app antigo que só reporta o booleano) ou sem premium.
   premiumTipo     String?
-  criadoEm        DateTime @default(now())
-  atualizadoEm    DateTime @updatedAt
+  criadoEm        DateTime  @default(now())
+  atualizadoEm    DateTime  @updatedAt
 
   tokensSenha     TokenSenha[]
   tokensEmail     TokenEmail[]
@@ -269,16 +269,16 @@ model UsuarioApp {
 
 /// Cupom promocional que libera o Premium. Gerenciado pelo backoffice.
 model CupomPromocional {
-  id          String    @id @default(cuid())
+  id         String    @id @default(cuid())
   /// Código normalizado (minúsculo, espaços colapsados). Único.
-  codigo      String    @unique
-  descricao   String?   @db.Text
-  ativo       Boolean   @default(true)
+  codigo     String    @unique
+  descricao  String?   @db.Text
+  ativo      Boolean   @default(true)
   /// null = usos ilimitados.
-  limiteUsos  Int?
-  usos        Int       @default(0)
-  expiraEm    DateTime?
-  criadoEm    DateTime  @default(now())
+  limiteUsos Int?
+  usos       Int       @default(0)
+  expiraEm   DateTime?
+  criadoEm   DateTime  @default(now())
 
   registrosUso UsoCupom[]
 
@@ -292,8 +292,8 @@ model UsoCupom {
   usuarioId String?
   criadoEm  DateTime @default(now())
 
-  cupom     CupomPromocional @relation(fields: [cupomId], references: [id], onDelete: Cascade)
-  usuario   UsuarioApp?      @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  cupom   CupomPromocional @relation(fields: [cupomId], references: [id], onDelete: Cascade)
+  usuario UsuarioApp?      @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
   @@index([cupomId])
   @@map("usos_cupom")
@@ -309,8 +309,8 @@ model VinculoEntidade {
   origem     String   @default("SHOOTING_HOUSE")
   criadoEm   DateTime @default(now())
 
-  usuario    UsuarioApp   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  entidade   EntidadeTiro @relation(fields: [entidadeId], references: [id], onDelete: Cascade)
+  usuario  UsuarioApp   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  entidade EntidadeTiro @relation(fields: [entidadeId], references: [id], onDelete: Cascade)
 
   @@unique([usuarioId, entidadeId])
   @@index([entidadeId])
@@ -330,7 +330,7 @@ model RegistroSync {
   removido        Boolean  @default(false)
   carimboServidor DateTime @updatedAt
 
-  usuario         UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuario UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@unique([usuarioId, tipo, registroId])
   @@index([usuarioId, carimboServidor])
@@ -348,7 +348,7 @@ model ArquivoSync {
   conteudo     Bytes
   atualizadoEm DateTime @updatedAt
 
-  usuario      UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuario UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@unique([usuarioId, registroId])
   @@index([usuarioId])
@@ -369,7 +369,7 @@ model DispositivoPush {
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  usuario      UsuarioApp? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  usuario UsuarioApp? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
   @@index([usuarioId])
   @@map("dispositivos_push")
@@ -393,20 +393,116 @@ model EnvioPush {
   @@map("envios_push")
 }
 
+/// Campanha de mensagens de WhatsApp (relacionamento) disparada pelo backoffice.
+/// O disparo é gradual (um EnvioWhats por vez, intervalo aleatório). Toda a
+/// durabilidade vem do banco: após restart, campanhas EM_ANDAMENTO são retomadas.
+model CampanhaWhats {
+  id            String   @id @default(cuid())
+  mensagem      String   @db.Text
+  /// Se true, {{nome}} foi substituído pelo primeiro nome de cada destinatário.
+  usarNome      Boolean  @default(true)
+  /// Snapshot (JSON) dos filtros usados para resolver os destinatários.
+  filtros       String   @db.Text
+  /// Intervalo entre envios, em segundos (sorteado entre min e max).
+  intervaloMin  Int      @default(10)
+  intervaloMax  Int      @default(40)
+  /// EM_ANDAMENTO | PAUSADA | CONCLUIDA | CANCELADA
+  status        String   @default("EM_ANDAMENTO")
+  totalAlvos    Int
+  totalEnviados Int      @default(0)
+  totalFalhas   Int      @default(0)
+  autorId       String?
+  criadoEm      DateTime @default(now())
+  atualizadoEm  DateTime @updatedAt
+
+  envios EnvioWhats[]
+
+  @@index([status])
+  @@map("campanhas_whats")
+}
+
+/// Um destinatário de uma campanha de WhatsApp, com a mensagem já personalizada.
+model EnvioWhats {
+  id         String    @id @default(cuid())
+  campanhaId String
+  /// Usuário do app de origem (pode ser null se a conta sumir depois).
+  usuarioId  String?
+  /// Celular (só dígitos) alvo do envio.
+  celular    String
+  nome       String
+  /// Texto final já com o primeiro nome aplicado.
+  mensagem   String    @db.Text
+  /// PENDENTE | ENVIADO | FALHOU
+  status     String    @default("PENDENTE")
+  erro       String?   @db.Text
+  enviadoEm  DateTime?
+  criadoEm   DateTime  @default(now())
+
+  campanha CampanhaWhats @relation(fields: [campanhaId], references: [id], onDelete: Cascade)
+
+  @@index([campanhaId, status])
+  @@map("envios_whats")
+}
+
+/// Modelo de mensagem automática (relacionamento), editável no backoffice.
+/// Cada (gatilho, canal) tem um texto próprio com {{nome}} (primeiro nome).
+/// Gatilhos: BOAS_VINDAS (no cadastro) | SEM_ARMA_7D (7 dias sem cadastrar arma).
+/// Canais: WHATSAPP | PUSH.
+model ModeloMensagem {
+  id           String   @id @default(cuid())
+  gatilho      String
+  canal        String
+  /// Título (usado só no canal PUSH).
+  titulo       String?
+  /// Texto da mensagem (WhatsApp) ou corpo (push). Aceita {{nome}}.
+  corpo        String   @db.Text
+  ativo        Boolean  @default(true)
+  atualizadoEm DateTime @updatedAt
+
+  @@unique([gatilho, canal])
+  @@map("modelos_mensagem")
+}
+
+/// Registro de que um disparo automático já foi feito para um usuário, para não
+/// repetir (ex.: a mensagem de 7 dias sem arma só sai uma vez por usuário/canal).
+model DisparoAutomatico {
+  id        String   @id @default(cuid())
+  usuarioId String
+  gatilho   String
+  canal     String
+  /// OK | FALHOU | PULADO (ex.: WhatsApp desconectado / sem número).
+  status    String   @default("OK")
+  erro      String?  @db.Text
+  criadoEm  DateTime @default(now())
+
+  @@unique([usuarioId, gatilho, canal])
+  @@index([gatilho])
+  @@map("disparos_automaticos")
+}
+
+/// Configurações globais simples (chave/valor). Ex.: automacoes_ativas = "1".
+model Configuracao {
+  chave        String   @id
+  valor        String   @db.Text
+  atualizadoEm DateTime @updatedAt
+
+  @@map("configuracoes")
+}
+
 /// Token de redefinição de senha do usuário do app. Guardamos só o HASH do
 /// token (nunca o valor em claro), com validade curta e marca de uso.
 model TokenSenha {
-  id        String    @id @default(cuid())
-  usuarioId String
+  id         String    @id @default(cuid())
+  usuarioId  String
   /// Hash (sha256) do código de 6 dígitos enviado por e-mail.
-  tokenHash String
-  expiraEm  DateTime
-  usadoEm   DateTime?
+  tokenHash  String
+  expiraEm   DateTime
+  usadoEm    DateTime?
   /// Tentativas erradas; o código é invalidado após o limite (anti-força-bruta).
-  tentativas Int      @default(0)
-  criadoEm  DateTime  @default(now())
+  tentativas Int       @default(0)
+  criadoEm   DateTime  @default(now())
 
-  usuario   UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuario UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@index([usuarioId])
   @@map("tokens_senha")
@@ -414,16 +510,16 @@ model TokenSenha {
 
 /// Código de confirmação de e-mail do usuário do app (6 dígitos, por e-mail).
 model TokenEmail {
-  id        String    @id @default(cuid())
-  usuarioId String
+  id         String    @id @default(cuid())
+  usuarioId  String
   /// Hash (sha256) do código de 6 dígitos.
   codigoHash String
-  expiraEm  DateTime
-  usadoEm   DateTime?
-  tentativas Int      @default(0)
-  criadoEm  DateTime  @default(now())
+  expiraEm   DateTime
+  usadoEm    DateTime?
+  tentativas Int       @default(0)
+  criadoEm   DateTime  @default(now())
 
-  usuario   UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuario UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@index([usuarioId])
   @@map("tokens_email")
@@ -432,18 +528,18 @@ model TokenEmail {
 /// Usuário administrativo de UMA entidade. Acessa o backoffice no escopo
 /// da sua entidade apenas. Não tem relação com os usuários-admin do app.
 model UsuarioEntidade {
-  id         String   @id @default(cuid())
-  entidadeId String
-  nome       String
-  email      String
-  senhaHash  String
+  id           String   @id @default(cuid())
+  entidadeId   String
+  nome         String
+  email        String
+  senhaHash    String
   /// ADMIN_ENTIDADE | OPERADOR  (validado por Zod)
-  papel      String   @default("ADMIN_ENTIDADE")
-  ativo      Boolean  @default(true)
-  criadoEm   DateTime @default(now())
+  papel        String   @default("ADMIN_ENTIDADE")
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  entidade   EntidadeTiro @relation(fields: [entidadeId], references: [id], onDelete: Cascade)
+  entidade EntidadeTiro @relation(fields: [entidadeId], references: [id], onDelete: Cascade)
 
   // E-mail único POR entidade (o mesmo e-mail pode existir em entidades diferentes).
   @@unique([entidadeId, email])
@@ -454,14 +550,14 @@ model UsuarioEntidade {
 /// Mensagem de contato recebida pelo formulário do site (sistema interno — sem
 /// e-mail). Listada e tratada no backoffice.
 model Contato {
-  id        String   @id @default(cuid())
-  nome      String
-  telefone  String
-  assunto   String
-  mensagem  String   @db.Text
+  id       String   @id @default(cuid())
+  nome     String
+  telefone String
+  assunto  String
+  mensagem String   @db.Text
   /// Já foi atendido/respondido pela equipe.
-  tratado   Boolean  @default(false)
-  criadoEm  DateTime @default(now())
+  tratado  Boolean  @default(false)
+  criadoEm DateTime @default(now())
 
   @@index([tratado, criadoEm])
   @@map("contatos")

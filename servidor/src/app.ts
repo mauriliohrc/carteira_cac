@@ -15,6 +15,7 @@ import { rotasContatosAdmin } from './rotas/contatosAdmin.js';
 import { rotasDashboardAdmin } from './rotas/dashboardAdmin.js';
 import { rotasNoticias } from './rotas/noticias.js';
 import { rotasPushAdmin } from './rotas/pushAdmin.js';
+import { rotasWhatsAdmin } from './rotas/whatsAdmin.js';
 import { rotasAcervoAdmin } from './rotas/acervoAdmin.js';
 import { rotasCuponsAdmin } from './rotas/cuponsAdmin.js';
 import { rotasAppV1 } from './rotas/v1/appAuth.js';
@@ -84,6 +85,7 @@ export function construirApp() {
   app.register(rotasContatosAdmin);
   app.register(rotasNoticias);
   app.register(rotasPushAdmin);
+  app.register(rotasWhatsAdmin);
   app.register(rotasDashboardAdmin);
   app.register(rotasAcervoAdmin);
   app.register(rotasCuponsAdmin);

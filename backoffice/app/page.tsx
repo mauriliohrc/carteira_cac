@@ -10,7 +10,7 @@ export default function Inicio() {
 
   useEffect(() => {
     if (carregando) return;
-    if (admin) router.replace('/entidades');
+    if (admin) router.replace('/dashboard');
     else if (entidade) router.replace('/entidade/noticias');
     else router.replace('/login');
   }, [admin, entidade, carregando, router]);

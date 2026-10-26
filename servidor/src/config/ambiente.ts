@@ -40,4 +40,13 @@ export const ambiente = {
       return Boolean(this.usuario && this.senha);
     },
   },
+  /**
+   * WhatsApp (Baileys) para campanhas de relacionamento do backoffice.
+   * `authDir` guarda as credenciais da sessão (useMultiFileAuthState). Precisa
+   * persistir no servidor de produção para não pedir QR a cada restart; por isso
+   * fica fora do dist e é ignorado no git (.whatsapp-auth/).
+   */
+  whatsapp: {
+    authDir: process.env.WHATS_AUTH_DIR ?? '.whatsapp-auth',
+  },
 } as const;

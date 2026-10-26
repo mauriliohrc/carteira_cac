@@ -287,6 +287,47 @@ export const criarUsuarioAdminSchema = z.object({
   papel: z.enum(PAPEIS_ADMIN as [string, ...string[]]).optional(),
 });
 
+// ------------------------------------------------- WhatsApp (relacionamento)
+/**
+ * Filtros de segmentação combináveis (E/AND). Todos opcionais; a resolução
+ * sempre força celular preenchido (WhatsApp exige número). Ver resolverDestinatarios.
+ */
+export const filtrosWhatsSchema = z.object({
+  ativos: z.boolean().optional(),
+  /** Tri-estado do e-mail verificado: true = validadas, false = sem validar. */
+  emailVerificado: z.boolean().optional(),
+  /** Tri-estado de armas: true = com arma, false = sem arma. */
+  comArma: z.boolean().optional(),
+  /** Conta criada há mais de N dias (uso). */
+  diasDeUsoMin: z.number().int().min(1).max(3650).optional(),
+  /** Exige CPF + nome preenchidos (cadastro completo). */
+  comCadastro: z.boolean().optional(),
+});
+
+export const criarCampanhaWhatsSchema = z
+  .object({
+    mensagem: z.string().trim().min(1, 'Escreva a mensagem').max(4096),
+    usarNome: z.boolean().optional().default(true),
+    filtros: filtrosWhatsSchema.default({}),
+    intervaloMin: z.number().int().min(5, 'Mínimo de 5s').max(3600).default(10),
+    intervaloMax: z.number().int().min(5).max(3600).default(40),
+  })
+  .refine((d) => d.intervaloMin <= d.intervaloMax, {
+    message: 'O intervalo mínimo não pode ser maior que o máximo',
+    path: ['intervaloMin'],
+  });
+
+export const previaWhatsSchema = z.object({
+  filtros: filtrosWhatsSchema.default({}),
+});
+
+/** Edição de um modelo de mensagem automática (push/whatsapp). */
+export const editarModeloMensagemSchema = z.object({
+  titulo: z.string().trim().max(120).nullable().optional(),
+  corpo: z.string().trim().min(1, 'Escreva a mensagem').max(4096).optional(),
+  ativo: z.boolean().optional(),
+});
+
 // ------------------------------------------------------- contato (site público)
 export const criarContatoSchema = z.object({
   nome: z.string().trim().min(2, 'Informe seu nome').max(120),

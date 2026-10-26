@@ -287,6 +287,80 @@ export interface EnvioPush {
   criadoEm: string;
 }
 
+// ------------------------------------------------------------- WhatsApp
+export type EstadoWhatsapp = 'DESCONECTADO' | 'CONECTANDO' | 'QR' | 'CONECTADO';
+
+export interface StatusWhatsapp {
+  estado: EstadoWhatsapp;
+  /** QR em data URL (quando estado === 'QR'). */
+  qr?: string | null;
+  /** Número conectado (só dígitos), quando CONECTADO. */
+  numero?: string | null;
+}
+
+/** Filtros combináveis (E/AND) para segmentar destinatários. */
+export interface FiltrosWhats {
+  ativos?: boolean;
+  /** true = contas validadas; false = sem validar; ausente = tanto faz. */
+  emailVerificado?: boolean;
+  /** true = com arma; false = sem arma; ausente = tanto faz. */
+  comArma?: boolean;
+  /** Conta criada há mais de N dias. */
+  diasDeUsoMin?: number;
+  comCadastro?: boolean;
+}
+
+export type StatusCampanhaWhats = 'EM_ANDAMENTO' | 'PAUSADA' | 'CONCLUIDA' | 'CANCELADA';
+
+export const ROTULO_STATUS_CAMPANHA: Record<StatusCampanhaWhats, string> = {
+  EM_ANDAMENTO: 'Em andamento',
+  PAUSADA: 'Pausada',
+  CONCLUIDA: 'Concluída',
+  CANCELADA: 'Cancelada',
+};
+
+export interface CampanhaWhats {
+  id: string;
+  mensagem: string;
+  usarNome: boolean;
+  intervaloMin: number;
+  intervaloMax: number;
+  status: StatusCampanhaWhats;
+  totalAlvos: number;
+  totalEnviados: number;
+  totalFalhas: number;
+  criadoEm: string;
+  atualizadoEm: string;
+}
+
+export interface EnvioWhats {
+  id: string;
+  nome: string;
+  celular: string;
+  status: 'PENDENTE' | 'ENVIADO' | 'FALHOU';
+  erro: string | null;
+  enviadoEm: string | null;
+}
+
+// ----------------------------------------------- mensagens automáticas
+export type CanalMensagem = 'WHATSAPP' | 'PUSH';
+
+export interface GatilhoMensagem {
+  id: string;
+  rotulo: string;
+  descricao: string;
+}
+
+export interface ModeloMensagem {
+  id: string;
+  gatilho: string;
+  canal: CanalMensagem;
+  titulo: string | null;
+  corpo: string;
+  ativo: boolean;
+  atualizadoEm: string;
+}
+
 export interface UsuarioEntidade {
   id: string;
   entidadeId: string;

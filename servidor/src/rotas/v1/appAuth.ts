@@ -21,6 +21,7 @@ import {
   emailResetSenha,
   enviarEmail,
 } from '../../integracoes/email.js';
+import { dispararBoasVindas } from '../../whatsapp/automacoes.js';
 
 const VALIDADE_RESET_MS = 60 * 60 * 1000; // 1 hora
 const VALIDADE_EMAIL_MS = 15 * 60 * 1000; // 15 minutos
@@ -48,6 +49,9 @@ export async function rotasAppV1(app: FastifyInstance) {
       const usuario = await prisma.usuarioApp.create({
         data: { nome, cpf, email, celular, senhaHash: await gerarHash(senha) },
       });
+      // Abre o canal de relacionamento: mensagem automática de boas-vindas
+      // (WhatsApp/push conforme modelos ativos). Best-effort, não bloqueia.
+      dispararBoasVindas({ id: usuario.id, nome: usuario.nome, celular: usuario.celular });
       const token = assinarTokenApp(usuario.id);
       reply.code(201);
       return { token, usuario: apresentarUsuarioApp(usuario) };
