@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { ESTADOS_BR, VIEWBOX_BR } from '@/lib/brasilMapa';
 import { Protegido } from '../componentes/Protegido';
 
 interface Dashboard {
@@ -78,6 +79,9 @@ function Conteudo() {
     { titulo: 'Com documentos', valor: d.cards.comDocumento, dica: 'Têm documentos cadastrados', href: '/dashboard/comDocumento' },
     { titulo: 'Sem documentos', valor: d.cards.semDocumento, dica: 'Nenhum documento cadastrado', href: '/dashboard/semDocumento' },
     { titulo: 'Com vínculo', valor: d.cards.comVinculo, dica: 'Vinculados a uma entidade', href: '/dashboard/comVinculo' },
+    { titulo: 'Plano anual ativo', valor: d.cards.planoAnual, dica: 'Assinantes anuais', href: '/dashboard/planoAnual' },
+    { titulo: 'Plano mensal ativo', valor: d.cards.planoMensal, dica: 'Assinantes mensais', href: '/dashboard/planoMensal' },
+    { titulo: 'Premium grátis', valor: d.cards.premiumGratis, dica: 'Premium via cupom', href: '/dashboard/premiumGratis' },
   ];
 
   return (
@@ -122,25 +126,6 @@ function Conteudo() {
         })}
       </div>
 
-      <div className="cabeca-secao" style={{ marginTop: 32 }}>
-        <h2 style={{ margin: 0 }}>Planos premium</h2>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14 }}>
-        {[
-          { titulo: 'Plano anual ativo', valor: d.cards.planoAnual, dica: 'Assinantes anuais', chave: 'planoAnual' },
-          { titulo: 'Plano mensal ativo', valor: d.cards.planoMensal, dica: 'Assinantes mensais', chave: 'planoMensal' },
-          { titulo: 'Premium grátis', valor: d.cards.premiumGratis, dica: 'Premium via cupom', chave: 'premiumGratis' },
-        ].map((c) => (
-          <Link key={c.chave} href={`/dashboard/${c.chave}`} style={{ textDecoration: 'none' }}>
-            <div className="cartao" style={{ cursor: 'pointer', height: '100%' }}>
-              <div style={{ fontSize: 32, fontWeight: 800, lineHeight: 1 }}>{c.valor}</div>
-              <div style={{ fontWeight: 600, marginTop: 6 }}>{c.titulo}</div>
-              <div style={{ color: 'var(--texto-suave)', fontSize: 12.5, marginTop: 2 }}>{c.dica} ›</div>
-            </div>
-          </Link>
-        ))}
-      </div>
-
       <MapaRegioes />
 
       <div className="cabeca-secao" style={{ marginTop: 32 }}>
@@ -150,8 +135,11 @@ function Conteudo() {
         <GraficoPlataformas ios={d.plataformas.ios} android={d.plataformas.android} />
       </div>
 
-      <GraficoCrescimento />
-      <GraficoAcessosHora />
+      {/* Crescimento × Acessos por horário, lado a lado (uma coluna cada). */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 20, alignItems: 'start' }}>
+        <GraficoCrescimento />
+        <GraficoAcessosHora />
+      </div>
     </>
   );
 }
@@ -165,17 +153,6 @@ interface Regioes {
   total: number;
 }
 
-/** Posição de cada UF num cartograma (grade ~geográfica): [linha, coluna]. */
-const GRID_UF: Record<string, [number, number]> = {
-  RR: [1, 3], AP: [1, 4],
-  AM: [2, 2], PA: [2, 3], MA: [2, 4], CE: [2, 5], RN: [2, 6],
-  AC: [3, 1], RO: [3, 2], TO: [3, 3], PI: [3, 4], PE: [3, 5], PB: [3, 6],
-  MT: [4, 2], BA: [4, 4], SE: [4, 5], AL: [4, 6],
-  MS: [5, 2], GO: [5, 3], DF: [5, 4], MG: [5, 5],
-  SP: [6, 4], RJ: [6, 5], ES: [6, 6],
-  PR: [7, 4], SC: [8, 4], RS: [9, 3],
-};
-
 const REGIOES: Record<string, string[]> = {
   Norte: ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'],
   Nordeste: ['AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE'],
@@ -184,37 +161,31 @@ const REGIOES: Record<string, string[]> = {
   Sul: ['PR', 'RS', 'SC'],
 };
 
-const NOME_UF: Record<string, string> = {
-  AC: 'Acre', AL: 'Alagoas', AP: 'Amapá', AM: 'Amazonas', BA: 'Bahia', CE: 'Ceará', DF: 'Distrito Federal',
-  ES: 'Espírito Santo', GO: 'Goiás', MA: 'Maranhão', MT: 'Mato Grosso', MS: 'Mato Grosso do Sul', MG: 'Minas Gerais',
-  PA: 'Pará', PB: 'Paraíba', PR: 'Paraná', PE: 'Pernambuco', PI: 'Piauí', RJ: 'Rio de Janeiro', RN: 'Rio Grande do Norte',
-  RS: 'Rio Grande do Sul', RO: 'Rondônia', RR: 'Roraima', SC: 'Santa Catarina', SP: 'São Paulo', SE: 'Sergipe', TO: 'Tocantins',
-};
-
 function MapaRegioes() {
   const [d, setD] = useState<Regioes | null>(null);
   const [regiao, setRegiao] = useState<string>('Todas');
+  const [hover, setHover] = useState<string | null>(null);
 
   useEffect(() => {
     api<Regioes>('/api/admin/dashboard/regioes').then(setD).catch(() => setD(null));
   }, []);
 
-  const ufsVisiveis = regiao === 'Todas' ? Object.keys(GRID_UF) : REGIOES[regiao] ?? [];
+  const ufsVisiveis = regiao === 'Todas' ? Object.keys(ESTADOS_BR) : REGIOES[regiao] ?? [];
   const max = Math.max(1, ...ufsVisiveis.map((uf) => d?.ufs[uf] ?? 0));
   const totalRegiao = ufsVisiveis.reduce((s, uf) => s + (d?.ufs[uf] ?? 0), 0);
 
-  // Ranking (maiores primeiro) dos estados no escopo atual.
   const ranking = ufsVisiveis
     .map((uf) => ({ uf, n: d?.ufs[uf] ?? 0 }))
     .filter((r) => r.n > 0)
     .sort((a, b) => b.n - a.n);
 
+  function noEscopo(uf: string) {
+    return regiao === 'Todas' || (REGIOES[regiao] ?? []).includes(uf);
+  }
   function cor(uf: string): string {
-    const noEscopo = regiao === 'Todas' || (REGIOES[regiao] ?? []).includes(uf);
     const n = d?.ufs[uf] ?? 0;
-    if (!noEscopo) return 'var(--superficie-2)';
-    if (n === 0) return 'var(--superficie-2)';
-    const alpha = 0.18 + 0.82 * (n / max);
+    if (!noEscopo(uf) || n === 0) return 'var(--superficie-2)';
+    const alpha = 0.2 + 0.8 * (n / max);
     return `rgba(147, 173, 101, ${alpha.toFixed(3)})`;
   }
 
@@ -235,41 +206,38 @@ function MapaRegioes() {
           <div className="vazio">Carregando…</div>
         ) : (
           <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-            {/* Cartograma */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(6, 46px)',
-                gridAutoRows: '46px',
-                gap: 5,
-              }}
-            >
-              {Object.entries(GRID_UF).map(([uf, [row, col]]) => {
-                const n = d.ufs[uf] ?? 0;
-                const noEscopo = regiao === 'Todas' || (REGIOES[regiao] ?? []).includes(uf);
-                return (
-                  <div
-                    key={uf}
-                    title={`${NOME_UF[uf]} — ${n} usuário(s)`}
-                    style={{
-                      gridRow: row,
-                      gridColumn: col,
-                      background: cor(uf),
-                      border: '1px solid var(--borda)',
-                      borderRadius: 7,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      opacity: noEscopo ? 1 : 0.25,
-                      lineHeight: 1,
-                    }}
-                  >
-                    <span style={{ fontSize: 11, fontWeight: 700 }}>{uf}</span>
-                    <span style={{ fontSize: 12.5, fontWeight: 700, marginTop: 2 }}>{n}</span>
-                  </div>
-                );
-              })}
+            {/* Mapa do Brasil (choropleth) */}
+            <div style={{ flex: '0 1 460px', minWidth: 280 }}>
+              <svg
+                viewBox={VIEWBOX_BR}
+                width="100%"
+                style={{ display: 'block', height: 'auto', maxHeight: 460 }}
+                role="img"
+                aria-label="Usuários por estado"
+              >
+                {Object.entries(ESTADOS_BR).map(([uf, e]) => {
+                  const n = d.ufs[uf] ?? 0;
+                  return (
+                    <path
+                      key={uf}
+                      d={e.path}
+                      fill={cor(uf)}
+                      stroke="var(--fundo)"
+                      strokeWidth={hover === uf ? 1.6 : 0.8}
+                      style={{ opacity: noEscopo(uf) ? 1 : 0.25, cursor: 'default', transition: 'fill .2s' }}
+                      onMouseEnter={() => setHover(uf)}
+                      onMouseLeave={() => setHover(null)}
+                    >
+                      <title>{`${e.nome} (${uf}) — ${n} usuário(s)`}</title>
+                    </path>
+                  );
+                })}
+              </svg>
+              {hover && (
+                <p className="subtitulo" style={{ margin: '6px 0 0', textAlign: 'center' }}>
+                  <strong>{ESTADOS_BR[hover]?.nome}</strong> · {d.ufs[hover] ?? 0} usuário(s)
+                </p>
+              )}
             </div>
 
             {/* Resumo + ranking */}
