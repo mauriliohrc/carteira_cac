@@ -24,7 +24,13 @@ export async function rotasLogsAdmin(app: FastifyInstance) {
 
     const where: Prisma.LogNotificacaoWhereInput = {};
     if (q.canal === 'WHATSAPP' || q.canal === 'PUSH') where.canal = q.canal;
-    if (q.tipo === 'BOAS_VINDAS' || q.tipo === 'SEM_ARMA_7D' || q.tipo === 'NOTICIA') where.tipo = q.tipo;
+    if (
+      q.tipo === 'BOAS_VINDAS' ||
+      q.tipo === 'SEM_ARMA_7D' ||
+      q.tipo === 'INATIVO_30D' ||
+      q.tipo === 'NOTICIA'
+    )
+      where.tipo = q.tipo;
     if (q.usuarioId) where.usuarioId = q.usuarioId;
 
     const [total, logs] = await Promise.all([

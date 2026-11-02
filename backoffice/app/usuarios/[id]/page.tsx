@@ -386,6 +386,7 @@ function Perfil({ id }: { id: string }) {
 const ROTULO_TIPO_LOG: Record<string, string> = {
   BOAS_VINDAS: 'Boas-vindas',
   SEM_ARMA_7D: '7 dias sem cadastro',
+  INATIVO_30D: '30 dias sem acessar',
   NOTICIA: 'Notícia',
 };
 

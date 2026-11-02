@@ -10,7 +10,7 @@ import { enviarPush } from '../push/expo.js';
 import { enviarTexto, estaConectado } from './cliente.js';
 import { aplicarNome } from './mensagens.js';
 import { dentroDaJanela } from './janela.js';
-import { lembreteRecenteExiste, registrarLog } from '../log/auditoria.js';
+import { registrarLog } from '../log/auditoria.js';
 
 /**
  * Mensagens AUTOMÁTICAS de relacionamento ("sempre com aquele toque de contato
@@ -23,7 +23,7 @@ import { lembreteRecenteExiste, registrarLog } from '../log/auditoria.js';
  * repetir. O WhatsApp automático é espaçado para não parecer robô / evitar ban.
  */
 
-export type Gatilho = 'BOAS_VINDAS' | 'SEM_ARMA_7D';
+export type Gatilho = 'BOAS_VINDAS' | 'SEM_ARMA_7D' | 'INATIVO_30D';
 export type Canal = 'WHATSAPP' | 'PUSH';
 
 export const GATILHOS: { id: Gatilho; rotulo: string; descricao: string }[] = [
@@ -37,9 +37,15 @@ export const GATILHOS: { id: Gatilho; rotulo: string; descricao: string }[] = [
     rotulo: '7 dias sem cadastrar arma',
     descricao: 'Lembrete para cadastrar documentação/armas após 7 dias sem acervo.',
   },
+  {
+    id: 'INATIVO_30D',
+    rotulo: '30 dias sem acessar o app',
+    descricao: 'Reengajamento: enviado uma vez a quem passa 30 dias sem abrir o aplicativo.',
+  },
 ];
 
 const DIAS_SEM_ARMA = 7;
+const DIAS_INATIVO = 30;
 /** Espaçamento entre envios automáticos de WhatsApp (anti-ban), em segundos. */
 const AUTO_MIN_SEG = 30;
 const AUTO_MAX_SEG = 40;
@@ -82,6 +88,24 @@ const PADROES: { gatilho: Gatilho; canal: Canal; titulo?: string; corpo: string;
     titulo: 'Cadastre suas armas e documentos',
     corpo: 'Olá {{nome}}, deixe seu CRAF, guias e habitualidade sempre à mão no Carteira CAC.',
   },
+  // Reengajamento — 30 dias sem acessar. Nasce DESATIVADO nos dois canais: o
+  // admin escreve as mensagens e só então habilita.
+  {
+    gatilho: 'INATIVO_30D',
+    canal: 'WHATSAPP',
+    ativo: false,
+    corpo:
+      'Oi {{nome}}! Faz um tempinho que você não abre o Carteira CAC. ' +
+      'Passa lá para conferir se seus documentos e a habitualidade estão em dia — ' +
+      'posso te ajudar com o que estiver perto de vencer. 👋',
+  },
+  {
+    gatilho: 'INATIVO_30D',
+    canal: 'PUSH',
+    ativo: false,
+    titulo: 'Sentimos sua falta!',
+    corpo: '{{nome}}, confira se seus documentos e a habitualidade seguem em dia no Carteira CAC.',
+  },
 ];
 
 /** Garante que existam os modelos padrão (idempotente). */
@@ -110,13 +134,10 @@ export async function dispararGatilho(usuario: UsuarioAlvo, gatilho: Gatilho): P
   // Interruptor-mestre: tudo desligado = nada sai (nem trava disparos).
   if (!(await lerBool(CHAVE_AUTOMACOES, true))) return;
 
-  // Anti-repetição: não manda LEMBRETE automático para quem já recebeu algum
-  // lembrete no último mês. Boas-vindas é a mensagem de entrada (no cadastro) e
-  // não entra nessa trava.
-  if (gatilho !== 'BOAS_VINDAS' && (await lembreteRecenteExiste(usuario.id, 30))) {
-    return;
-  }
-
+  // "Enviou uma vez, acabou": cada (usuário, gatilho, canal) é disparado uma
+  // única vez — garantido pelo DisparoAutomatico (checado por canal abaixo).
+  // WhatsApp e PUSH são independentes: se o modelo PUSH estiver ativo, o push
+  // também é enviado (uma vez). Sem janela de 30 dias.
   const modelos = await prisma.modeloMensagem.findMany({ where: { gatilho, ativo: true } });
 
   for (const modelo of modelos) {
@@ -229,12 +250,12 @@ async function candidatos(
 let rodandoSweep = false;
 
 /**
- * Varredura periódica: APENAS o lembrete de 7 dias sem arma. Boas-vindas não
- * entra aqui (só no cadastro). Para não atingir a base histórica, considera só
- * quem completa os 7 dias DEPOIS do marco de ativação:
- *   criadoEm ∈ [marco - 7d, agora - 7d)   (e sem arma, ativo)
- * No instante do marco a janela é vazia; com o tempo ela inclui, aos poucos, só
- * quem naturalmente cruza o prazo. Espaça os envios para não disparar em rajada.
+ * Varredura periódica dos gatilhos de tempo: 7 dias sem arma e 30 dias sem
+ * acessar o app. Boas-vindas não entra aqui (só no cadastro). Para não atingir
+ * a base histórica de uma vez, cada gatilho considera só quem cruza o prazo
+ * DEPOIS do marco de ativação (janela [marco - prazo, agora - prazo)). No
+ * instante do marco a janela é vazia; com o tempo inclui, aos poucos, só quem
+ * naturalmente vence o prazo. Espaça os envios para não disparar em rajada.
  */
 export async function processarAutomacoes(): Promise<void> {
   if (rodandoSweep) return;
@@ -266,6 +287,22 @@ export async function processarAutomacoes(): Promise<void> {
       if (!primeiro) await sleep(sorteia(AUTO_MIN_SEG, AUTO_MAX_SEG));
       primeiro = false;
       await dispararGatilho(u, 'SEM_ARMA_7D');
+    }
+
+    // 30 dias sem acessar o app (reengajamento). Mesma lógica anti-retroativa:
+    // só quem cruza o prazo DEPOIS do marco — ultimoAcessoEm ∈ [marco-30d, agora-30d).
+    // (Se os modelos do gatilho estiverem desativados, dispararGatilho não faz
+    // nada e nada é registrado — passa a valer quando o admin habilitar.)
+    const inativoSuperior = new Date(agora - DIAS_INATIVO * 86_400_000);
+    const inativoInferior = new Date(marco.getTime() - DIAS_INATIVO * 86_400_000);
+    const inativos = await candidatos(
+      { ativo: true, ultimoAcessoEm: { gte: inativoInferior, lt: inativoSuperior } },
+      'INATIVO_30D'
+    );
+    for (const u of inativos) {
+      if (!primeiro) await sleep(sorteia(AUTO_MIN_SEG, AUTO_MAX_SEG));
+      primeiro = false;
+      await dispararGatilho(u, 'INATIVO_30D');
     }
   } finally {
     rodandoSweep = false;

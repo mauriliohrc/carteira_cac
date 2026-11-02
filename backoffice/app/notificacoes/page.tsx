@@ -9,6 +9,7 @@ import { Protegido } from '../componentes/Protegido';
 const ROTULO_TIPO: Record<string, string> = {
   BOAS_VINDAS: 'Boas-vindas',
   SEM_ARMA_7D: '7 dias sem cadastro',
+  INATIVO_30D: '30 dias sem acessar',
   NOTICIA: 'Notícia',
 };
 
@@ -96,6 +97,7 @@ function Auditoria() {
             <option value="">Todos</option>
             <option value="BOAS_VINDAS">Boas-vindas</option>
             <option value="SEM_ARMA_7D">7 dias sem cadastro</option>
+            <option value="INATIVO_30D">30 dias sem acessar</option>
             <option value="NOTICIA">Notícia</option>
           </select>
         </div>
