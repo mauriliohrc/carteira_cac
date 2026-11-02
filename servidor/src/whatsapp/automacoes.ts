@@ -49,8 +49,10 @@ const DIAS_INATIVO = 30;
 /** Espaçamento entre envios automáticos de WhatsApp (anti-ban), em segundos. */
 const AUTO_MIN_SEG = 30;
 const AUTO_MAX_SEG = 40;
-/** Teto de disparos por rodada do agendador (evita rajada). */
+/** Teto de disparos de WhatsApp por rodada do agendador (evita rajada). */
 const LOTE_AUTO = 20;
+/** Teto de pushes por rodada (push não tem intervalo; só uma salvaguarda). */
+const LIMITE_PUSH = 1000;
 /** Intervalo do agendador. */
 const INTERVALO_AGENDADOR_MS = 30 * 60_000;
 
@@ -130,7 +132,11 @@ type UsuarioAlvo = { id: string; nome: string; celular: string | null };
  * pré-condição transitória (WhatsApp offline, sem push token) NÃO são travados,
  * para serem reprocessados depois pelo agendador.
  */
-export async function dispararGatilho(usuario: UsuarioAlvo, gatilho: Gatilho): Promise<void> {
+export async function dispararGatilho(
+  usuario: UsuarioAlvo,
+  gatilho: Gatilho,
+  canais?: Canal[]
+): Promise<void> {
   // Interruptor-mestre: tudo desligado = nada sai (nem trava disparos).
   if (!(await lerBool(CHAVE_AUTOMACOES, true))) return;
 
@@ -142,6 +148,8 @@ export async function dispararGatilho(usuario: UsuarioAlvo, gatilho: Gatilho): P
 
   for (const modelo of modelos) {
     const canal = modelo.canal as Canal;
+    // Permite disparar só um canal por vez (push sem intervalo; WhatsApp espaçado).
+    if (canais && !canais.includes(canal)) continue;
     const ja = await prisma.disparoAutomatico.findUnique({
       where: { usuarioId_gatilho_canal: { usuarioId: usuario.id, gatilho, canal } },
     });
@@ -227,24 +235,51 @@ async function marcoDeAtivacao(): Promise<Date> {
  */
 async function candidatos(
   where: import('@prisma/client').Prisma.UsuarioAppWhereInput,
-  gatilho: Gatilho
+  gatilho: Gatilho,
+  canal: Canal,
+  limite: number
 ): Promise<UsuarioAlvo[]> {
+  // Exclui quem JÁ recebeu este gatilho NESTE canal (push e WhatsApp são
+  // independentes — "uma vez" vale por canal). O `where` dos gatilhos de tempo
+  // já é estreito (janela por data), então o lote candidato fica pequeno.
   const cand = await prisma.usuarioApp.findMany({
     where,
     select: { id: true, nome: true, celular: true },
     orderBy: { criadoEm: 'desc' },
-    take: LOTE_AUTO * 10,
+    take: Math.min(5000, limite * 5),
   });
   if (!cand.length) return [];
   const feitos = new Set(
     (
       await prisma.disparoAutomatico.findMany({
-        where: { gatilho, usuarioId: { in: cand.map((u) => u.id) } },
+        where: { gatilho, canal, usuarioId: { in: cand.map((u) => u.id) } },
         select: { usuarioId: true },
       })
     ).map((d) => d.usuarioId)
   );
-  return cand.filter((u) => !feitos.has(u.id)).slice(0, LOTE_AUTO);
+  return cand.filter((u) => !feitos.has(u.id)).slice(0, limite);
+}
+
+/**
+ * Varre um gatilho de tempo nos dois canais:
+ *  - PUSH: todos de uma vez, SEM intervalo (não há risco de ban).
+ *  - WHATSAPP: espaçado 30–40s e com teto por rodada (anti-ban).
+ * Ambos só rodam dentro da janela 9h–20h (garantido por processarAutomacoes).
+ */
+async function varrer(
+  where: import('@prisma/client').Prisma.UsuarioAppWhereInput,
+  gatilho: Gatilho
+): Promise<void> {
+  const push = await candidatos(where, gatilho, 'PUSH', LIMITE_PUSH);
+  for (const u of push) await dispararGatilho(u, gatilho, ['PUSH']);
+
+  const whats = await candidatos(where, gatilho, 'WHATSAPP', LOTE_AUTO);
+  let primeiro = true;
+  for (const u of whats) {
+    if (!primeiro) await sleep(sorteia(AUTO_MIN_SEG, AUTO_MAX_SEG));
+    primeiro = false;
+    await dispararGatilho(u, gatilho, ['WHATSAPP']);
+  }
 }
 
 let rodandoSweep = false;
@@ -268,42 +303,34 @@ export async function processarAutomacoes(): Promise<void> {
   try {
     await garantirModelosPadrao();
     const marco = await marcoDeAtivacao();
-
     const agora = Date.now();
-    const limiteSuperior = new Date(agora - DIAS_SEM_ARMA * 86_400_000); // completou 7d
-    const limiteInferior = new Date(marco.getTime() - DIAS_SEM_ARMA * 86_400_000); // só pós-marco
 
-    const semArma = await candidatos(
+    // 7 dias sem cadastrar arma: criadoEm ∈ [marco-7d, agora-7d), sem arma, ativo.
+    await varrer(
       {
         ativo: true,
-        criadoEm: { gte: limiteInferior, lt: limiteSuperior },
+        criadoEm: {
+          gte: new Date(marco.getTime() - DIAS_SEM_ARMA * 86_400_000),
+          lt: new Date(agora - DIAS_SEM_ARMA * 86_400_000),
+        },
         registrosSync: { none: { tipo: 'armas', removido: false } },
       },
       'SEM_ARMA_7D'
     );
 
-    let primeiro = true;
-    for (const u of semArma) {
-      if (!primeiro) await sleep(sorteia(AUTO_MIN_SEG, AUTO_MAX_SEG));
-      primeiro = false;
-      await dispararGatilho(u, 'SEM_ARMA_7D');
-    }
-
-    // 30 dias sem acessar o app (reengajamento). Mesma lógica anti-retroativa:
-    // só quem cruza o prazo DEPOIS do marco — ultimoAcessoEm ∈ [marco-30d, agora-30d).
-    // (Se os modelos do gatilho estiverem desativados, dispararGatilho não faz
-    // nada e nada é registrado — passa a valer quando o admin habilitar.)
-    const inativoSuperior = new Date(agora - DIAS_INATIVO * 86_400_000);
-    const inativoInferior = new Date(marco.getTime() - DIAS_INATIVO * 86_400_000);
-    const inativos = await candidatos(
-      { ativo: true, ultimoAcessoEm: { gte: inativoInferior, lt: inativoSuperior } },
+    // 30 dias sem acessar o app: ultimoAcessoEm ∈ [marco-30d, agora-30d), ativo.
+    // (Se os modelos do gatilho estiverem desativados, nada é enviado/registrado
+    // — passa a valer quando o admin habilitar.)
+    await varrer(
+      {
+        ativo: true,
+        ultimoAcessoEm: {
+          gte: new Date(marco.getTime() - DIAS_INATIVO * 86_400_000),
+          lt: new Date(agora - DIAS_INATIVO * 86_400_000),
+        },
+      },
       'INATIVO_30D'
     );
-    for (const u of inativos) {
-      if (!primeiro) await sleep(sorteia(AUTO_MIN_SEG, AUTO_MAX_SEG));
-      primeiro = false;
-      await dispararGatilho(u, 'INATIVO_30D');
-    }
   } finally {
     rodandoSweep = false;
   }
