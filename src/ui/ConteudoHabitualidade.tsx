@@ -6,9 +6,12 @@ import { router } from 'expo-router';
 import { espaco, MONO, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { useApp } from '@/estado/AppContext';
 import { Botao, Cartao, Secao } from '@/ui/base';
+import { SeletorChips } from '@/ui/formulario';
 import { CartaoSessao, LinhaGrupo } from '@/ui/habitualidade';
 import { isoParaBR } from '@/lib/data';
-import { MESES_JANELA, MINIMO_POR_GRUPO } from '@/domain/habitualidade';
+import { MESES_JANELA, MINIMO_POR_GRUPO, type RequisitoNivel } from '@/domain/habitualidade';
+import { NIVEIS_ATIRADOR, NIVEL_POR_VALOR } from '@/domain/catalogos';
+import type { NivelAtirador } from '@/domain/tipos';
 
 /** Quantas sessões aparecem no histórico da aba. */
 const NO_HISTORICO = 8;
@@ -23,7 +26,8 @@ const NO_HISTORICO = 8;
 export function ConteudoHabitualidade({ aoRegistrar }: { aoRegistrar: () => void }) {
   const c = useCores();
   const s = useEstilos(folha);
-  const { habitualidades, progressoHabitualidade: p } = useApp();
+  const { habitualidades, progressoHabitualidade: p, conformidadeNivel: cn, nivelAtirador, definirNivelAtirador } =
+    useApp();
 
   const g = p.generico;
   const tudoEmDia = p.exigido && (g ? g.cumprido : p.cumpridos === p.grupos.length);
@@ -99,6 +103,54 @@ export function ConteudoHabitualidade({ aoRegistrar }: { aoRegistrar: () => void
           JANELA EM VIGOR · {isoParaBR(p.inicio)} A {isoParaBR(p.hoje)}
         </Text>
       </Cartao>
+
+      {p.exigido ? (
+        <Cartao estilo={s.nivelCartao}>
+          <View style={s.nivelTopo}>
+            <Ionicons
+              name={cn.cumprido ? 'medal' : 'medal-outline'}
+              size={22}
+              color={cn.cumprido ? c.primario : c.aviso}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={s.nivelTitulo}>
+                {NIVEL_POR_VALOR[cn.nivel]?.rotulo ?? 'Nível'} ·{' '}
+                {cn.cumprido ? 'em dia' : 'incompleto'}
+              </Text>
+              <Text style={s.nivelSub}>Exigência de habitualidade do seu nível (IN 311/2025).</Text>
+            </View>
+          </View>
+
+          <SeletorChips
+            rotulo="Seu nível"
+            itens={NIVEIS_ATIRADOR.map((n) => ({ valor: n.valor, rotulo: n.rotulo }))}
+            selecionado={nivelAtirador}
+            aoSelecionar={(v) => void definirNivelAtirador(v as NivelAtirador)}
+          />
+
+          <View style={s.nivelReqs}>
+            <RequisitoLinha rotulo="Treinamentos" req={cn.treinos} />
+            {cn.competicoes ? <RequisitoLinha rotulo="Competições" req={cn.competicoes} /> : null}
+            {cn.qualificadas ? (
+              <RequisitoLinha
+                rotulo={
+                  cn.nivel === 'NIVEL_2'
+                    ? 'Competições (estadual+)'
+                    : 'Competições (nacional+)'
+                }
+                req={cn.qualificadas}
+              />
+            ) : null}
+          </View>
+
+          {cn.porRanking ? (
+            <Text style={s.nivelNota}>
+              Alto Rendimento é comprovado por ranking nacional ou convocação olímpica. Os valores
+              acima são o piso do Nível 3, como referência.
+            </Text>
+          ) : null}
+        </Cartao>
+      ) : null}
 
       {p.exigido ? (
         g ? (
@@ -177,6 +229,24 @@ export function ConteudoHabitualidade({ aoRegistrar }: { aoRegistrar: () => void
   );
 }
 
+function RequisitoLinha({ rotulo, req }: { rotulo: string; req: RequisitoNivel }) {
+  const c = useCores();
+  const s = useEstilos(folha);
+  return (
+    <View style={s.reqLinha}>
+      <Ionicons
+        name={req.cumprido ? 'checkmark-circle' : 'ellipse-outline'}
+        size={16}
+        color={req.cumprido ? c.primario : c.textoFraco}
+      />
+      <Text style={s.reqRotulo}>{rotulo}</Text>
+      <Text style={[s.reqValor, { color: req.cumprido ? c.primario : c.texto }]}>
+        {req.feitas}/{req.minimo}
+      </Text>
+    </View>
+  );
+}
+
 function Numero({ valor, rotulo, cor }: { valor: number; rotulo: string; cor: string }) {
   const c = useCores();
   const s = useEstilos(folha);
@@ -213,6 +283,22 @@ const folha = (c: Paleta) =>
       fontFamily: MONO,
       letterSpacing: 0.2,
     },
+
+    nivelCartao: { marginTop: espaco.md },
+    nivelTopo: { flexDirection: 'row', alignItems: 'center', gap: espaco.md, marginBottom: espaco.md },
+    nivelTitulo: { ...tipo.subtitulo, fontSize: 15, color: c.texto },
+    nivelSub: { ...tipo.legenda, color: c.textoFraco, marginTop: 2 },
+    nivelReqs: {
+      marginTop: espaco.md,
+      paddingTop: espaco.md,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.borda,
+      gap: espaco.sm,
+    },
+    reqLinha: { flexDirection: 'row', alignItems: 'center', gap: espaco.sm },
+    reqRotulo: { flex: 1, ...tipo.corpoPequeno, color: c.textoMedio },
+    reqValor: { ...tipo.numero, fontSize: 15 },
+    nivelNota: { ...tipo.legenda, color: c.textoFraco, marginTop: espaco.md, lineHeight: 16 },
 
     acaoSecao: { fontSize: 12.5, fontWeight: '600', color: c.primario },
     nota: { ...tipo.legenda, color: c.textoFraco, marginTop: espaco.sm },

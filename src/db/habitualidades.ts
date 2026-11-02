@@ -1,5 +1,6 @@
 import { agoraISO, type DataISO } from '@/lib/data';
 import type {
+  AmbitoCompeticao,
   ArmaNaHabitualidade,
   Grupo,
   Habitualidade,
@@ -34,14 +35,40 @@ export interface EntradaHabitualidade {
   observacoes: string | null;
   /** Armas usadas na sessão. O grupo e o nome vão gravados junto, de propósito. */
   armas: ArmaNaHabitualidade[];
+  /** Âmbito da competição (só para COMPETICAO). Null em treinos. */
+  ambito?: AmbitoCompeticao | null;
+}
+
+/** Grava/atualiza/remove o âmbito de uma sessão (tabela sincronizada à parte). */
+async function gravarAmbito(
+  db: Awaited<ReturnType<typeof abrirBanco>>,
+  habitualidadeId: string,
+  tipo: TipoSessao,
+  ambito: AmbitoCompeticao | null | undefined
+): Promise<void> {
+  // Só competição tem âmbito; treino nunca. Sem âmbito definido, não grava linha.
+  if (tipo === 'COMPETICAO' && ambito) {
+    await db.runAsync(
+      `INSERT INTO ambitos_competicao (id, ambito, atualizado_em) VALUES (?,?,?)
+       ON CONFLICT(id) DO UPDATE SET ambito = excluded.ambito, atualizado_em = excluded.atualizado_em`,
+      habitualidadeId,
+      ambito,
+      agoraISO()
+    );
+  } else {
+    await db.runAsync('DELETE FROM ambitos_competicao WHERE id = ?', habitualidadeId);
+  }
 }
 
 export async function listarHabitualidades(): Promise<Habitualidade[]> {
   const db = await abrirBanco();
-  const [sessoes, itens] = await Promise.all([
+  const [sessoes, itens, ambitos] = await Promise.all([
     db.getAllAsync<LinhaSessao>('SELECT * FROM habitualidades ORDER BY data DESC'),
     db.getAllAsync<LinhaArma>(
       'SELECT habitualidade_id, arma_id, grupo, arma_nome FROM habitualidade_armas'
+    ),
+    db.getAllAsync<{ id: string; ambito: string | null }>(
+      'SELECT id, ambito FROM ambitos_competicao'
     ),
   ]);
 
@@ -57,6 +84,9 @@ export async function listarHabitualidades(): Promise<Habitualidade[]> {
     else porSessao.set(i.habitualidade_id, [arma]);
   }
 
+  const ambitoPorSessao = new Map<string, AmbitoCompeticao | null>();
+  for (const a of ambitos) ambitoPorSessao.set(a.id, (a.ambito as AmbitoCompeticao | null) ?? null);
+
   return sessoes.map((l) => ({
     id: l.id,
     data: l.data as DataISO,
@@ -65,6 +95,7 @@ export async function listarHabitualidades(): Promise<Habitualidade[]> {
     localNome: l.local_nome,
     observacoes: l.observacoes,
     armas: porSessao.get(l.id) ?? [],
+    ambito: ambitoPorSessao.get(l.id) ?? null,
     criadoEm: l.criado_em,
     atualizadoEm: l.atualizado_em,
   }));
@@ -112,6 +143,7 @@ export async function criarHabitualidade(entrada: EntradaHabitualidade): Promise
       agora
     );
     await gravarArmas(db, id, entrada.armas);
+    await gravarAmbito(db, id, entrada.tipo, entrada.ambito);
   });
   return id;
 }
@@ -138,6 +170,7 @@ export async function atualizarHabitualidade(
     // reconciliar item a item, e são poucas linhas por sessão.
     await db.runAsync('DELETE FROM habitualidade_armas WHERE habitualidade_id = ?', id);
     await gravarArmas(db, id, entrada.armas);
+    await gravarAmbito(db, id, entrada.tipo, entrada.ambito);
   });
 }
 
@@ -145,6 +178,10 @@ export async function removerHabitualidade(id: string): Promise<void> {
   const db = await abrirBanco();
   await db.runAsync('DELETE FROM habitualidades WHERE id = ?', id);
   await registrarExclusao('habitualidades', id);
+  // Âmbito acompanha a sessão (tabela sincronizada à parte, sem FK): limpa e
+  // propaga o tombstone — apps antigos ignoram o tipo 'ambitos_competicao'.
+  await db.runAsync('DELETE FROM ambitos_competicao WHERE id = ?', id);
+  await registrarExclusao('ambitos_competicao', id);
 }
 
 /** Sessão vinda de um parceiro externo (ex.: Shooting House). */

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { Tela, Vazio } from '@/ui/base';
 import { ErroConta } from '@/conta/api';
-import { formatarData, marcarNoticiaLida, obterNoticia } from '@/noticias/api';
+import { formatarData, linkPublicoNoticia, marcarNoticiaLida, obterNoticia } from '@/noticias/api';
 import { CorpoHtml } from '@/noticias/CorpoHtml';
 import type { Noticia } from '@/noticias/tipos';
 
@@ -17,6 +18,16 @@ export default function DetalheNoticia() {
   const [noticia, setNoticia] = useState<Noticia | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+
+  async function compartilhar() {
+    if (!noticia) return;
+    const url = linkPublicoNoticia(noticia.id, noticia.titulo);
+    try {
+      await Share.share({ title: noticia.titulo, message: `${noticia.titulo}\n${url}`, url });
+    } catch {
+      /* usuário cancelou */
+    }
+  }
 
   useEffect(() => {
     let vivo = true;
@@ -65,7 +76,20 @@ export default function DetalheNoticia() {
   }
 
   return (
-    <Tela voltar tituloCabecalho="Notícia">
+    <Tela
+      voltar
+      tituloCabecalho="Notícia"
+      acao={
+        <Pressable
+          onPress={compartilhar}
+          accessibilityRole="button"
+          accessibilityLabel="Compartilhar notícia"
+          hitSlop={8}
+        >
+          <Ionicons name="share-outline" size={20} color={c.primario} />
+        </Pressable>
+      }
+    >
       {noticia.imagemUrl ? (
         <Image source={{ uri: noticia.imagemUrl }} style={p.imagem} resizeMode="cover" />
       ) : null}

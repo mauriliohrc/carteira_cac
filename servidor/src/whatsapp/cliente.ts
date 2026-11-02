@@ -183,8 +183,11 @@ export async function salvarContatoSeNovo(jid: string, nome: string): Promise<bo
   if (!sock || contatosConhecidos.has(jid)) return false;
   try {
     const nomeCompleto = (nome || '').trim() || jid.split('@')[0];
+    // Marca na agenda para identificar o contato como cliente do Carteira CAC.
+    const SUFIXO = ' [CARTEIRA CAC]';
+    const nomeMarcado = nomeCompleto.endsWith(SUFIXO) ? nomeCompleto : `${nomeCompleto}${SUFIXO}`;
     await sock.addOrEditContact(jid, {
-      fullName: nomeCompleto,
+      fullName: nomeMarcado,
       firstName: primeiroNome(nomeCompleto),
       saveOnPrimaryAddressbook: true,
     });

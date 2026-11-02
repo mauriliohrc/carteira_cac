@@ -88,6 +88,20 @@ export interface DocumentoComContexto extends Documento {
 
 export type TipoSessao = 'TREINO' | 'COMPETICAO';
 
+/**
+ * Âmbito de uma competição — usado para verificar as exigências por nível de
+ * atirador (IN DG/PF nº 311/2025, art. 71). Só se aplica a sessões do tipo
+ * COMPETICAO. 'ESTADUAL' cobre também distrital/regional.
+ */
+export type AmbitoCompeticao = 'LOCAL' | 'ESTADUAL' | 'NACIONAL' | 'INTERNACIONAL';
+
+/**
+ * Nível do atirador desportivo (IN DG/PF nº 311/2025, art. 71). Define a
+ * exigência mínima de habitualidade. 'ALTO_RENDIMENTO' é, na norma, por ranking
+ * nacional/convocação olímpica — tratado como informativo (ver REGRAS_NIVEL).
+ */
+export type NivelAtirador = 'NIVEL_1' | 'NIVEL_2' | 'NIVEL_3' | 'ALTO_RENDIMENTO';
+
 /** Onde a sessão foi feita: clube, estande, entidade. Cadastrado pelo usuário. */
 export interface LocalTiro {
   id: string;
@@ -120,6 +134,8 @@ export interface Habitualidade {
   localNome: string | null;
   observacoes: string | null;
   armas: ArmaNaHabitualidade[];
+  /** Âmbito, só para COMPETICAO. Null em treinos e competições sem âmbito definido. */
+  ambito: AmbitoCompeticao | null;
   criadoEm: string;
   atualizadoEm: string;
 }

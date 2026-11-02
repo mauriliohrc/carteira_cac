@@ -40,12 +40,18 @@ export function CartaoArma({
   arma,
   documentos,
   capa,
+  favorito,
+  aoFavoritar,
   aoTocar,
 }: {
   arma: Arma;
   documentos: DocumentoComContexto[];
   /** Primeira foto da galeria: reconhece a arma antes de o olho ler o texto. */
   capa?: string | null;
+  /** Fixada no topo do acervo. */
+  favorito?: boolean;
+  /** Alterna o favorito (opcional: quando ausente, a estrela não aparece). */
+  aoFavoritar?: () => void;
   aoTocar: () => void;
 }) {
   const c = useCores();
@@ -74,6 +80,21 @@ export function CartaoArma({
               {[arma.especie, arma.calibre].filter(Boolean).join(' · ')}
             </Text>
           </View>
+          {aoFavoritar ? (
+            <Pressable
+              onPress={aoFavoritar}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={favorito ? 'Remover dos favoritos' : 'Favoritar'}
+              style={{ padding: 2 }}
+            >
+              <Ionicons
+                name={favorito ? 'star' : 'star-outline'}
+                size={19}
+                color={favorito ? c.latao : c.textoFraco}
+              />
+            </Pressable>
+          ) : null}
           <Ionicons name="chevron-forward" size={17} color={c.textoFraco} />
         </View>
 

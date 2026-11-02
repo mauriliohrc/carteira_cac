@@ -178,26 +178,26 @@ export async function rotasNoticias(app: FastifyInstance) {
     if (n.status !== 'PUBLICADA') throw invalido('Publique a notícia antes de notificar os usuários.');
 
     let tokens: string[];
+    let dispositivos: { token: string; usuarioId: string | null }[];
     if (n.entidadeId) {
       const usuarios = await prisma.usuarioApp.findMany({
         where: { ativo: true, vinculos: { some: { entidadeId: n.entidadeId } } },
         select: { id: true },
       });
       const ids = usuarios.map((u) => u.id);
-      const dispositivos = ids.length
+      dispositivos = ids.length
         ? await prisma.dispositivoPush.findMany({
             where: { usuarioId: { in: ids }, ativo: true },
-            select: { token: true },
+            select: { token: true, usuarioId: true },
           })
         : [];
-      tokens = dispositivos.map((d) => d.token);
     } else {
-      const dispositivos = await prisma.dispositivoPush.findMany({
+      dispositivos = await prisma.dispositivoPush.findMany({
         where: { ativo: true },
-        select: { token: true },
+        select: { token: true, usuarioId: true },
       });
-      tokens = dispositivos.map((d) => d.token);
     }
+    tokens = dispositivos.map((d) => d.token);
 
     const resultado = await enviarPush(tokens, {
       titulo: n.titulo,
@@ -216,6 +216,45 @@ export async function rotasNoticias(app: FastifyInstance) {
       });
     }
 
+    // Auditoria: uma linha por usuário distinto notificado (histórico do perfil).
+    const usuariosNotificados = [
+      ...new Set(dispositivos.map((d) => d.usuarioId).filter((v): v is string => !!v)),
+    ];
+    if (usuariosNotificados.length) {
+      await prisma.logNotificacao.createMany({
+        data: usuariosNotificados.map((usuarioId) => ({
+          usuarioId,
+          canal: 'PUSH',
+          tipo: 'NOTICIA',
+          referenciaId: n.id,
+          titulo: n.titulo,
+          status: 'OK',
+        })),
+      });
+    }
+
     return { enviados: resultado.aceitos, tokens: tokens.length, escopo: n.entidadeId ? 'ENTIDADE' : 'GERAL' };
+  });
+
+  // Quem leu a notícia e quando — detalha a contagem de leituras do painel.
+  app.get('/api/admin/noticias/:id/leituras', async (req) => {
+    const { id } = req.params as { id: string };
+    await achar(id);
+    const leituras = await prisma.leituraNoticia.findMany({
+      where: { noticiaId: id },
+      orderBy: { criadoEm: 'desc' },
+      include: { usuario: { select: { id: true, nome: true, email: true, cpf: true } } },
+    });
+    return {
+      leituras: leituras.map((l) => ({
+        criadoEm: l.criadoEm,
+        usuario: {
+          id: l.usuario.id,
+          nome: l.usuario.nome,
+          email: l.usuario.email,
+          cpf: l.usuario.cpf,
+        },
+      })),
+    };
   });
 }

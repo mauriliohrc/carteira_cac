@@ -3,9 +3,41 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ErroApi } from '@/lib/api';
-import { ROTULO_STATUS, type ListaNoticias } from '@/lib/tipos';
+import { linkPublicoNoticia, ROTULO_STATUS, type ListaNoticias } from '@/lib/tipos';
 
 type NoticiaItem = ListaNoticias['noticias'][number];
+
+/** Link público compartilhável (só p/ publicadas) + copiar. */
+function LinkPublico({ noticia }: { noticia: NoticiaItem }) {
+  const [copiado, setCopiado] = useState(false);
+
+  if (noticia.status !== 'PUBLICADA') {
+    return <span style={{ color: 'var(--texto-suave)', fontSize: 12 }}>—</span>;
+  }
+
+  const url = linkPublicoNoticia(noticia.id, noticia.titulo);
+
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 1500);
+    } catch {
+      window.prompt('Copie o link:', url);
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <a href={url} target="_blank" rel="noreferrer" style={{ fontSize: 12 }} title={url}>
+        abrir
+      </a>
+      <button className="secundario pequeno" onClick={copiar} title={url}>
+        {copiado ? '✓ copiado' : '🔗 copiar link'}
+      </button>
+    </div>
+  );
+}
 
 /** Dispara o push desta notícia, respeitando o alcance (entidade x geral). */
 function BotaoNotificar({ noticia }: { noticia: NoticiaItem }) {
@@ -107,6 +139,7 @@ function ListaDeNoticias() {
                 <th>Leituras</th>
                 <th>Publicada em</th>
                 <th>Criada em</th>
+                <th>Link público</th>
                 <th>Ações</th>
               </tr>
             </thead>
@@ -130,9 +163,12 @@ function ListaDeNoticias() {
                       {ROTULO_STATUS[n.status]}
                     </span>
                   </td>
-                  <td title="Pessoas que leram no app">👁 {n.leituras ?? 0}</td>
+                  <td title="Ver quem leu e quando">
+                    <Link href={`/noticias/${n.id}/leituras`}>👁 {n.leituras ?? 0}</Link>
+                  </td>
                   <td>{formatarData(n.publicadaEm)}</td>
                   <td>{formatarData(n.criadoEm)}</td>
+                  <td><LinkPublico noticia={n} /></td>
                   <td><BotaoNotificar noticia={n} /></td>
                 </tr>
               ))}

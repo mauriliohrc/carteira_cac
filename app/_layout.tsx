@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Stack, router, type ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
@@ -11,6 +11,7 @@ import { hrefDeDados, type DadosNotificacao } from '@/notificacoes/rotas';
 import { AppProvider, useApp } from '@/estado/AppContext';
 import { ContaProvider, useConta } from '@/conta/ContaContext';
 import { consumirContaOnboardingPendente } from '@/conta/intencaoOnboarding';
+import { CHAVES, gravarConfig, lerConfig } from '@/db/config';
 import { Botao, Carregando, Tela, Vazio } from '@/ui/base';
 import { Onboarding } from '@/ui/Onboarding';
 import { TrancaProvider, useTranca } from '@/seguranca/TrancaProvider';
@@ -110,6 +111,24 @@ function Raiz() {
     }
   }, [stackMontada, logado]);
 
+  // Onboarding adicional de acervo: quem ainda não tem NENHUMA arma é guiado
+  // (uma vez só) a cadastrar CR/Posse-Porte, armas e documentos. Só dispara
+  // quando o convite de conta NÃO foi aberto nesta sessão (deixa um por vez;
+  // numa próxima abertura, sem armas ainda, ele aparece). Não invasivo: a tela
+  // permite pular em qualquer passo e a flag impede repetição.
+  const acervoOnbDisparado = useRef(false);
+  const [acervoOnbVisto, setAcervoOnbVisto] = useState<boolean | null>(null);
+  useEffect(() => {
+    void lerConfig(CHAVES.onboardingAcervoVisto).then((v) => setAcervoOnbVisto(v === '1'));
+  }, []);
+  useEffect(() => {
+    if (acervoOnbDisparado.current || acervoOnbVisto !== false) return;
+    if (!stackMontada || contaOnbDisparado.current || armas.length > 0) return;
+    acervoOnbDisparado.current = true;
+    void gravarConfig(CHAVES.onboardingAcervoVisto, '1');
+    router.push('/acervo-onboarding');
+  }, [stackMontada, armas.length, acervoOnbVisto]);
+
   // Após login/cadastro: se a conta ainda NÃO está confirmada, avisa que ela não
   // está ativa e leva a confirmar o e-mail. Tem prioridade sobre o upsell.
   const avisoAtivacao = useRef(false);
@@ -185,6 +204,7 @@ function Raiz() {
       <Stack.Screen name="premium" options={{ presentation: 'modal' }} />
       <Stack.Screen name="premium-upsell" options={{ presentation: 'modal' }} />
       <Stack.Screen name="conta-onboarding" />
+      <Stack.Screen name="acervo-onboarding" />
       {/* Tela empilhada (não modal): os diálogos de confirmação/aviso e o
           loading são apresentados a partir da raiz, e o iOS não mostra isso de
           forma confiável por cima de uma tela apresentada como modal — o

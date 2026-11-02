@@ -8,6 +8,7 @@
 import {
   avisoDeHabitualidade,
   calcularProgresso,
+  conformidadeNivel,
   gruposDaSessao,
   gruposExigidos,
   inicioJanela,
@@ -15,7 +16,7 @@ import {
   saiDaJanelaEm,
 } from '@/domain/habitualidade';
 import { isoParaBR, somarDias, somarMeses } from '@/lib/data';
-import type { Arma, Grupo, Habitualidade } from '@/domain/tipos';
+import type { AmbitoCompeticao, Arma, Grupo, Habitualidade } from '@/domain/tipos';
 
 let falhas = 0;
 function conferir(nome: string, condicao: boolean, detalhe = '') {
@@ -62,6 +63,7 @@ function sessao(data: string, grupos: Grupo[]): Habitualidade {
     localNome: 'Clube',
     observacoes: null,
     armas: grupos.map((g, i) => ({ armaId: `x${seq}-${i}`, grupo: g, nome: `Arma ${i}` })),
+    ambito: null,
     criadoEm: `${data}T10:00:00.000Z`,
     atualizadoEm: `${data}T10:00:00.000Z`,
   };
@@ -419,6 +421,64 @@ console.log('\n16. Só defesa pessoal não cobra (nem genérica)');
     HOJE
   );
   conferir('defesa + atirador: por grupo, só o grupo de atirador', comAtirador.generico === null && comAtirador.grupos.length === 1 && comAtirador.grupos[0].grupo === 'CC_RESTRITA');
+}
+
+console.log('\n13. Conformidade por nível do atirador (IN 311/2025)');
+{
+  const treino = (data: string): Habitualidade => ({ ...sessao(data, []), tipo: 'TREINO', ambito: null });
+  const comp = (data: string, ambito: AmbitoCompeticao | null): Habitualidade => ({
+    ...sessao(data, []),
+    tipo: 'COMPETICAO',
+    ambito,
+  });
+  const dias = (n: number, fn: (i: number) => Habitualidade) =>
+    Array.from({ length: n }, (_, i) => fn(i));
+
+  // Nível 1: 8 eventos (treino ou competição) contam juntos.
+  const n1Ok = conformidadeNivel(
+    [...dias(6, (i) => treino(somarDias(HOJE, -(10 + i * 10)))), ...dias(2, (i) => comp(somarDias(HOJE, -(5 + i)), null))],
+    'NIVEL_1',
+    HOJE
+  );
+  conferir('N1: 6 treinos + 2 competições = 8 → em dia', n1Ok.cumprido && n1Ok.treinos.feitas === 8);
+  conferir('N1: não exige competições à parte', n1Ok.competicoes === null && n1Ok.qualificadas === null);
+
+  conferir(
+    'N1: 7 eventos não cumprem',
+    !conformidadeNivel(dias(7, (i) => treino(somarDias(HOJE, -(10 + i * 10)))), 'NIVEL_1', HOJE).cumprido
+  );
+
+  // Nível 2: 12 treinos + 4 competições, 2 de âmbito estadual+.
+  const n2 = conformidadeNivel(
+    [
+      ...dias(12, (i) => treino(somarDias(HOJE, -(10 + i * 5)))),
+      comp(somarDias(HOJE, -1), 'ESTADUAL'),
+      comp(somarDias(HOJE, -2), 'NACIONAL'),
+      comp(somarDias(HOJE, -3), 'LOCAL'),
+      comp(somarDias(HOJE, -4), 'LOCAL'),
+    ],
+    'NIVEL_2',
+    HOJE
+  );
+  conferir('N2: 12 treinos + 4 comp (2 estaduais+) → em dia', n2.cumprido);
+  conferir('N2: treino não conta competição', n2.treinos.feitas === 12);
+  conferir('N2: qualificadas conta estadual+', n2.qualificadas!.feitas === 2 && n2.qualificadas!.cumprido);
+
+  // Mesmas 4 competições, mas nenhuma qualificada: não cumpre o subconjunto.
+  const n2SemAmbito = conformidadeNivel(
+    [...dias(12, (i) => treino(somarDias(HOJE, -(10 + i * 5)))), ...dias(4, (i) => comp(somarDias(HOJE, -(i + 1)), 'LOCAL'))],
+    'NIVEL_2',
+    HOJE
+  );
+  conferir('N2: 4 competições locais não satisfazem "2 estaduais+"', !n2SemAmbito.cumprido && n2SemAmbito.qualificadas!.feitas === 0);
+
+  // Nível 3: âmbito estadual NÃO qualifica (precisa nacional+).
+  const n3 = conformidadeNivel([comp(somarDias(HOJE, -1), 'ESTADUAL')], 'NIVEL_3', HOJE);
+  conferir('N3: estadual não conta como qualificada (precisa nacional+)', n3.qualificadas!.feitas === 0);
+
+  // Alto Rendimento: mesmo piso do Nível 3, sinalizado por ranking.
+  const ar = conformidadeNivel([], 'ALTO_RENDIMENTO', HOJE);
+  conferir('AR: porRanking verdadeiro e piso = N3', ar.porRanking && ar.treinos.minimo === 20);
 }
 
 console.log(falhas ? `\n${falhas} verificação(ões) falharam\n` : '\nTodas as verificações passaram\n');

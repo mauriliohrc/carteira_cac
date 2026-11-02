@@ -11,6 +11,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 
 import { abrirBanco } from '@/db';
 import { listarArmas } from '@/db/armas';
+import { definirFavorito, listarFavoritos } from '@/db/favoritos';
 import { listarArquivos } from '@/db/arquivos';
 import { listarDocumentos } from '@/db/documentos';
 import { listarFotos, type Foto } from '@/db/fotos';
@@ -33,7 +34,10 @@ import { limparCentral, observarRecebidos, sincronizarCaixa } from '@/notificaco
 import { avaliar, PESO_SITUACAO, type InfoSituacao } from '@/domain/vencimento';
 import {
   calcularProgresso,
+  conformidadeNivel,
+  NIVEL_PADRAO,
   ordenarSessoes,
+  type ConformidadeNivel,
   type ProgressoHabitualidade,
 } from '@/domain/habitualidade';
 import type {
@@ -43,6 +47,7 @@ import type {
   DocumentoComContexto,
   Habitualidade,
   LocalTiro,
+  NivelAtirador,
 } from '@/domain/tipos';
 
 interface EstadoApp {
@@ -54,6 +59,10 @@ interface EstadoApp {
   precisaOnboarding: boolean;
   concluirOnboarding: () => Promise<void>;
   armas: Arma[];
+  /** Ids das armas marcadas como favoritas (exibidas no topo do acervo). */
+  favoritos: Set<string>;
+  /** Liga/desliga o favorito de uma arma e sincroniza. */
+  alternarFavorito: (armaId: string) => Promise<void>;
   documentos: DocumentoComContexto[];
   premium: boolean;
   /** Documentos vencidos ou dentro da janela de 30 dias, do mais urgente ao menos. */
@@ -68,6 +77,11 @@ interface EstadoApp {
   locais: LocalTiro[];
   /** Andamento das 8 sessões por grupo na janela de 12 meses. */
   progressoHabitualidade: ProgressoHabitualidade;
+  /** Nível do atirador (IN 311/2025) escolhido no perfil. Default Nível 1. */
+  nivelAtirador: NivelAtirador;
+  definirNivelAtirador: (nivel: NivelAtirador) => Promise<void>;
+  /** Conformidade com a exigência de habitualidade do nível escolhido. */
+  conformidadeNivel: ConformidadeNivel;
   /** Histórico das notificações que já chegaram ao aparelho. */
   avisos: AvisoRecebido[];
   avisosNaoLidos: number;
@@ -91,6 +105,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [pronto, setPronto] = useState(false);
   const [erroInicial, setErroInicial] = useState<string | null>(null);
   const [armas, setArmas] = useState<Arma[]>([]);
+  const [favoritos, setFavoritos] = useState<Set<string>>(new Set());
   const [documentos, setDocumentos] = useState<Documento[]>([]);
   const [arquivos, setArquivos] = useState<Arquivo[]>([]);
   const [fotos, setFotos] = useState<Foto[]>([]);
@@ -98,6 +113,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [locais, setLocais] = useState<LocalTiro[]>([]);
   const [premium, setPremium] = useState(false);
   const [gerenciarHabitualidade, setGerenciarHabitualidade] = useState(true);
+  const [nivelAtirador, setNivelAtirador] = useState<NivelAtirador>(NIVEL_PADRAO);
   const [avisos, setAvisos] = useState<AvisoRecebido[]>([]);
   const [precisaOnboarding, setPrecisaOnboarding] = useState(false);
   const estadoAnterior = useRef<AppStateStatus>(AppState.currentState);
@@ -117,8 +133,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       listaFotos,
       listaHabitualidades,
       listaLocais,
+      listaFavoritos,
       ehPremium,
       valorGerenciar,
+      valorNivel,
     ] = await Promise.all([
       listarArmas(),
       listarDocumentos(),
@@ -126,16 +144,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       listarFotos(),
       listarHabitualidades(),
       listarLocais(),
+      listarFavoritos(),
       // Cache local: rápido e nunca bloqueia a abertura. A checagem real na
       // App Store roda em segundo plano (ver efeito abaixo).
       consultarPremiumCache(),
       lerConfig(CHAVES.gerenciarHabitualidade),
+      lerConfig(CHAVES.nivelAtirador),
     ]);
 
     // Default: acompanha habitualidade. Só o '0' explícito (quem desligou) desliga.
     const gerencia = valorGerenciar !== '0';
 
     setArmas(listaArmas);
+    setFavoritos(listaFavoritos);
     setDocumentos(listaDocs);
     setArquivos(listaArquivos);
     setFotos(listaFotos);
@@ -143,6 +164,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setLocais(listaLocais);
     setPremium(ehPremium);
     setGerenciarHabitualidade(gerencia);
+    // Nível do atirador: valor salvo ou o padrão (Nível 1 = piso legal).
+    setNivelAtirador((valorNivel as NivelAtirador) ?? NIVEL_PADRAO);
 
     // Reagenda sempre: o conjunto de avisos depende da data de hoje — e agora
     // também da habitualidade, que entra no plano como uma frente.
@@ -166,6 +189,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // senão o acervo só aparecia ao reabrir o app (o foreground já recarregava).
     await carregar();
   }, [logado, carregar]);
+
+  // Alterna o favorito de uma arma. Atualiza o estado na hora (otimista) e
+  // sincroniza em segundo plano — o favorito viaja como registro 'favoritos'.
+  const alternarFavorito = useCallback(
+    async (armaId: string) => {
+      const marcar = !favoritos.has(armaId);
+      setFavoritos((atual) => {
+        const proximo = new Set(atual);
+        if (marcar) proximo.add(armaId);
+        else proximo.delete(armaId);
+        return proximo;
+      });
+      await definirFavorito(armaId, marcar);
+      void sincronizar();
+    },
+    [favoritos]
+  );
 
   // Ao logar (ou abrir já logado): puxa o acervo da nuvem.
   useEffect(() => {
@@ -273,6 +313,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [carregar]
   );
 
+  const definirNivelAtirador = useCallback(async (nivel: NivelAtirador) => {
+    await gravarConfig(CHAVES.nivelAtirador, nivel);
+    setNivelAtirador(nivel);
+  }, []);
+
   const concluirOnboarding = useCallback(async () => {
     await gravarConfig(CHAVES.onboardingVisto, '1');
     // Acabou o 1º onboarding: deixa o convite de conta pendente para a Raiz
@@ -316,6 +361,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       precisaOnboarding,
       concluirOnboarding,
       armas,
+      favoritos,
+      alternarFavorito,
       documentos: completos,
       premium,
       pendencias,
@@ -325,6 +372,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       habitualidades,
       locais,
       progressoHabitualidade: calcularProgresso(armas, habitualidades, undefined, gerenciarHabitualidade),
+      nivelAtirador,
+      definirNivelAtirador,
+      conformidadeNivel: conformidadeNivel(habitualidades, nivelAtirador),
       avisos,
       avisosNaoLidos: avisos.filter((a) => !a.lido).length,
       recarregarAvisos,
@@ -340,12 +390,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [
     apagarAvisos,
     armas,
+    favoritos,
+    alternarFavorito,
     arquivos,
     avisos,
     carregar,
     concluirOnboarding,
     definirPremium,
     definirGerenciarHabitualidade,
+    definirNivelAtirador,
+    nivelAtirador,
     documentos,
     erroInicial,
     gerenciarHabitualidade,

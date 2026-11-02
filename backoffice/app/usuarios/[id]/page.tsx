@@ -373,7 +373,78 @@ function Perfil({ id }: { id: string }) {
           </table>
         )}
       </div>
+
+      {/* ---------------------- Notificações recebidas ---------------------- */}
+      <div className="cabeca-secao" style={{ marginTop: 24 }}>
+        <h2 style={{ margin: 0 }}>Notificações recebidas</h2>
+      </div>
+      <NotificacoesRecebidas usuarioId={id} />
     </>
+  );
+}
+
+const ROTULO_TIPO_LOG: Record<string, string> = {
+  BOAS_VINDAS: 'Boas-vindas',
+  SEM_ARMA_7D: '7 dias sem cadastro',
+  NOTICIA: 'Notícia',
+};
+
+interface LogItem {
+  id: string;
+  canal: string;
+  tipo: string;
+  titulo: string | null;
+  status: string;
+  erro: string | null;
+  criadoEm: string;
+}
+
+function NotificacoesRecebidas({ usuarioId }: { usuarioId: string }) {
+  const [logs, setLogs] = useState<LogItem[] | null>(null);
+
+  useEffect(() => {
+    api<{ logs: LogItem[] }>(`/api/admin/logs-notificacao?usuarioId=${usuarioId}&limite=100`)
+      .then((r) => setLogs(r.logs))
+      .catch(() => setLogs([]));
+  }, [usuarioId]);
+
+  if (logs === null) return <div className="cartao"><div className="vazio-inline">Carregando…</div></div>;
+  if (logs.length === 0)
+    return (
+      <div className="cartao">
+        <div className="vazio-inline">Nenhuma mensagem automática ou push enviado a este usuário.</div>
+      </div>
+    );
+
+  return (
+    <div className="cartao" style={{ padding: 0 }}>
+      <table>
+        <thead>
+          <tr>
+            <th>Quando</th>
+            <th>Tipo</th>
+            <th>Canal</th>
+            <th>Título / mensagem</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {logs.map((l) => (
+            <tr key={l.id}>
+              <td>{dataHora(l.criadoEm)}</td>
+              <td>{ROTULO_TIPO_LOG[l.tipo] ?? l.tipo}</td>
+              <td>{l.canal === 'WHATSAPP' ? 'WhatsApp' : 'Push'}</td>
+              <td>{l.titulo ?? '—'}</td>
+              <td>
+                <span className={`etiqueta ${l.status === 'OK' ? 'publicada' : 'rascunho'}`} title={l.erro ?? ''}>
+                  {l.status}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

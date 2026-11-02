@@ -11,6 +11,7 @@ import { BlocoFormulario, Campo, CampoData, SeletorChips, SeletorLista } from '@
 import { hojeISO, isoParaBR } from '@/lib/data';
 import {
   ACERVO_POR_VALOR,
+  AMBITOS_COMPETICAO,
   corDe,
   GRUPO_POR_VALOR,
   TIPOS_SESSAO,
@@ -24,7 +25,7 @@ import {
   type EntradaHabitualidade,
 } from '@/db/habitualidades';
 import { criarLocal } from '@/db/locais';
-import type { Arma, Grupo, TipoSessao } from '@/domain/tipos';
+import type { AmbitoCompeticao, Arma, Grupo, TipoSessao } from '@/domain/tipos';
 
 /**
  * Registrar uma habitualidade.
@@ -55,6 +56,7 @@ export default function EditorHabitualidade() {
   // inicial só na montagem.
   const [data, setData] = useState<string | null>(existente?.data ?? hojeISO());
   const [tipo, setTipo] = useState<TipoSessao>(existente?.tipo ?? 'TREINO');
+  const [ambito, setAmbito] = useState<AmbitoCompeticao | null>(existente?.ambito ?? null);
   /** Ou o id de um local cadastrado, ou um nome novo digitado na busca. */
   const [local, setLocal] = useState<string | null>(
     existente?.localId ?? existente?.localNome ?? null
@@ -146,6 +148,8 @@ export default function EditorHabitualidade() {
           ...selecionadas.map((a) => ({ armaId: a.id, grupo: a.grupo, nome: nomeArma(a) })),
           ...orfas,
         ],
+        // Âmbito só vale para competição; em treino é ignorado ao gravar.
+        ambito: tipo === 'COMPETICAO' ? ambito : null,
       };
 
       if (existente) await atualizarHabitualidade(existente.id, entrada);
@@ -231,6 +235,16 @@ export default function EditorHabitualidade() {
           aoSelecionar={(v) => setTipo(v as TipoSessao)}
           dica={TIPOS_SESSAO.find((t) => t.valor === tipo)?.detalhe}
         />
+
+        {tipo === 'COMPETICAO' ? (
+          <SeletorChips
+            rotulo="Âmbito da competição"
+            itens={AMBITOS_COMPETICAO.map((a) => ({ valor: a.valor, rotulo: a.curto }))}
+            selecionado={ambito ?? ''}
+            aoSelecionar={(v) => setAmbito((v as AmbitoCompeticao) || null)}
+            dica="Conta para as exigências dos Níveis 2 e 3 (competições de âmbito estadual+/nacional+)."
+          />
+        ) : null}
 
         <SeletorLista
           rotulo="Local"

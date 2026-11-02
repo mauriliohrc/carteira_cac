@@ -432,6 +432,24 @@ export function linkRankingPublico(
   return `https://backoffice.carteiracac.com/competicao/${comp.id}`;
 }
 
+/** Slug cosmético do título da notícia para a URL (o id no fim é o que vale). */
+export function slugNoticia(titulo: string): string {
+  return titulo
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 70);
+}
+
+/** Link público compartilhável da notícia: noticias.carteiracac.com/titulo-<id>. */
+export function linkPublicoNoticia(id: string, titulo: string): string {
+  const slug = slugNoticia(titulo);
+  const cauda = slug ? `${slug}-${id}` : id;
+  return `https://noticias.carteiracac.com/${cauda}`;
+}
+
 export interface CategoriaCompeticao {
   id: string;
   competicaoId: string;

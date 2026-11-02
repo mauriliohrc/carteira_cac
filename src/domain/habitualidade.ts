@@ -28,7 +28,7 @@
 import { diffDias, hojeISO, isoParaBR, somarDias, somarMeses, type DataISO } from '@/lib/data';
 import { GRUPO_POR_VALOR, GRUPOS } from '@/domain/catalogos';
 import { JANELA_ALERTA_DIAS } from '@/domain/vencimento';
-import type { Arma, Grupo, Habitualidade } from './tipos';
+import type { AmbitoCompeticao, Arma, Grupo, Habitualidade, NivelAtirador } from './tipos';
 
 /** Sessões exigidas por grupo dentro da janela. */
 export const MINIMO_POR_GRUPO = 8;
@@ -322,4 +322,138 @@ export function ordenarSessoes(sessoes: Habitualidade[]): Habitualidade[] {
   return [...sessoes].sort(
     (a, b) => b.data.localeCompare(a.data) || b.criadoEm.localeCompare(a.criadoEm)
   );
+}
+
+// -------------------------------------------------- níveis do atirador (IN 311)
+
+/**
+ * Exigência de habitualidade por NÍVEL do atirador desportivo — IN DG/PF
+ * nº 311/2025, art. 71, por período de 12 meses (a mesma janela móvel do resto
+ * do módulo). É uma exigência DA PESSOA (não por grupo balístico), à parte da
+ * cobertura por grupo acima.
+ *
+ *  - Nível 1: 8 treinamentos OU competições, em eventos distintos.
+ *  - Nível 2: 12 treinamentos + 4 competições, das quais 2 de âmbito estadual,
+ *             distrital, regional ou nacional.
+ *  - Nível 3: 20 treinamentos + 6 competições, das quais 2 de âmbito nacional
+ *             ou internacional.
+ *  - Alto Rendimento: pela norma é por ranking nacional/convocação olímpica (não
+ *             se mede por contagem). Aqui usamos o piso do Nível 3 e sinalizamos
+ *             `porRanking` para a tela deixar claro que a comprovação é por fora.
+ */
+export interface RegraNivel {
+  /** Treinamentos mínimos. No Nível 1, competições também contam aqui. */
+  treinosMin: number;
+  /** Competições mínimas (0 = não exigido no nível). */
+  competicoesMin: number;
+  /** Competições de âmbito qualificado exigidas (subconjunto das competições). */
+  qualificadasMin: number;
+  /** Âmbitos que satisfazem `qualificadasMin`. */
+  ambitoQualifica: AmbitoCompeticao[];
+  /** Nível 1: competição também conta como treinamento ("treinamentos ou competições"). */
+  competicaoContaComoTreino: boolean;
+  /** Alto Rendimento: conformidade oficial por ranking/convocação, não por contagem. */
+  porRanking: boolean;
+}
+
+export const REGRAS_NIVEL: Record<NivelAtirador, RegraNivel> = {
+  NIVEL_1: {
+    treinosMin: 8,
+    competicoesMin: 0,
+    qualificadasMin: 0,
+    ambitoQualifica: [],
+    competicaoContaComoTreino: true,
+    porRanking: false,
+  },
+  NIVEL_2: {
+    treinosMin: 12,
+    competicoesMin: 4,
+    qualificadasMin: 2,
+    ambitoQualifica: ['ESTADUAL', 'NACIONAL', 'INTERNACIONAL'],
+    competicaoContaComoTreino: false,
+    porRanking: false,
+  },
+  NIVEL_3: {
+    treinosMin: 20,
+    competicoesMin: 6,
+    qualificadasMin: 2,
+    ambitoQualifica: ['NACIONAL', 'INTERNACIONAL'],
+    competicaoContaComoTreino: false,
+    porRanking: false,
+  },
+  ALTO_RENDIMENTO: {
+    treinosMin: 20,
+    competicoesMin: 6,
+    qualificadasMin: 2,
+    ambitoQualifica: ['NACIONAL', 'INTERNACIONAL'],
+    competicaoContaComoTreino: false,
+    porRanking: true,
+  },
+};
+
+/** Nível assumido quando o atirador ainda não escolheu — reproduz o piso legal. */
+export const NIVEL_PADRAO: NivelAtirador = 'NIVEL_1';
+
+export interface RequisitoNivel {
+  feitas: number;
+  minimo: number;
+  faltam: number;
+  cumprido: boolean;
+}
+
+export interface ConformidadeNivel {
+  nivel: NivelAtirador;
+  treinos: RequisitoNivel;
+  /** Null quando o nível não exige competições (Nível 1). */
+  competicoes: RequisitoNivel | null;
+  /** Competições de âmbito qualificado. Null quando não exigido (Nível 1). */
+  qualificadas: RequisitoNivel | null;
+  /** Todos os requisitos contáveis cumpridos. */
+  cumprido: boolean;
+  /** Alto Rendimento: a comprovação oficial é por ranking/convocação. */
+  porRanking: boolean;
+  inicio: DataISO;
+  hoje: DataISO;
+}
+
+/**
+ * Conformidade da pessoa com a exigência do nível escolhido, na janela de 12
+ * meses. Treinos e competições são contados por SESSÃO (cada evento distinto),
+ * não por grupo. Módulo puro — exercitado pelos testes.
+ */
+export function conformidadeNivel(
+  sessoes: Habitualidade[],
+  nivel: NivelAtirador,
+  hoje: DataISO = hojeISO()
+): ConformidadeNivel {
+  const inicio = inicioJanela(hoje);
+  const naJanela = sessoes.filter((s) => s.data >= inicio && s.data <= hoje);
+  const regra = REGRAS_NIVEL[nivel];
+
+  const treinoCount = naJanela.filter((s) => s.tipo === 'TREINO').length;
+  const compCount = naJanela.filter((s) => s.tipo === 'COMPETICAO').length;
+  const qualCount = naJanela.filter(
+    (s) => s.tipo === 'COMPETICAO' && s.ambito && regra.ambitoQualifica.includes(s.ambito)
+  ).length;
+
+  const req = (feitas: number, minimo: number): RequisitoNivel => ({
+    feitas,
+    minimo,
+    faltam: Math.max(0, minimo - feitas),
+    cumprido: feitas >= minimo,
+  });
+
+  const treinos = req(
+    regra.competicaoContaComoTreino ? treinoCount + compCount : treinoCount,
+    regra.treinosMin
+  );
+  const competicoes = regra.competicoesMin > 0 ? req(compCount, regra.competicoesMin) : null;
+  const qualificadas = regra.qualificadasMin > 0 ? req(qualCount, regra.qualificadasMin) : null;
+
+  const cumprido =
+    treinos.cumprido &&
+    (!competicoes || competicoes.cumprido) &&
+    (!qualificadas || qualificadas.cumprido);
+
+  return { nivel, treinos, competicoes, qualificadas, cumprido, porRanking: regra.porRanking, inicio, hoje };
 }

@@ -5,14 +5,19 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { Botao, Cartao, Linha, Tela, TituloTela } from '@/ui/base';
+import { SeletorChips } from '@/ui/formulario';
 import { useConta } from '@/conta/ContaContext';
+import { useApp } from '@/estado/AppContext';
 import { mascaraCPF } from '@/conta/cpf';
 import { escolher } from '@/ui/dialogo';
+import { NIVEIS_ATIRADOR, NIVEL_POR_VALOR } from '@/domain/catalogos';
+import type { NivelAtirador } from '@/domain/tipos';
 
 export default function Perfil() {
   const c = useCores();
   const p = useEstilos(folha);
   const { usuario, sair } = useConta();
+  const { nivelAtirador, definirNivelAtirador } = useApp();
 
   // Deslogou (ou abriu sem sessão): não renderiza nada (a navegação é tratada
   // por quem chama o sair()).
@@ -64,6 +69,20 @@ export default function Perfil() {
         <Linha rotulo="E-mail" valor={usuario.email} />
         <Linha rotulo="CPF" valor={mascaraCPF(usuario.cpf)} monoespacado />
         <Linha rotulo="E-mail verificado" valor={usuario.emailVerificado ? 'Sim' : 'Ainda não'} />
+      </Cartao>
+
+      <Cartao estilo={{ marginTop: espaco.xl }}>
+        <SeletorChips
+          rotulo="Nível de atirador desportivo"
+          itens={NIVEIS_ATIRADOR.map((n) => ({ valor: n.valor, rotulo: n.rotulo }))}
+          selecionado={nivelAtirador}
+          aoSelecionar={(v) => void definirNivelAtirador(v as NivelAtirador)}
+          dica={NIVEL_POR_VALOR[nivelAtirador]?.detalhe}
+        />
+        <Text style={p.notaNivel}>
+          Define a exigência de habitualidade (IN DG/PF nº 311/2025). A conformidade aparece na aba
+          Habitualidade, dentro do Acervo.
+        </Text>
       </Cartao>
 
       <View style={p.nota}>
@@ -119,4 +138,5 @@ const folha = (c: Paleta) =>
     email: { ...tipo.corpoPequeno, color: c.textoFraco, marginTop: 2 },
     nota: { flexDirection: 'row', gap: espaco.sm, marginTop: espaco.lg, paddingHorizontal: 2 },
     notaTexto: { flex: 1, ...tipo.legenda, color: c.textoFraco, lineHeight: 16 },
+    notaNivel: { ...tipo.legenda, color: c.textoFraco, lineHeight: 16, marginTop: espaco.sm },
   });

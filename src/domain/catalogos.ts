@@ -1,5 +1,13 @@
 import type { Paleta } from '@/tema/paleta';
-import type { Acervo, Grupo, Orgao, TipoDocumento, TipoSessao } from './tipos';
+import type {
+  Acervo,
+  AmbitoCompeticao,
+  Grupo,
+  NivelAtirador,
+  Orgao,
+  TipoDocumento,
+  TipoSessao,
+} from './tipos';
 
 /** Chave de cor na paleta — resolvida no render, conforme o tema ativo. */
 export type ChaveCor = 'acervoDefesa' | 'acervoAtirador' | 'acervoCaca' | 'acervoColecao';
@@ -291,6 +299,40 @@ export const TIPOS_SESSAO: Opcao<TipoSessao>[] = [
   },
 ];
 
+export const AMBITOS_COMPETICAO: Opcao<AmbitoCompeticao>[] = [
+  { valor: 'LOCAL', rotulo: 'Local / clube', curto: 'Local' },
+  { valor: 'ESTADUAL', rotulo: 'Estadual / regional', curto: 'Estadual' },
+  { valor: 'NACIONAL', rotulo: 'Nacional', curto: 'Nacional' },
+  { valor: 'INTERNACIONAL', rotulo: 'Internacional', curto: 'Internac.' },
+];
+
+export const NIVEIS_ATIRADOR: Opcao<NivelAtirador>[] = [
+  {
+    valor: 'NIVEL_1',
+    rotulo: 'Nível 1',
+    curto: 'N1',
+    detalhe: '8 treinamentos ou competições a cada 12 meses',
+  },
+  {
+    valor: 'NIVEL_2',
+    rotulo: 'Nível 2',
+    curto: 'N2',
+    detalhe: '12 treinamentos + 4 competições (2 estaduais+) / 12 meses',
+  },
+  {
+    valor: 'NIVEL_3',
+    rotulo: 'Nível 3',
+    curto: 'N3',
+    detalhe: '20 treinamentos + 6 competições (2 nacionais+) / 12 meses',
+  },
+  {
+    valor: 'ALTO_RENDIMENTO',
+    rotulo: 'Alto Rendimento',
+    curto: 'AR',
+    detalhe: 'Por ranking nacional / convocação (usa o piso do Nível 3)',
+  },
+];
+
 export const ORGAOS: Opcao<Orgao>[] = [
   { valor: 'EXERCITO', rotulo: 'Exército Brasileiro (SFPC/DFPC)', curto: 'Exército' },
   { valor: 'PF', rotulo: 'Polícia Federal (SINARM)', curto: 'Polícia Federal' },
@@ -307,6 +349,8 @@ export const ACERVO_POR_VALOR = mapa(ACERVOS);
 export const GRUPO_POR_VALOR = mapa(GRUPOS);
 export const ORGAO_POR_VALOR = mapa(ORGAOS);
 export const TIPO_SESSAO_POR_VALOR = mapa(TIPOS_SESSAO);
+export const AMBITO_POR_VALOR = mapa(AMBITOS_COMPETICAO);
+export const NIVEL_POR_VALOR = mapa(NIVEIS_ATIRADOR);
 export const TIPO_DOC_POR_VALOR = Object.fromEntries(
   TIPOS_DOCUMENTO.map((t) => [t.valor, t])
 ) as Record<TipoDocumento, DefTipoDoc>;

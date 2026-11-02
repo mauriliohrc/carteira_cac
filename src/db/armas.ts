@@ -142,6 +142,10 @@ export async function removerArma(id: string): Promise<void> {
   const db = await abrirBanco();
   await db.runAsync('DELETE FROM armas WHERE id = ?', id);
   await registrarExclusao('armas', id);
+  // Limpa o favorito junto (sem FK por ser tabela sincronizada à parte) e
+  // propaga a remoção via tombstone — apps antigos ignoram o tipo 'favoritos'.
+  await db.runAsync('DELETE FROM favoritos WHERE id = ?', id);
+  await registrarExclusao('favoritos', id);
 }
 
 // Reexportado daqui por conveniência: as telas já importam deste módulo.

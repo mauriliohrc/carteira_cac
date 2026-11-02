@@ -9,6 +9,8 @@ import {
 import { enviarPush } from '../push/expo.js';
 import { enviarTexto, estaConectado } from './cliente.js';
 import { aplicarNome } from './mensagens.js';
+import { dentroDaJanela } from './janela.js';
+import { lembreteRecenteExiste, registrarLog } from '../log/auditoria.js';
 
 /**
  * Mensagens AUTOMÁTICAS de relacionamento ("sempre com aquele toque de contato
@@ -39,7 +41,7 @@ export const GATILHOS: { id: Gatilho; rotulo: string; descricao: string }[] = [
 
 const DIAS_SEM_ARMA = 7;
 /** Espaçamento entre envios automáticos de WhatsApp (anti-ban), em segundos. */
-const AUTO_MIN_SEG = 10;
+const AUTO_MIN_SEG = 30;
 const AUTO_MAX_SEG = 40;
 /** Teto de disparos por rodada do agendador (evita rajada). */
 const LOTE_AUTO = 20;
@@ -108,6 +110,13 @@ export async function dispararGatilho(usuario: UsuarioAlvo, gatilho: Gatilho): P
   // Interruptor-mestre: tudo desligado = nada sai (nem trava disparos).
   if (!(await lerBool(CHAVE_AUTOMACOES, true))) return;
 
+  // Anti-repetição: não manda LEMBRETE automático para quem já recebeu algum
+  // lembrete no último mês. Boas-vindas é a mensagem de entrada (no cadastro) e
+  // não entra nessa trava.
+  if (gatilho !== 'BOAS_VINDAS' && (await lembreteRecenteExiste(usuario.id, 30))) {
+    return;
+  }
+
   const modelos = await prisma.modeloMensagem.findMany({ where: { gatilho, ativo: true } });
 
   for (const modelo of modelos) {
@@ -123,9 +132,18 @@ export async function dispararGatilho(usuario: UsuarioAlvo, gatilho: Gatilho): P
       try {
         await enviarTexto(usuario.celular, aplicarNome(modelo.corpo, usuario.nome), usuario.nome);
         await registrar(usuario.id, gatilho, canal, 'OK');
+        await registrarLog({ usuarioId: usuario.id, canal: 'WHATSAPP', tipo: gatilho, destino: usuario.celular, status: 'OK' });
       } catch (e) {
         // Número sem WhatsApp etc.: trava para não insistir num caso perdido.
         await registrar(usuario.id, gatilho, canal, 'FALHOU', e);
+        await registrarLog({
+          usuarioId: usuario.id,
+          canal: 'WHATSAPP',
+          tipo: gatilho,
+          destino: usuario.celular,
+          status: 'FALHOU',
+          erro: e instanceof Error ? e.message : String(e),
+        });
       }
     } else if (canal === 'PUSH') {
       const dispositivos = await prisma.dispositivoPush.findMany({
@@ -137,7 +155,15 @@ export async function dispararGatilho(usuario: UsuarioAlvo, gatilho: Gatilho): P
         titulo: aplicarNome(modelo.titulo ?? '', usuario.nome),
         corpo: aplicarNome(modelo.corpo, usuario.nome),
       });
-      await registrar(usuario.id, gatilho, canal, r.aceitos > 0 ? 'OK' : 'FALHOU');
+      const statusPush = r.aceitos > 0 ? 'OK' : 'FALHOU';
+      await registrar(usuario.id, gatilho, canal, statusPush);
+      await registrarLog({
+        usuarioId: usuario.id,
+        canal: 'PUSH',
+        tipo: gatilho,
+        titulo: aplicarNome(modelo.titulo ?? '', usuario.nome),
+        status: statusPush,
+      });
     }
   }
 }
@@ -213,6 +239,10 @@ let rodandoSweep = false;
 export async function processarAutomacoes(): Promise<void> {
   if (rodandoSweep) return;
   if (!(await lerBool(CHAVE_AUTOMACOES, true))) return; // mestre desligado
+  // Só envia dentro da janela permitida (9h–20h BRT). Fora dela, a varredura
+  // não faz nada e tenta de novo no próximo tick que cair no horário. (As
+  // boas-vindas não passam por aqui — saem no cadastro.)
+  if (!dentroDaJanela()) return;
   rodandoSweep = true;
   try {
     await garantirModelosPadrao();

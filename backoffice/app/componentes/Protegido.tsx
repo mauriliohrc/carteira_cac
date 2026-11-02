@@ -13,6 +13,7 @@ const NAV = [
   { href: '/push', rotulo: 'Push' },
   { href: '/whatsapp', rotulo: 'WhatsApp' },
   { href: '/automacoes', rotulo: 'Automações' },
+  { href: '/notificacoes', rotulo: 'Auditoria' },
   { href: '/cupons', rotulo: 'Cupons' },
   { href: '/contatos', rotulo: 'Contatos' },
 ];

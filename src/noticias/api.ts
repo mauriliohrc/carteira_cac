@@ -21,6 +21,28 @@ export async function obterNoticia(id: string): Promise<Noticia> {
   return r.noticia;
 }
 
+/** Slug cosmético do título para a URL (o id no fim é o que vale). */
+function slugNoticia(titulo: string): string {
+  return titulo
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 70);
+}
+
+/**
+ * Link público compartilhável: noticias.carteiracac.com/titulo-escapado-<id>
+ * (página web com preview + CTA de download). O id (cuid, sem hífen) é o trecho
+ * após o último hífen; o resto é cosmético.
+ */
+export function linkPublicoNoticia(id: string, titulo = ''): string {
+  const slug = slugNoticia(titulo);
+  const cauda = slug ? `${slug}-${id}` : id;
+  return `https://noticias.carteiracac.com/${cauda}`;
+}
+
 /** Marca a notícia como lida (conta leitores no backoffice). Só com conta. */
 export async function marcarNoticiaLida(id: string): Promise<void> {
   const token = await lerToken();

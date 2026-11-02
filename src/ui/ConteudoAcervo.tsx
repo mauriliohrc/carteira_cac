@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -37,12 +37,21 @@ function corresponde(a: Arma, filtro: Filtro): boolean {
 export function ConteudoAcervo({ aoAdicionar }: { aoAdicionar: () => void }) {
   const c = useCores();
   const s = useEstilos(folha);
-  const { armas, documentosDaArma, fotosDaArma, premium } = useApp();
+  const { armas, favoritos, alternarFavorito, documentosDaArma, fotosDaArma, premium } = useApp();
   const [filtro, setFiltro] = useState<Filtro>('TODOS');
 
-  // Plano grátis libera só 1 arma (a primeira). Filtros e contagens operam
-  // apenas sobre o conjunto liberado — não dá para "passear" pelas bloqueadas.
-  const liberadas = premium ? armas : armas.slice(0, LIMITE_GRATUITO_ARMAS);
+  // Favoritas no topo, preservando a ordem original (criado_em ASC) dentro de
+  // cada grupo — o sort do Hermes é estável.
+  const ordenadas = useMemo(
+    () =>
+      [...armas].sort((a, b) => (favoritos.has(a.id) ? 0 : 1) - (favoritos.has(b.id) ? 0 : 1)),
+    [armas, favoritos]
+  );
+
+  // Plano grátis libera só 1 arma (a primeira — já considerando as favoritas no
+  // topo). Filtros e contagens operam apenas sobre o conjunto liberado — não dá
+  // para "passear" pelas bloqueadas.
+  const liberadas = premium ? ordenadas : ordenadas.slice(0, LIMITE_GRATUITO_ARMAS);
   const bloqueadas = armas.length - liberadas.length;
 
   const contar = (f: Filtro) => liberadas.reduce((n, a) => (corresponde(a, f) ? n + 1 : n), 0);
@@ -92,6 +101,8 @@ export function ConteudoAcervo({ aoAdicionar }: { aoAdicionar: () => void }) {
             arma={arma}
             documentos={documentosDaArma(arma.id)}
             capa={fotosDaArma(arma.id)[0]?.uri}
+            favorito={favoritos.has(arma.id)}
+            aoFavoritar={() => alternarFavorito(arma.id)}
             aoTocar={() => router.push({ pathname: '/arma/[id]', params: { id: arma.id } })}
           />
         ))}

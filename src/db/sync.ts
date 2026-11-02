@@ -14,7 +14,10 @@ export interface RegistroSync {
 // Tabelas espelhadas. 'habitualidades' é especial: leva as armas aninhadas.
 // (arquivos/fotos entram com tratamento de blob na camada de arquivos.)
 // Ordem importa: pais antes dos filhos (FK). documentos antes de arquivos; armas antes de fotos.
-const TABELAS_SIMPLES = ['locais_tiro', 'armas', 'documentos', 'arquivos', 'fotos'] as const;
+// 'favoritos' usa o mesmo maquinário genérico (PK `id` = id da arma). Apps
+// antigos não o conhecem: ignoram o tipo no pull (TABELAS_VALIDAS) e nunca o
+// enviam — por isso é seguro sincronizá-lo sem quebrar versões anteriores.
+const TABELAS_SIMPLES = ['locais_tiro', 'armas', 'documentos', 'arquivos', 'fotos', 'favoritos', 'ambitos_competicao'] as const;
 const TABELAS_VALIDAS = new Set<string>([...TABELAS_SIMPLES, 'habitualidades']);
 
 type Linha = Record<string, unknown> & { id: string };
@@ -90,9 +93,11 @@ export async function limparAcervoLocal(): Promise<void> {
     for (const t of [
       'habitualidade_armas',
       'habitualidades',
+      'ambitos_competicao',
       'arquivos',
       'fotos',
       'documentos',
+      'favoritos',
       'armas',
       'locais_tiro',
       'exclusoes',

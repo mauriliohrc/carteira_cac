@@ -160,7 +160,7 @@ function Disparo() {
   const [dias, setDias] = useState(30);
   const [mensagem, setMensagem] = useState('');
   const [usarNome, setUsarNome] = useState(true);
-  const [min, setMin] = useState(10);
+  const [min, setMin] = useState(30);
   const [max, setMax] = useState(40);
 
   const [previa, setPrevia] = useState<{ total: number; amostra: { nome: string; celular: string }[] } | null>(
@@ -238,7 +238,7 @@ function Disparo() {
     });
   }
 
-  const intervaloInvalido = Number(min) > Number(max) || Number(min) < 5;
+  const intervaloInvalido = Number(min) > Number(max) || Number(min) < 30;
 
   return (
     <>
@@ -353,12 +353,12 @@ function Disparo() {
           <label>Intervalo entre mensagens (segundos)</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span className="subtitulo" style={{ margin: 0 }}>de</span>
-            <input type="number" min={5} value={min} onChange={(e) => setMin(Number(e.target.value))} style={{ width: 90 }} />
+            <input type="number" min={30} value={min} onChange={(e) => setMin(Number(e.target.value))} style={{ width: 90 }} />
             <span className="subtitulo" style={{ margin: 0 }}>a</span>
-            <input type="number" min={5} value={max} onChange={(e) => setMax(Number(e.target.value))} style={{ width: 90 }} />
+            <input type="number" min={30} value={max} onChange={(e) => setMax(Number(e.target.value))} style={{ width: 90 }} />
             <span className="subtitulo" style={{ margin: 0 }}>(aleatório, reduz risco de bloqueio)</span>
           </div>
-          {intervaloInvalido && <p className="erro">Intervalo inválido (mín. 5s e mín. ≤ máx.).</p>}
+          {intervaloInvalido && <p className="erro">Intervalo inválido (mín. 30s e mín. ≤ máx.).</p>}
         </div>
 
         {ok && <div className="resultado-ok">{ok}</div>}

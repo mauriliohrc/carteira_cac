@@ -25,12 +25,16 @@ export const CHAVES = {
   /** Tipo do premium da loja: 'MENSAL' | 'ANUAL' | 'ANUAL_PARCEIRO' (cupom é derivado do código). */
   premiumTipo: 'premium.tipo',
   onboardingVisto: 'app.onboarding',
+  /** Já mostramos o onboarding adicional de acervo (CR/Posse-Porte → armas). */
+  onboardingAcervoVisto: 'app.onboardingAcervo',
   tema: 'app.tema',
   /**
    * O usuário quer acompanhar habitualidade no app. Ligado por padrão; se
    * desligar, a habitualidade some do app (nem calcula, nem exibe, nem avisa).
    */
   gerenciarHabitualidade: 'habitualidade.gerenciar',
+  /** Nível do atirador desportivo (IN 311/2025): define a exigência de habitualidade. */
+  nivelAtirador: 'habitualidade.nivel',
   /** Já pedimos a avaliação na loja (uma vez só, no cadastro da primeira arma). */
   avaliacaoPedida: 'app.avaliacao.pedida',
   /** Cursor (carimbo do servidor) do último pull de sincronização na nuvem. */

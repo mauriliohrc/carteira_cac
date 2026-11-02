@@ -2,7 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import { Platform } from 'react-native';
 
 const NOME_BANCO = 'cacbrasil.db';
-const VERSAO_ALVO = 9;
+const VERSAO_ALVO = 11;
 
 let instancia: SQLite.SQLiteDatabase | null = null;
 let abrindo: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -201,6 +201,36 @@ const MIGRACOES: ((db: SQLite.SQLiteDatabase) => Promise<void>)[] = [
   // propósito, para não quebrar o comportamento de quem já tinha avisos.
   async (db) => {
     await db.execAsync('ALTER TABLE avisos ADD COLUMN rota TEXT;');
+  },
+
+  // v10 — favoritos do acervo. Tabela própria (não coluna em `armas`) para o
+  // sync ser seguro com apps antigos: o favorito viaja como um tipo de registro
+  // novo ('favoritos') que versões antigas ignoram no pull (tipo desconhecido),
+  // em vez de uma coluna nova em `armas` que quebraria o INSERT genérico delas.
+  // `id` = id da arma, para encaixar no maquinário genérico de sincronização.
+  async (db) => {
+    await db.execAsync(
+      `CREATE TABLE IF NOT EXISTS favoritos (
+         id TEXT PRIMARY KEY,
+         favorito INTEGER NOT NULL DEFAULT 0,
+         atualizado_em TEXT NOT NULL
+       );`
+    );
+  },
+
+  // v11 — âmbito das competições (para a conformidade por nível do atirador,
+  // IN 311/2025). Tabela própria (não coluna em `habitualidades`) pelo mesmo
+  // motivo dos favoritos: sincroniza como um tipo novo ('ambitos_competicao')
+  // que apps antigos ignoram no pull, sem quebrar o INSERT genérico das
+  // habitualidades. `id` = id da habitualidade.
+  async (db) => {
+    await db.execAsync(
+      `CREATE TABLE IF NOT EXISTS ambitos_competicao (
+         id TEXT PRIMARY KEY,
+         ambito TEXT,
+         atualizado_em TEXT NOT NULL
+       );`
+    );
   },
 ];
 

@@ -1,5 +1,6 @@
 import { prisma } from '../db/cliente.js';
 import { enviarTexto, estaConectado, registrarAoConectar } from './cliente.js';
+import { dentroDaJanela, msAteJanela, MIN_INTERVALO_SEG } from './janela.js';
 
 /**
  * Disparo GRADUAL das campanhas de WhatsApp. Um único laço em memória processa
@@ -77,6 +78,13 @@ async function rodar(): Promise<void> {
       return;
     }
 
+    // Fora da janela permitida (9h–20h BRT): pausa SEM gastar o envio e retoma
+    // na próxima abertura. Boas-vindas não passam por aqui (saem na hora).
+    if (!dentroDaJanela()) {
+      agendar(msAteJanela());
+      return;
+    }
+
     // Sem conexão: não gasta o envio; espera e tenta de novo (também acordado
     // pelo evento de reconexão via registrarRetomada()).
     if (!estaConectado()) {
@@ -106,7 +114,14 @@ async function rodar(): Promise<void> {
       });
     }
 
-    agendar(sortearIntervalo(campanha.intervaloMin, campanha.intervaloMax));
+    // Piso de 30s entre envios (anti-ban), mesmo para campanhas antigas com
+    // intervalo configurado abaixo disso.
+    agendar(
+      sortearIntervalo(
+        Math.max(MIN_INTERVALO_SEG, campanha.intervaloMin),
+        Math.max(MIN_INTERVALO_SEG, campanha.intervaloMax)
+      )
+    );
   } finally {
     processando = false;
   }

@@ -261,6 +261,7 @@ model UsuarioApp {
   vinculos        VinculoEntidade[]
   usosCupom       UsoCupom[]
   resultadosComp  ResultadoCompeticao[]
+  logsNotificacao LogNotificacao[]
   leiturasNoticia LeituraNoticia[]
 
   @@index([ultimoAcessoEm])
@@ -487,6 +488,34 @@ model Configuracao {
   atualizadoEm DateTime @updatedAt
 
   @@map("configuracoes")
+}
+
+/// Log de auditoria de envios automáticos (WhatsApp/push) e de notícias.
+/// Append-only: alimenta o histórico por usuário no backoffice e a regra de
+/// não repetir a mesma automação para a pessoa dentro de 1 mês.
+model LogNotificacao {
+  id           String   @id @default(cuid())
+  usuarioId    String?
+  /// WHATSAPP | PUSH
+  canal        String
+  /// BOAS_VINDAS | SEM_ARMA_7D | NOTICIA
+  tipo         String
+  /// noticiaId quando tipo = NOTICIA (ou outro id de referência).
+  referenciaId String?
+  titulo       String?  @db.Text
+  /// Destino resumido (ex.: celular no WhatsApp).
+  destino      String?
+  /// OK | FALHOU | PULADO
+  status       String
+  erro         String?  @db.Text
+  criadoEm     DateTime @default(now())
+
+  usuario UsuarioApp? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([usuarioId, criadoEm])
+  @@index([tipo, criadoEm])
+  @@index([canal, criadoEm])
+  @@map("logs_notificacao")
 }
 
 /// Token de redefinição de senha do usuário do app. Guardamos só o HASH do

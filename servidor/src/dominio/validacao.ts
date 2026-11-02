@@ -309,8 +309,8 @@ export const criarCampanhaWhatsSchema = z
     mensagem: z.string().trim().min(1, 'Escreva a mensagem').max(4096),
     usarNome: z.boolean().optional().default(true),
     filtros: filtrosWhatsSchema.default({}),
-    intervaloMin: z.number().int().min(5, 'Mínimo de 5s').max(3600).default(10),
-    intervaloMax: z.number().int().min(5).max(3600).default(40),
+    intervaloMin: z.number().int().min(30, 'Mínimo de 30s').max(3600).default(30),
+    intervaloMax: z.number().int().min(30, 'Mínimo de 30s').max(3600).default(40),
   })
   .refine((d) => d.intervaloMin <= d.intervaloMax, {
     message: 'O intervalo mínimo não pode ser maior que o máximo',
