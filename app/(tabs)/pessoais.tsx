@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { useApp } from '@/estado/AppContext';
 import { Botao, Secao, Tela, TituloTela, Vazio } from '@/ui/base';
+import { BotaoSino } from '@/ui/BotaoSino';
 import { CartaoDocumento } from '@/ui/cartoes';
 import { AnalisandoDocumento } from '@/ui/AnalisandoDocumento';
 import { useNovoDocumento } from '@/ui/useNovoDocumento';
@@ -57,7 +58,7 @@ export default function Pessoais() {
   const novo = (tipo?: TipoDocumento) => void iniciar({ escopo: 'PESSOAL', tipo });
 
   return (
-    <Tela sobBarra>
+    <Tela sobBarra acao={<BotaoSino />}>
       <View style={m.topo}>
         <View style={{ flex: 1 }}>
           <TituloTela titulo="Meus documentos" sub="Documentos do CAC, não vinculados a uma arma" />

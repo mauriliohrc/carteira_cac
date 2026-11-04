@@ -1,6 +1,6 @@
 import { agoraISO } from '@/lib/data';
 import type { Arquivo } from '@/domain/tipos';
-import { resolverAnexo } from '@/arquivos/caminho';
+import { relativoAnexo, resolverAnexo } from '@/arquivos/caminho';
 import { abrirBanco, novoId } from './index';
 import { registrarExclusao } from './sync';
 
@@ -50,26 +50,32 @@ export async function registrarArquivo(dados: {
   tamanho: number | null;
 }): Promise<Arquivo> {
   const db = await abrirBanco();
-  const arquivo: Arquivo = {
-    id: novoId(),
-    documentoId: dados.documentoId,
-    nome: dados.nome,
-    uri: dados.uri,
-    mime: dados.mime,
-    tamanho: dados.tamanho,
-    criadoEm: agoraISO(),
-  };
+  // Guarda SEMPRE o caminho RELATIVO ('acervo/<id>/<arquivo>'), nunca o absoluto:
+  // o absoluto embute o UUID do container, que muda a cada update/reinstalação do
+  // iOS e difere entre aparelhos. Guardando relativo, `resolverAnexo` reconstrói
+  // o absoluto atual na leitura e nada quebra em update/logout/troca de aparelho.
+  const rel = relativoAnexo(dados.uri);
+  const id = novoId();
+  const criadoEm = agoraISO();
   await db.runAsync(
     'INSERT INTO arquivos (id, documento_id, nome, uri, mime, tamanho, criado_em) VALUES (?,?,?,?,?,?,?)',
-    arquivo.id,
-    arquivo.documentoId,
-    arquivo.nome,
-    arquivo.uri,
-    arquivo.mime,
-    arquivo.tamanho,
-    arquivo.criadoEm
+    id,
+    dados.documentoId,
+    dados.nome,
+    rel,
+    dados.mime,
+    dados.tamanho,
+    criadoEm
   );
-  return arquivo;
+  return {
+    id,
+    documentoId: dados.documentoId,
+    nome: dados.nome,
+    uri: resolverAnexo(rel), // devolve absoluto atual, pronto para uso imediato
+    mime: dados.mime,
+    tamanho: dados.tamanho,
+    criadoEm,
+  };
 }
 
 export async function removerRegistroArquivo(id: string): Promise<void> {

@@ -5,6 +5,8 @@ export interface UsuarioApp {
   email: string;
   /** CPF só com dígitos. */
   cpf: string;
+  /** Celular só com dígitos (DDD + número). Null se não informado. */
+  celular: string | null;
   emailVerificado: boolean;
   ativo: boolean;
   criadoEm: string;

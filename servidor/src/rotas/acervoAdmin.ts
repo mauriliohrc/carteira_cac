@@ -5,7 +5,7 @@ import { prisma } from '../db/cliente.js';
 import { exigirAdmin } from '../http/guardas.js';
 import { naoEncontrado } from '../http/erros.js';
 
-const TIPOS = new Set(['armas', 'documentos', 'habitualidades', 'locais_tiro', 'arquivos', 'fotos']);
+const TIPOS = new Set(['armas', 'documentos', 'habitualidades', 'locais_tiro', 'arquivos', 'fotos', 'processos']);
 
 const criarRegistroSchema = z.object({
   tipo: z.string().refine((t) => TIPOS.has(t), 'Tipo inválido'),

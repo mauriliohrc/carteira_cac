@@ -18,6 +18,7 @@ import {
 import { useApp } from '@/estado/AppContext';
 import { useTranca } from '@/seguranca/TrancaProvider';
 import { Cartao, Secao, Tela, TituloTela } from '@/ui/base';
+import { BotaoSino } from '@/ui/BotaoSino';
 import { avisar } from '@/ui/dialogo';
 
 // Versão e build lidos do app embutido (app.json → nativo), diferenciando
@@ -71,7 +72,7 @@ export default function Mais() {
   const totalAnexos = documentos.reduce((n, d) => n + d.arquivos.length, 0);
 
   return (
-    <Tela sobBarra>
+    <Tela sobBarra acao={<BotaoSino />}>
       <TituloTela titulo="Mais" />
 
       <Secao titulo="Aparência">
@@ -213,7 +214,7 @@ export default function Mais() {
       </Secao>
 
       <Secao titulo="Seus dados">
-        <Cartao>
+        <Cartao estilo={{ marginBottom: espaco.sm }}>
           <View style={m.numeros}>
             <Numero valor={armas.length} rotulo="Armas" />
             <Numero valor={documentos.length} rotulo="Documentos" />

@@ -250,6 +250,9 @@ model UsuarioApp {
   /// Origem do premium reportada pelo app: CUPOM | MENSAL | ANUAL | ANUAL_PARCEIRO.
   /// Nulo quando desconhecido (app antigo que só reporta o booleano) ou sem premium.
   premiumTipo     String?
+  /// Id do cliente no Asaas (criado sob demanda na 1ª cobrança do Despachante).
+  /// Só servidor — nunca entra no JSON de sincronização.
+  asaasCustomerId String?
   criadoEm        DateTime  @default(now())
   atualizadoEm    DateTime  @updatedAt
 
@@ -263,9 +266,68 @@ model UsuarioApp {
   resultadosComp  ResultadoCompeticao[]
   logsNotificacao LogNotificacao[]
   leiturasNoticia LeituraNoticia[]
+  processos       ProcessoDespachante[]
 
   @@index([ultimoAcessoEm])
   @@map("usuarios_app")
+}
+
+/// Processo de despachante contratado pelo usuário (Renovação de CRAF / Emissão
+/// de Guias). Fonte da verdade do andamento; o app recebe o espelho via sync
+/// (RegistroSync tipo 'processos'). A cobrança roda pelo Asaas (fora do IAP, por
+/// ser serviço do mundo real). Valor NÃO inclui GRU.
+model ProcessoDespachante {
+  id             String   @id @default(cuid())
+  usuarioId      String
+  /// RENOVACAO_CRAF | EMISSAO_GUIA
+  tipoServico    String
+  /// aguardando_pagamento | pago | em_andamento | concluido | cancelado
+  status         String   @default("aguardando_pagamento")
+  valorCentavos  Int
+  quantidade     Int      @default(1)
+  /// Arma alvo (solta, sem FK) + nome em snapshot — sobrevive à exclusão.
+  armaId         String?
+  armaNome       String?
+  /// Id do pagamento no Asaas e link do checkout hospedado (PIX/cartão).
+  asaasPaymentId String?  @unique
+  invoiceUrl     String?
+  criadoEm       DateTime @default(now())
+  atualizadoEm   DateTime @updatedAt
+
+  usuario UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@index([status])
+  @@map("processos_despachante")
+}
+
+/// Preço configurável de cada serviço do despachante, editável no backoffice
+/// (muda sem update do app). `gruCentavos` = taxa do órgão (GRU, por item);
+/// `servicoCentavos` = honorário do despachante. Total cobrado = soma dos dois.
+/// Sem linha para um tipo, o servidor usa os defaults de dominio/despachante.ts.
+model ServicoDespachanteConfig {
+  tipoServico     String   @id /// RENOVACAO_CRAF | EMISSAO_GUIA
+  gruCentavos     Int
+  servicoCentavos Int
+  ativo           Boolean  @default(true)
+  atualizadoEm    DateTime @updatedAt
+
+  @@map("servicos_despachante_config")
+}
+
+/// Configuração da integração com o Asaas, editável pelo backoffice (singleton,
+/// id = "unico"). Se não houver linha, o servidor cai nas variáveis de ambiente
+/// (ASAAS_*) — compatível com deploys anteriores. apiKey/webhookToken são
+/// segredos; o backoffice só mostra se estão definidos, nunca o valor.
+model ConfiguracaoAsaas {
+  id           String   @id @default("unico")
+  /// sandbox | producao
+  ambiente     String   @default("sandbox")
+  apiKey       String?  @db.Text
+  webhookToken String?
+  atualizadoEm DateTime @updatedAt
+
+  @@map("configuracao_asaas")
 }
 
 /// Cupom promocional que libera o Premium. Gerenciado pelo backoffice.

@@ -10,12 +10,14 @@ const NAV = [
   { href: '/entidades', rotulo: 'Entidades' },
   { href: '/noticias', rotulo: 'Notícias' },
   { href: '/usuarios', rotulo: 'Usuários' },
+  { href: '/despachante', rotulo: 'Serviços' },
   { href: '/push', rotulo: 'Push' },
   { href: '/whatsapp', rotulo: 'WhatsApp' },
   { href: '/automacoes', rotulo: 'Automações' },
   { href: '/notificacoes', rotulo: 'Auditoria' },
   { href: '/cupons', rotulo: 'Cupons' },
   { href: '/contatos', rotulo: 'Contatos' },
+  { href: '/config', rotulo: 'Config' },
 ];
 
 /** Envolve páginas internas: redireciona para /login se não houver admin. */

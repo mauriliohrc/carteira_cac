@@ -139,3 +139,39 @@ export interface Habitualidade {
   criadoEm: string;
   atualizadoEm: string;
 }
+
+// ---------------------------------------------------------------- despachante
+
+/** Serviços de despachante oferecidos no app. */
+export type TipoServicoDespachante = 'RENOVACAO_CRAF' | 'EMISSAO_GUIA';
+
+/** Andamento de um processo contratado (o servidor é a fonte da verdade). */
+export type StatusProcesso =
+  | 'aguardando_pagamento'
+  | 'pago'
+  | 'em_andamento'
+  | 'concluido'
+  | 'cancelado';
+
+/**
+ * Um processo de despachante contratado pelo usuário. É criado e tocado pelo
+ * SERVIDOR (fonte da verdade) e espelhado no app só pela sincronização (pull);
+ * o app nunca faz push de `processos`. `armaId` é solto (sem FK) + `armaNome`
+ * em snapshot, para sobreviver à exclusão da arma.
+ */
+export interface Processo {
+  id: string;
+  tipoServico: TipoServicoDespachante;
+  status: StatusProcesso;
+  armaId: string | null;
+  armaNome: string | null;
+  /** Valor do serviço em centavos (não inclui GRU). */
+  valorCentavos: number;
+  /** Um processo por item; mantido para clareza/futuro. */
+  quantidade: number;
+  asaasPaymentId: string | null;
+  /** Checkout hospedado do Asaas (PIX/cartão) para este processo. */
+  invoiceUrl: string | null;
+  criadoEm: string;
+  atualizadoEm: string;
+}

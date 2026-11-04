@@ -122,6 +122,9 @@ export async function escolherPdfOuImagem(): Promise<ArquivoEscolhido | null> {
 /** No navegador a galeria é o mesmo seletor de arquivos. */
 export const escolherDaGaleria = escolherPdfOuImagem;
 
+/** No navegador não há "folha de origem": é direto o seletor de arquivos. */
+export const escolherDocumento = escolherPdfOuImagem;
+
 export async function fotografar(): Promise<ArquivoEscolhido | null> {
   avisar(
     'Só no app',

@@ -8,60 +8,91 @@ import { conflito, naoEncontrado } from '../http/erros.js';
 import { exigirAdmin } from '../http/guardas.js';
 import { buscarArmas } from '../integracoes/shootinghouse.js';
 
-type Alvo =
-  | { tipo: 'TODOS' }
-  | { tipo: 'ENTIDADE'; entidadeId: string }
-  | { tipo: 'USUARIO'; usuarioId: string }
-  | { tipo: 'INATIVOS'; diasSemAcesso: number }
-  | { tipo: 'SEM_CADASTRO' }
-  | { tipo: 'SEM_EMAIL' }
-  | { tipo: 'SEM_ARMA' };
+/** Público como filtros combináveis (AND). Ver `publicoPushSchema`. */
+type Publico = {
+  base: 'CONTAS' | 'TODOS' | 'ANONIMOS' | 'USUARIO';
+  usuarioId?: string;
+  plataformas?: ('IOS' | 'ANDROID')[];
+  entidadeId?: string;
+  semArma?: boolean;
+  semEmail?: boolean;
+  inativosDias?: number;
+};
 
 function estaOnline(ultimoAcessoEm: Date | null): boolean {
   if (!ultimoAcessoEm) return false;
   return Date.now() - ultimoAcessoEm.getTime() < JANELA_ONLINE_MIN * 60_000;
 }
 
-/** Resolve os IDs de usuários-alvo conforme o tipo de segmentação. */
-async function resolverAlvo(alvo: Alvo): Promise<{ id: string }[]> {
-  const ativo: Prisma.UsuarioAppWhereInput = { ativo: true };
+/** Resumo legível do público, guardado no histórico (coluna alvoTipo). */
+function resumoPublico(p: Publico): string {
+  const partes: string[] = [
+    p.base === 'TODOS'
+      ? 'Todos'
+      : p.base === 'ANONIMOS'
+        ? 'Sem cadastro'
+        : p.base === 'USUARIO'
+          ? 'Um usuário'
+          : 'Contas',
+  ];
+  if (p.plataformas?.length === 1) partes.push(p.plataformas[0] === 'IOS' ? 'iOS' : 'Android');
+  if (p.entidadeId) partes.push('Entidade');
+  if (p.semArma) partes.push('Sem arma');
+  if (p.semEmail) partes.push('E-mail não validado');
+  if (p.inativosDias) partes.push(`Inativos ${p.inativosDias}d`);
+  return partes.join(' · ');
+}
 
-  switch (alvo.tipo) {
-    case 'TODOS':
-      return prisma.usuarioApp.findMany({ where: ativo, select: { id: true } });
-    case 'ENTIDADE':
-      return prisma.usuarioApp.findMany({
-        where: { ...ativo, vinculos: { some: { entidadeId: alvo.entidadeId } } },
-        select: { id: true },
-      });
-    case 'USUARIO':
-      return prisma.usuarioApp.findMany({
-        where: { id: alvo.usuarioId },
-        select: { id: true },
-      });
-    case 'INATIVOS': {
-      const corte = new Date(Date.now() - alvo.diasSemAcesso * 86_400_000);
-      return prisma.usuarioApp.findMany({
-        where: { ...ativo, OR: [{ ultimoAcessoEm: null }, { ultimoAcessoEm: { lt: corte } }] },
-        select: { id: true },
-      });
-    }
-    case 'SEM_EMAIL':
-      // Com conta, mas e-mail ainda não verificado.
-      return prisma.usuarioApp.findMany({
-        where: { ...ativo, emailVerificado: false },
-        select: { id: true },
-      });
-    case 'SEM_ARMA':
-      // Com conta, mas nenhuma arma cadastrada (acervo sincronizado vazio).
-      return prisma.usuarioApp.findMany({
-        where: { ...ativo, registrosSync: { none: { tipo: 'armas', removido: false } } },
-        select: { id: true },
-      });
-    case 'SEM_CADASTRO':
-      // Resolvido por aparelho (anônimo), não por usuário — ver o handler.
-      return [];
+/**
+ * Resolve os tokens de aparelho conforme os filtros combinados (AND).
+ * `base` decide o ponto de partida; os demais campos restringem. ANONIMOS só
+ * aceita o filtro de plataforma; os de conta não se aplicam a quem não tem conta.
+ */
+async function tokensDoPublico(p: Publico): Promise<{ tokens: string[]; totalUsuarios: number }> {
+  const porPlataforma: Prisma.DispositivoPushWhereInput = p.plataformas?.length
+    ? { plataforma: { in: p.plataformas } }
+    : {};
+  const temFiltroConta = !!(p.entidadeId || p.semArma || p.semEmail || p.inativosDias);
+
+  // Sem cadastro: aparelhos anônimos (sem usuário).
+  if (p.base === 'ANONIMOS') {
+    const disp = await prisma.dispositivoPush.findMany({
+      where: { ativo: true, usuarioId: null, ...porPlataforma },
+      select: { token: true },
+    });
+    return { tokens: disp.map((d) => d.token), totalUsuarios: 0 };
   }
+
+  // Todos SEM filtro de conta: alcança contas + anônimos (só plataforma restringe).
+  if (p.base === 'TODOS' && !temFiltroConta) {
+    const disp = await prisma.dispositivoPush.findMany({
+      where: { ativo: true, ...porPlataforma },
+      select: { token: true },
+    });
+    const totalUsuarios = await prisma.usuarioApp.count({ where: { ativo: true } });
+    return { tokens: disp.map((d) => d.token), totalUsuarios };
+  }
+
+  // Contas / usuário / "todos" COM filtro de conta: resolve os usuários que
+  // casam (AND) e pega os aparelhos deles.
+  const where: Prisma.UsuarioAppWhereInput = { ativo: true };
+  if (p.base === 'USUARIO' && p.usuarioId) where.id = p.usuarioId;
+  if (p.entidadeId) where.vinculos = { some: { entidadeId: p.entidadeId } };
+  if (p.semArma) where.registrosSync = { none: { tipo: 'armas', removido: false } };
+  if (p.semEmail) where.emailVerificado = false;
+  if (p.inativosDias) {
+    const corte = new Date(Date.now() - p.inativosDias * 86_400_000);
+    where.OR = [{ ultimoAcessoEm: null }, { ultimoAcessoEm: { lt: corte } }];
+  }
+  const usuarios = await prisma.usuarioApp.findMany({ where, select: { id: true } });
+  const ids = usuarios.map((u) => u.id);
+  const disp = ids.length
+    ? await prisma.dispositivoPush.findMany({
+        where: { usuarioId: { in: ids }, ativo: true, ...porPlataforma },
+        select: { token: true },
+      })
+    : [];
+  return { tokens: disp.map((d) => d.token), totalUsuarios: ids.length };
 }
 
 export async function rotasPushAdmin(app: FastifyInstance) {
@@ -280,50 +311,19 @@ export async function rotasPushAdmin(app: FastifyInstance) {
 
   // ---------------------------------------------------------- enviar push
   app.post('/api/admin/push', async (req) => {
-    const { titulo, corpo, dados, alvo } = enviarPushSchema.parse(req.body);
+    const { titulo, corpo, dados, publico } = enviarPushSchema.parse(req.body);
 
-    // Valida referências do alvo cedo, para erro claro.
-    if (alvo.tipo === 'ENTIDADE') {
-      const ent = await prisma.entidadeTiro.findUnique({ where: { id: alvo.entidadeId } });
+    // Valida referências cedo, para erro claro.
+    if (publico.entidadeId) {
+      const ent = await prisma.entidadeTiro.findUnique({ where: { id: publico.entidadeId } });
       if (!ent) throw naoEncontrado('Entidade não encontrada');
     }
-    if (alvo.tipo === 'USUARIO') {
-      const u = await prisma.usuarioApp.findUnique({ where: { id: alvo.usuarioId } });
+    if (publico.base === 'USUARIO') {
+      const u = await prisma.usuarioApp.findUnique({ where: { id: publico.usuarioId! } });
       if (!u) throw naoEncontrado('Usuário não encontrado');
     }
 
-    // TODOS alcança todos os aparelhos ativos, inclusive anônimos (sem conta).
-    // Os demais alvos resolvem usuários e pegam só os aparelhos deles.
-    let tokens: string[];
-    let totalUsuarios: number;
-    if (alvo.tipo === 'TODOS') {
-      const dispositivos = await prisma.dispositivoPush.findMany({
-        where: { ativo: true },
-        select: { token: true },
-      });
-      tokens = dispositivos.map((d) => d.token);
-      totalUsuarios = await prisma.usuarioApp.count({ where: { ativo: true } });
-    } else if (alvo.tipo === 'SEM_CADASTRO') {
-      // Instalações anônimas: aparelhos ativos sem usuário vinculado.
-      const dispositivos = await prisma.dispositivoPush.findMany({
-        where: { ativo: true, usuarioId: null },
-        select: { token: true },
-      });
-      tokens = dispositivos.map((d) => d.token);
-      totalUsuarios = 0; // sem conta
-    } else {
-      const usuarios = await resolverAlvo(alvo as Alvo);
-      const ids = usuarios.map((u) => u.id);
-      const dispositivos = ids.length
-        ? await prisma.dispositivoPush.findMany({
-            where: { usuarioId: { in: ids }, ativo: true },
-            select: { token: true },
-          })
-        : [];
-      tokens = dispositivos.map((d) => d.token);
-      totalUsuarios = ids.length;
-    }
-
+    const { tokens, totalUsuarios } = await tokensDoPublico(publico);
     const resultado = await enviarPush(tokens, { titulo, corpo, dados });
 
     // Desativa tokens que a Expo diz não existirem mais.
@@ -337,21 +337,12 @@ export async function rotasPushAdmin(app: FastifyInstance) {
       });
     }
 
-    const alvoRef =
-      alvo.tipo === 'ENTIDADE'
-        ? alvo.entidadeId
-        : alvo.tipo === 'USUARIO'
-          ? alvo.usuarioId
-          : alvo.tipo === 'INATIVOS'
-            ? String(alvo.diasSemAcesso)
-            : null;
-
     await prisma.envioPush.create({
       data: {
         titulo,
         corpo,
-        alvoTipo: alvo.tipo,
-        alvoRef,
+        alvoTipo: resumoPublico(publico),
+        alvoRef: publico.entidadeId ?? publico.usuarioId ?? null,
         totalUsuarios,
         totalTokens: tokens.length,
         totalAceitos: resultado.aceitos,

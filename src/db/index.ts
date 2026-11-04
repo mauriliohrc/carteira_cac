@@ -2,7 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import { Platform } from 'react-native';
 
 const NOME_BANCO = 'cacbrasil.db';
-const VERSAO_ALVO = 11;
+const VERSAO_ALVO = 12;
 
 let instancia: SQLite.SQLiteDatabase | null = null;
 let abrindo: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -228,6 +228,31 @@ const MIGRACOES: ((db: SQLite.SQLiteDatabase) => Promise<void>)[] = [
       `CREATE TABLE IF NOT EXISTS ambitos_competicao (
          id TEXT PRIMARY KEY,
          ambito TEXT,
+         atualizado_em TEXT NOT NULL
+       );`
+    );
+  },
+
+  // v12 — processos de despachante (Renovação de CRAF / Emissão de Guias).
+  // Tabela própria e só de LEITURA no app: os processos são criados e tocados
+  // pelo servidor (que cobra via Asaas) e chegam aqui apenas pelo pull. Por isso
+  // não entram em TABELAS_SIMPLES (o app nunca faz push disso). `arma_id` é solto
+  // (sem FK) + `arma_nome` em snapshot, para o processo sobreviver à exclusão da
+  // arma e não depender da ordem de chegada no pull. Apps antigos ignoram o tipo
+  // 'processos' no pull (tipo desconhecido), então é seguro.
+  async (db) => {
+    await db.execAsync(
+      `CREATE TABLE IF NOT EXISTS processos (
+         id TEXT PRIMARY KEY NOT NULL,
+         tipo_servico TEXT NOT NULL,
+         status TEXT NOT NULL,
+         arma_id TEXT,
+         arma_nome TEXT,
+         valor_centavos INTEGER NOT NULL,
+         quantidade INTEGER NOT NULL DEFAULT 1,
+         asaas_payment_id TEXT,
+         invoice_url TEXT,
+         criado_em TEXT NOT NULL,
          atualizado_em TEXT NOT NULL
        );`
     );

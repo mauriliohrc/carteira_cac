@@ -20,6 +20,7 @@ import { rotasLogsAdmin } from './rotas/logsAdmin.js';
 import { rotasWhatsAdmin } from './rotas/whatsAdmin.js';
 import { rotasAcervoAdmin } from './rotas/acervoAdmin.js';
 import { rotasCuponsAdmin } from './rotas/cuponsAdmin.js';
+import { rotasDespachanteAdmin } from './rotas/despachanteAdmin.js';
 import { rotasAppV1 } from './rotas/v1/appAuth.js';
 import { rotasNoticiasAppV1 } from './rotas/v1/appNoticias.js';
 import { rotasDispositivosAppV1 } from './rotas/v1/appDispositivos.js';
@@ -30,6 +31,8 @@ import { rotasArmasAppV1 } from './rotas/v1/appArmas.js';
 import { rotasDocumentosAppV1 } from './rotas/v1/appDocumentos.js';
 import { rotasCupomAppV1 } from './rotas/v1/appCupom.js';
 import { rotasCompeticoesAppV1 } from './rotas/v1/appCompeticoes.js';
+import { rotasDespachanteAppV1 } from './rotas/v1/appDespachante.js';
+import { rotasWebhookAsaas } from './rotas/webhookAsaas.js';
 
 export function construirApp() {
   // bodyLimit alto: uploads de PDF/foto em base64 na sincronização.
@@ -93,6 +96,7 @@ export function construirApp() {
   app.register(rotasDashboardAdmin);
   app.register(rotasAcervoAdmin);
   app.register(rotasCuponsAdmin);
+  app.register(rotasDespachanteAdmin);
 
   // API pública do aplicativo — versionada. Novas versões entram como /api/v2
   // sem mexer nas rotas abaixo, preservando apps já instalados.
@@ -106,6 +110,10 @@ export function construirApp() {
   app.register(rotasDocumentosAppV1, { prefix: '/api/v1' });
   app.register(rotasCupomAppV1, { prefix: '/api/v1' });
   app.register(rotasCompeticoesAppV1, { prefix: '/api/v1' });
+  app.register(rotasDespachanteAppV1, { prefix: '/api/v1' });
+
+  // Webhook do Asaas — público (autenticado por token no header), sem prefixo.
+  app.register(rotasWebhookAsaas);
 
   return app;
 }

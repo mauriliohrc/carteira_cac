@@ -13,7 +13,7 @@ import { atualizarDocumento, criarDocumento, type EntradaDocumento } from '@/db/
 import { guardarArquivo } from '@/arquivos/cofre';
 import { nomeArma } from '@/domain/rotulos';
 import { avaliarComCor } from '@/domain/vencimento';
-import { diffDias, ehISOValida, hojeISO, isoParaBR, textoPrazo } from '@/lib/data';
+import { ehISOValida, hojeISO, isoParaBR, textoPrazo } from '@/lib/data';
 import type { Orgao, TipoDocumento } from '@/domain/tipos';
 
 export default function EditorDocumento() {
@@ -68,20 +68,12 @@ export default function EditorDocumento() {
   const [validade, setValidade] = useState<string | null>(
     existente?.dataValidade ?? camposExtraidos.dataValidade ?? null
   );
-  const [validadeBruta, setValidadeBruta] = useState(
-    existente
-      ? isoParaBR(existente.dataValidade)
-      : camposExtraidos.dataValidade
-        ? isoParaBR(camposExtraidos.dataValidade)
-        : ''
-  );
   const [origem, setOrigem] = useState(existente?.origem ?? camposExtraidos.origem ?? '');
   const [destino, setDestino] = useState(existente?.destino ?? camposExtraidos.destino ?? '');
   const [localManejo, setLocalManejo] = useState(existente?.localManejo ?? '');
   const [observacoes, setObservacoes] = useState(
     existente?.observacoes ?? camposExtraidos.observacoes ?? ''
   );
-  const [erros, setErros] = useState<Record<string, string>>({});
   const [salvando, setSalvando] = useState(false);
 
   const def = TIPO_DOC_POR_VALOR[tipo];
@@ -105,35 +97,11 @@ export default function EditorDocumento() {
     else if (novoDef.escopo === 'ARMA' && !armaId && armas.length === 1) setArmaId(armas[0].id);
   };
 
-  const validar = (): boolean => {
-    const novos: Record<string, string> = {};
-
-    if (ehDeArma && !armaId) novos.arma = 'Escolha a qual arma este documento pertence.';
-
-    // A validade é sempre informada pelo usuário — nunca calculada pelo app.
-    if (!validadeBruta.trim()) {
-      novos.validade = 'Informe a data de validade do documento.';
-    } else if (!ehISOValida(validade)) {
-      novos.validade = 'Data inválida. Use o formato dd/mm/aaaa.';
-    }
-
-    if (emissao && validade && ehISOValida(emissao) && ehISOValida(validade)) {
-      if (diffDias(emissao, validade) < 0) {
-        novos.validade = 'A validade não pode ser anterior à emissão.';
-      }
-    }
-
-    if (ehGuia) {
-      if (!origem.trim()) novos.origem = 'Informe a origem do trajeto.';
-      if (!destino.trim()) novos.destino = 'Informe o destino do trajeto.';
-    }
-
-    setErros(novos);
-    return Object.keys(novos).length === 0;
-  };
-
   const salvar = async () => {
-    if (!validar() || !validade) return;
+    // Nenhum campo é obrigatório: o objetivo é cadastrar rápido e completar
+    // depois. A validade entra como veio (vazia vira '' — tratada como "sem
+    // validade" em todo o app, sem gerar alertas).
+    if (salvando) return;
     setSalvando(true);
     const entrada: EntradaDocumento = {
       tipo,
@@ -142,7 +110,7 @@ export default function EditorDocumento() {
       numero,
       orgao,
       dataEmissao: emissao,
-      dataValidade: validade,
+      dataValidade: validade ?? '',
       origem: ehGuia ? origem : null,
       destino: ehGuia ? destino : null,
       localManejo: ehManejo ? localManejo : null,
@@ -197,7 +165,6 @@ export default function EditorDocumento() {
             armas.length ? (
               <SeletorLista
                 rotulo="Arma"
-                obrigatorio={ehDeArma}
                 tituloFolha="A qual arma pertence"
                 itens={armas.map((a) => ({
                   valor: a.id,
@@ -206,7 +173,6 @@ export default function EditorDocumento() {
                 }))}
                 selecionado={armaId}
                 aoSelecionar={setArmaId}
-                erro={erros.arma}
               />
             ) : (
               <View style={s.avisoBox}>
@@ -221,20 +187,10 @@ export default function EditorDocumento() {
 
         <BlocoFormulario titulo="Validade">
           <CampoData
-            rotulo="Data de validade"
-            obrigatorio
+            rotulo="Data de validade (opcional)"
             valorISO={validade}
-            aoMudar={(iso, bruto) => {
-              setValidade(iso);
-              setValidadeBruta(bruto);
-              setErros((e) => {
-                const c = { ...e };
-                delete c.validade;
-                return c;
-              });
-            }}
-            erro={erros.validade}
-            dica="Copie exatamente a data que consta no documento."
+            aoMudar={(iso) => setValidade(iso)}
+            dica="Copie exatamente a data que consta no documento. Sem ela, o app não avisa o vencimento."
           />
           <CampoData
             rotulo="Data de emissão"
@@ -290,19 +246,15 @@ export default function EditorDocumento() {
           <BlocoFormulario titulo="Trajeto autorizado">
             <Campo
               rotulo="Origem"
-              obrigatorio
               valor={origem}
               aoMudar={setOrigem}
               placeholder="Ex.: Residência — Curitiba/PR"
-              erro={erros.origem}
             />
             <Campo
               rotulo="Destino"
-              obrigatorio
               valor={destino}
               aoMudar={setDestino}
               placeholder="Ex.: Clube de Tiro Alfa — Pinhais/PR"
-              erro={erros.destino}
             />
           </BlocoFormulario>
         ) : null}
@@ -338,7 +290,6 @@ export default function EditorDocumento() {
           icone="checkmark"
           aoTocar={salvar}
           carregando={salvando}
-          desabilitado={ehDeArma && !armas.length}
           estilo={{ marginTop: espaco.lg }}
         />
     </Tela>

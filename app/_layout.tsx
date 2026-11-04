@@ -10,7 +10,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { hrefDeDados, type DadosNotificacao } from '@/notificacoes/rotas';
 import { AppProvider, useApp } from '@/estado/AppContext';
 import { ContaProvider, useConta } from '@/conta/ContaContext';
-import { consumirContaOnboardingPendente } from '@/conta/intencaoOnboarding';
 import { CHAVES, gravarConfig, lerConfig } from '@/db/config';
 import { Botao, Carregando, Tela, Vazio } from '@/ui/base';
 import { Onboarding } from '@/ui/Onboarding';
@@ -83,9 +82,17 @@ function TelaDeFalha({ error, retry }: ErrorBoundaryProps) {
 }
 
 function Raiz() {
-  const { pronto, erroInicial, tentarNovamente, precisaOnboarding, concluirOnboarding, armas, premium } =
-    useApp();
-  const { logado, usuario } = useConta();
+  const {
+    pronto,
+    erroInicial,
+    tentarNovamente,
+    precisaOnboarding,
+    concluirOnboarding,
+    armas,
+    documentos,
+    premium,
+  } = useApp();
+  const { logado, usuario, carregando: contaCarregando } = useConta();
   const { pronta: trancaPronta, bloqueado } = useTranca();
   const c = useCores();
 
@@ -99,57 +106,63 @@ function Raiz() {
   // trava o app num ciclo (tela piscando entre "Abrindo…" e o onboarding).
   const stackMontada = pronto && trancaPronta && !bloqueado && !erroInicial && !precisaOnboarding;
 
-  // Segundo onboarding: logo após concluir o PRIMEIRO onboarding e a Stack
-  // montar, se o usuário não está logado, abre o convite de conta (uma vez).
-  // Só agora é seguro navegar — durante o onboarding o navegador não existe.
-  const contaOnbDisparado = useRef(false);
+  // Fluxo guiado único (conta → validar e-mail → CR/Posse/Porte → CRAF →
+  // premium). A própria tela deriva o passo do estado, então aqui só decidimos
+  // QUANDO abrir — uma vez por sessão. Dispara para:
+  //  • quem nunca viu o fluxo e ainda tem algo pendente (novo usuário);
+  //  • qualquer usuário logado SEM documento (ex.: entrou com a conta aqui e
+  //    precisa completar o cadastro) — mesmo que já tenha visto antes.
+  // Só é seguro navegar quando a Stack está montada (no onboarding de permissões
+  // o navegador ainda não existe).
+  const [fluxoVisto, setFluxoVisto] = useState<boolean | null>(null);
   useEffect(() => {
-    if (contaOnbDisparado.current || !stackMontada) return;
-    if (consumirContaOnboardingPendente() && !logado) {
-      contaOnbDisparado.current = true;
-      router.push('/conta-onboarding');
-    }
-  }, [stackMontada, logado]);
-
-  // Onboarding adicional de acervo: quem ainda não tem NENHUMA arma é guiado
-  // (uma vez só) a cadastrar CR/Posse-Porte, armas e documentos. Só dispara
-  // quando o convite de conta NÃO foi aberto nesta sessão (deixa um por vez;
-  // numa próxima abertura, sem armas ainda, ele aparece). Não invasivo: a tela
-  // permite pular em qualquer passo e a flag impede repetição.
-  const acervoOnbDisparado = useRef(false);
-  const [acervoOnbVisto, setAcervoOnbVisto] = useState<boolean | null>(null);
-  useEffect(() => {
-    void lerConfig(CHAVES.onboardingAcervoVisto).then((v) => setAcervoOnbVisto(v === '1'));
+    void lerConfig(CHAVES.onboardingFluxo).then((v) => setFluxoVisto(v === '1'));
   }, []);
+  const fluxoDisparado = useRef(false);
   useEffect(() => {
-    if (acervoOnbDisparado.current || acervoOnbVisto !== false) return;
-    if (!stackMontada || contaOnbDisparado.current || armas.length > 0) return;
-    acervoOnbDisparado.current = true;
-    void gravarConfig(CHAVES.onboardingAcervoVisto, '1');
-    router.push('/acervo-onboarding');
-  }, [stackMontada, armas.length, acervoOnbVisto]);
+    // Espera a sessão terminar de restaurar: no boot `logado` fica `false` por um
+    // instante, e sem esse guarda o passo "conta" piscaria para quem já entrou.
+    if (fluxoDisparado.current || fluxoVisto === null || !stackMontada || contaCarregando) return;
+    const semDoc = logado && documentos.length === 0;
+    const semArma = logado && armas.length === 0;
+    const deveAbrir = (!fluxoVisto && (!logado || semDoc || semArma)) || semDoc;
+    if (!deveAbrir) return;
+    fluxoDisparado.current = true;
+    void gravarConfig(CHAVES.onboardingFluxo, '1');
+    router.push('/onboarding-fluxo');
+  }, [stackMontada, fluxoVisto, logado, documentos.length, armas.length, contaCarregando]);
 
-  // Após login/cadastro: se a conta ainda NÃO está confirmada, avisa que ela não
-  // está ativa e leva a confirmar o e-mail. Tem prioridade sobre o upsell.
+  // Voltamos ao onboarding inicial (ex.: logout rearma tudo em AppContext):
+  // rearma o fluxo guiado para ele reaparecer assim que as permissões acabarem.
+  useEffect(() => {
+    if (precisaOnboarding) {
+      fluxoDisparado.current = false;
+      setFluxoVisto(false);
+    }
+  }, [precisaOnboarding]);
+
+  // Fora do fluxo guiado: se a conta não está confirmada, leva a confirmar o
+  // e-mail. Gated por `fluxoVisto` para não empilhar com o passo "validar" do
+  // próprio fluxo (que já cuida disso na primeira sessão).
   const avisoAtivacao = useRef(false);
   useEffect(() => {
-    if (avisoAtivacao.current) return;
+    if (avisoAtivacao.current || fluxoVisto !== true) return;
     if (stackMontada && logado && usuario && !usuario.emailVerificado) {
       avisoAtivacao.current = true;
       router.push('/conta/ativar');
     }
-  }, [stackMontada, logado, usuario]);
+  }, [stackMontada, logado, usuario, fluxoVisto]);
 
   // Upsell: conta já confirmada, acervo acima do limite gratuito e sem Premium.
   // Mostra uma vez por sessão o convite para assinar e liberar tudo.
   const upsellMostrado = useRef(false);
   useEffect(() => {
-    if (upsellMostrado.current) return;
+    if (upsellMostrado.current || fluxoVisto !== true) return; // não empilha sobre o fluxo guiado
     if (stackMontada && logado && usuario?.emailVerificado && !premium && armas.length > 1) {
       upsellMostrado.current = true;
       router.push('/premium-upsell');
     }
-  }, [stackMontada, logado, usuario, premium, armas.length]);
+  }, [stackMontada, logado, usuario, premium, armas.length, fluxoVisto]);
 
   // Tocar na notificação: abre direto no alvo (notícia, documento, arma,
   // habitualidade…). Dados ausentes/desconhecidos → caixa de avisos.
@@ -203,8 +216,7 @@ function Raiz() {
       <Stack.Screen name="visualizador" options={{ presentation: 'modal' }} />
       <Stack.Screen name="premium" options={{ presentation: 'modal' }} />
       <Stack.Screen name="premium-upsell" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="conta-onboarding" />
-      <Stack.Screen name="acervo-onboarding" />
+      <Stack.Screen name="onboarding-fluxo" />
       {/* Tela empilhada (não modal): os diálogos de confirmação/aviso e o
           loading são apresentados a partir da raiz, e o iOS não mostra isso de
           forma confiável por cima de uma tela apresentada como modal — o
@@ -229,6 +241,12 @@ function Raiz() {
       <Stack.Screen name="conta/perfil" />
       <Stack.Screen name="noticias/index" />
       <Stack.Screen name="noticias/[id]" />
+      <Stack.Screen name="despachante/servico" options={{ presentation: 'modal' }} />
+      {/* pedido abre diálogos (avisar) e checkout/meus empilham — não-modais,
+          pelo mesmo motivo das telas acima (iOS não mostra diálogo sobre modal). */}
+      <Stack.Screen name="despachante/pedido" />
+      <Stack.Screen name="despachante/checkout" />
+      <Stack.Screen name="despachante/meus" />
     </Stack>
   );
 

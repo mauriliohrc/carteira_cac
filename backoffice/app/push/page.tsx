@@ -4,17 +4,17 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api, ErroApi } from '@/lib/api';
 import { dataHora } from '@/lib/formato';
-import type { Entidade, EnvioPush, TipoAlvoPush, UsuarioApp } from '@/lib/tipos';
+import type { Entidade, EnvioPush, PublicoPush, UsuarioApp } from '@/lib/tipos';
 import { Protegido } from '../componentes/Protegido';
 
-const ROTULO_ALVO: Record<TipoAlvoPush, string> = {
-  TODOS: 'Todos',
-  ENTIDADE: 'Por entidade',
+type Base = PublicoPush['base'];
+type Plataforma = 'IOS' | 'ANDROID';
+
+const ROTULO_BASE: Record<Base, string> = {
+  CONTAS: 'Com conta',
+  TODOS: 'Todos (contas + anônimos)',
+  ANONIMOS: 'Sem cadastro (anônimos)',
   USUARIO: 'Um usuário',
-  INATIVOS: 'Inativos',
-  SEM_CADASTRO: 'Sem cadastro',
-  SEM_EMAIL: 'E-mail não validado',
-  SEM_ARMA: 'Sem arma cadastrada',
 };
 
 export default function PaginaPush() {
@@ -31,10 +31,17 @@ function Push() {
   const sp = useSearchParams();
   const [titulo, setTitulo] = useState('');
   const [corpo, setCorpo] = useState('');
-  const [tipo, setTipo] = useState<TipoAlvoPush>('TODOS');
-  const [entidadeId, setEntidadeId] = useState('');
+
+  // Público = filtros combináveis (AND).
+  const [base, setBase] = useState<Base>('CONTAS');
+  const [plataformas, setPlataformas] = useState<Plataforma[]>([]); // vazio = todas
   const [usuarioId, setUsuarioId] = useState('');
   const [usuarioNome, setUsuarioNome] = useState('');
+  const [entidadeAtiva, setEntidadeAtiva] = useState(false);
+  const [entidadeId, setEntidadeId] = useState('');
+  const [semArma, setSemArma] = useState(false);
+  const [semEmail, setSemEmail] = useState(false);
+  const [inativosAtivo, setInativosAtivo] = useState(false);
   const [dias, setDias] = useState(30);
 
   const [entidades, setEntidades] = useState<Entidade[]>([]);
@@ -43,12 +50,15 @@ function Push() {
   const [erro, setErro] = useState('');
   const [resultado, setResultado] = useState<string | null>(null);
 
+  // Filtros de conta só valem para público com conta.
+  const permiteFiltroConta = base === 'CONTAS' || base === 'TODOS';
+
   // Prefill vindo da lista de usuários ("Notificar").
   useEffect(() => {
     const uid = sp.get('usuarioId');
     const nome = sp.get('nome');
     if (uid) {
-      setTipo('USUARIO');
+      setBase('USUARIO');
       setUsuarioId(uid);
       setUsuarioNome(nome ?? uid);
     }
@@ -64,25 +74,27 @@ function Push() {
     carregarHistorico();
   }, [carregarHistorico]);
 
-  function montarAlvo() {
-    switch (tipo) {
-      case 'ENTIDADE':
-        return { tipo, entidadeId };
-      case 'USUARIO':
-        return { tipo, usuarioId };
-      case 'INATIVOS':
-        return { tipo, diasSemAcesso: Number(dias) };
-      default:
-        // TODOS, SEM_CADASTRO, SEM_EMAIL, SEM_ARMA — sem campos extras.
-        return { tipo };
-    }
+  function alternarPlataforma(p: Plataforma) {
+    setPlataformas((atual) => (atual.includes(p) ? atual.filter((x) => x !== p) : [...atual, p]));
   }
 
-  const alvoValido =
-    (tipo === 'ENTIDADE' && !!entidadeId) ||
-    (tipo === 'USUARIO' && !!usuarioId) ||
-    (tipo === 'INATIVOS' && dias >= 1) ||
-    (tipo !== 'ENTIDADE' && tipo !== 'USUARIO' && tipo !== 'INATIVOS'); // segmentos simples
+  function montarPublico(): PublicoPush {
+    const pub: PublicoPush = { base };
+    if (plataformas.length) pub.plataformas = plataformas;
+    if (base === 'USUARIO') pub.usuarioId = usuarioId;
+    if (permiteFiltroConta) {
+      if (entidadeAtiva && entidadeId) pub.entidadeId = entidadeId;
+      if (semArma) pub.semArma = true;
+      if (semEmail) pub.semEmail = true;
+      if (inativosAtivo && dias >= 1) pub.inativosDias = Number(dias);
+    }
+    return pub;
+  }
+
+  const publicoValido =
+    (base !== 'USUARIO' || !!usuarioId) &&
+    (!permiteFiltroConta || !entidadeAtiva || !!entidadeId) &&
+    (!permiteFiltroConta || !inativosAtivo || dias >= 1);
 
   async function enviar() {
     setErro('');
@@ -91,7 +103,7 @@ function Push() {
     try {
       const r = await api<{ totalUsuarios: number; totalTokens: number; aceitos: number; falhas: number }>(
         '/api/admin/push',
-        { metodo: 'POST', corpo: { titulo, corpo, alvo: montarAlvo() } }
+        { metodo: 'POST', corpo: { titulo, corpo, publico: montarPublico() } }
       );
       setResultado(
         `Enviado para ${r.totalUsuarios} usuário(s) · ${r.totalTokens} dispositivo(s) · ${r.aceitos} aceito(s)` +
@@ -127,35 +139,48 @@ function Push() {
           />
         </div>
 
+        {/* ---------- Plataforma (checklist) ---------- */}
         <div className="campo">
-          <label>Enviar para</label>
+          <label>Plataforma</label>
           <div className="radio-linha">
-            {(Object.keys(ROTULO_ALVO) as TipoAlvoPush[]).map((t) => (
-              <label key={t} className={`radio-opcao ${tipo === t ? 'sel' : ''}`}>
+            {(['IOS', 'ANDROID'] as Plataforma[]).map((p) => (
+              <label key={p} className={`radio-opcao ${plataformas.includes(p) ? 'sel' : ''}`}>
                 <input
-                  type="radio"
-                  name="alvo"
-                  checked={tipo === t}
-                  onChange={() => setTipo(t)}
+                  type="checkbox"
+                  checked={plataformas.includes(p)}
+                  onChange={() => alternarPlataforma(p)}
                   style={{ width: 'auto' }}
                 />
-                {ROTULO_ALVO[t]}
+                {p === 'IOS' ? 'iOS' : 'Android'}
+              </label>
+            ))}
+          </div>
+          <span style={{ color: 'var(--texto-suave)', fontSize: 12 }}>
+            {plataformas.length === 0 || plataformas.length === 2
+              ? 'Todas as plataformas'
+              : `Só ${plataformas[0] === 'IOS' ? 'iOS' : 'Android'}`}
+          </span>
+        </div>
+
+        {/* ---------- Público base (radio) ---------- */}
+        <div className="campo">
+          <label>Público</label>
+          <div className="radio-linha">
+            {(Object.keys(ROTULO_BASE) as Base[]).map((b) => (
+              <label key={b} className={`radio-opcao ${base === b ? 'sel' : ''}`}>
+                <input
+                  type="radio"
+                  name="base"
+                  checked={base === b}
+                  onChange={() => setBase(b)}
+                  style={{ width: 'auto' }}
+                />
+                {ROTULO_BASE[b]}
               </label>
             ))}
           </div>
 
-          {tipo === 'ENTIDADE' && (
-            <select value={entidadeId} onChange={(e) => setEntidadeId(e.target.value)}>
-              <option value="">— escolha uma entidade —</option>
-              {entidades.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.nome}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {tipo === 'USUARIO' && (
+          {base === 'USUARIO' && (
             <BuscaUsuario
               selecionadoId={usuarioId}
               selecionadoNome={usuarioNome}
@@ -165,26 +190,67 @@ function Push() {
               }}
             />
           )}
-
-          {tipo === 'INATIVOS' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: 'var(--texto-suave)', fontSize: 14 }}>Sem acessar há mais de</span>
-              <input
-                type="number"
-                min={1}
-                value={dias}
-                onChange={(e) => setDias(Number(e.target.value))}
-                style={{ width: 90 }}
-              />
-              <span style={{ color: 'var(--texto-suave)', fontSize: 14 }}>dias</span>
-            </div>
-          )}
         </div>
+
+        {/* ---------- Filtros de conta (checklist, combináveis) ---------- */}
+        {permiteFiltroConta && (
+          <div className="campo">
+            <label>Filtros (combináveis)</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <label className="radio-opcao" style={{ cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={entidadeAtiva}
+                  onChange={(e) => setEntidadeAtiva(e.target.checked)}
+                  style={{ width: 'auto' }}
+                />
+                Vinculados a uma entidade
+              </label>
+              {entidadeAtiva && (
+                <select value={entidadeId} onChange={(e) => setEntidadeId(e.target.value)} style={{ marginLeft: 26, maxWidth: 360 }}>
+                  <option value="">— escolha uma entidade —</option>
+                  {entidades.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.nome}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              <label className="radio-opcao" style={{ cursor: 'pointer' }}>
+                <input type="checkbox" checked={semArma} onChange={(e) => setSemArma(e.target.checked)} style={{ width: 'auto' }} />
+                Sem arma cadastrada
+              </label>
+
+              <label className="radio-opcao" style={{ cursor: 'pointer' }}>
+                <input type="checkbox" checked={semEmail} onChange={(e) => setSemEmail(e.target.checked)} style={{ width: 'auto' }} />
+                E-mail não validado
+              </label>
+
+              <label className="radio-opcao" style={{ cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={inativosAtivo}
+                  onChange={(e) => setInativosAtivo(e.target.checked)}
+                  style={{ width: 'auto' }}
+                />
+                Inativos
+              </label>
+              {inativosAtivo && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 26 }}>
+                  <span style={{ color: 'var(--texto-suave)', fontSize: 14 }}>Sem acessar há mais de</span>
+                  <input type="number" min={1} value={dias} onChange={(e) => setDias(Number(e.target.value))} style={{ width: 90 }} />
+                  <span style={{ color: 'var(--texto-suave)', fontSize: 14 }}>dias</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {resultado && <div className="resultado-ok">{resultado}</div>}
         {erro && <p className="erro">{erro}</p>}
 
-        <button onClick={enviar} disabled={enviando || !titulo || !corpo || !alvoValido}>
+        <button onClick={enviar} disabled={enviando || !titulo || !corpo || !publicoValido}>
           {enviando ? 'Enviando…' : 'Enviar push'}
         </button>
       </div>
@@ -199,7 +265,7 @@ function Push() {
               <tr>
                 <th>Quando</th>
                 <th>Título</th>
-                <th>Alvo</th>
+                <th>Público</th>
                 <th>Usuários</th>
                 <th>Aceitos</th>
               </tr>
@@ -209,7 +275,7 @@ function Push() {
                 <tr key={e.id}>
                   <td>{dataHora(e.criadoEm)}</td>
                   <td>{e.titulo}</td>
-                  <td>{ROTULO_ALVO[e.alvoTipo]}</td>
+                  <td>{e.alvoTipo}</td>
                   <td>{e.totalUsuarios}</td>
                   <td>
                     {e.totalAceitos}/{e.totalTokens}
@@ -252,7 +318,7 @@ function BuscaUsuario({
 
   if (selecionadoId) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
         <span>
           Para: <strong>{selecionadoNome}</strong>
         </span>
@@ -264,7 +330,7 @@ function BuscaUsuario({
   }
 
   return (
-    <div>
+    <div style={{ marginTop: 8 }}>
       <input
         placeholder="Buscar usuário por nome, e-mail ou CPF…"
         value={termo}

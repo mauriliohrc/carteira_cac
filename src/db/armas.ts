@@ -140,6 +140,19 @@ export async function atualizarArma(id: string, entrada: EntradaArma): Promise<v
 
 export async function removerArma(id: string): Promise<void> {
   const db = await abrirBanco();
+  // A exclusão em cascata (FK) apaga documentos/arquivos/fotos LOCALMENTE, mas o
+  // espelho da nuvem é plano (sem FK): sem tombstone, os filhos ficam ATIVOS lá e
+  // voltam como órfãos em outro aparelho (foi o que travava o pull). Carimba cada
+  // filho ANTES de apagar a arma.
+  const docs = await db.getAllAsync<{ id: string }>('SELECT id FROM documentos WHERE arma_id = ?', id);
+  for (const d of docs) {
+    const arqs = await db.getAllAsync<{ id: string }>('SELECT id FROM arquivos WHERE documento_id = ?', d.id);
+    for (const a of arqs) await registrarExclusao('arquivos', a.id);
+    await registrarExclusao('documentos', d.id);
+  }
+  const fotos = await db.getAllAsync<{ id: string }>('SELECT id FROM fotos WHERE arma_id = ?', id);
+  for (const f of fotos) await registrarExclusao('fotos', f.id);
+
   await db.runAsync('DELETE FROM armas WHERE id = ?', id);
   await registrarExclusao('armas', id);
   // Limpa o favorito junto (sem FK por ser tabela sincronizada à parte) e

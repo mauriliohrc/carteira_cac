@@ -36,14 +36,25 @@ export function BarraAbas({ state, descriptors, navigation, icones }: PropsBarra
   const inferior = useSafeAreaInsets().bottom;
   const [larguraUtil, setLarguraUtil] = useState(0);
 
-  const quantidade = state.routes.length;
+  // Só mostramos na barra as rotas que têm ícone declarado em `icones` — que é
+  // exatamente o conjunto de abas visíveis. Rotas ocultas (ex.: Avisos, que
+  // virou o sino do cabeçalho, com href:null) seguem no state do navegador mas
+  // ficam de fora daqui. Filtrar por `icones` é determinístico e não depende de
+  // o expo-router repassar o href nas options.
+  const rotasVisiveis = state.routes.filter((r) => icones[r.name]);
+  const rotaAtiva = state.routes[state.index];
+  // Posição da aba ativa entre as VISÍVEIS. -1 quando estamos numa rota oculta
+  // (ex.: Avisos pelo sino): aí nenhuma cápsula aparece.
+  const indiceAtivo = rotasVisiveis.findIndex((r) => r.key === rotaAtiva?.key);
+
+  const quantidade = rotasVisiveis.length;
   const larguraAba = larguraUtil ? larguraUtil / quantidade : 0;
   const deslocamento = useRef(new Animated.Value(0)).current;
   const primeiraMedida = useRef(true);
 
   useEffect(() => {
-    if (!larguraAba) return;
-    const destino = state.index * larguraAba;
+    if (!larguraAba || indiceAtivo < 0) return;
+    const destino = indiceAtivo * larguraAba;
     // Na primeira medição a cápsula já nasce no lugar, sem deslizar da esquerda.
     if (primeiraMedida.current) {
       primeiraMedida.current = false;
@@ -57,7 +68,7 @@ export function BarraAbas({ state, descriptors, navigation, icones }: PropsBarra
       damping: 26,
       mass: 0.9,
     }).start();
-  }, [deslocamento, larguraAba, state.index]);
+  }, [deslocamento, larguraAba, indiceAtivo]);
 
   return (
     <View style={[b.raiz, { paddingBottom: Math.max(inferior, 10) }]} pointerEvents="box-none">
@@ -67,7 +78,7 @@ export function BarraAbas({ state, descriptors, navigation, icones }: PropsBarra
             style={b.trilho}
             onLayout={(ev) => setLarguraUtil(ev.nativeEvent.layout.width)}
           >
-            {larguraAba ? (
+            {larguraAba && indiceAtivo >= 0 ? (
               <Animated.View
                 pointerEvents="none"
                 style={[
@@ -85,9 +96,9 @@ export function BarraAbas({ state, descriptors, navigation, icones }: PropsBarra
               </Animated.View>
             ) : null}
 
-            {state.routes.map((rota, indice) => {
+            {rotasVisiveis.map((rota) => {
               const opcoes = descriptors[rota.key].options;
-              const ativo = state.index === indice;
+              const ativo = rota.key === rotaAtiva?.key;
               const rotulo =
                 typeof opcoes.tabBarLabel === 'string'
                   ? opcoes.tabBarLabel

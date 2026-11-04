@@ -2,7 +2,7 @@ import { apiApp } from '@/conta/api';
 import { lerToken } from '@/conta/armazenamento';
 import { CHAVES, gravarConfig, lerConfig } from '@/db/config';
 import {
-  aplicarRegistro,
+  aplicarLote,
   coletarExclusoes,
   coletarRegistros,
   limparExclusoes,
@@ -51,7 +51,10 @@ export async function sincronizar(): Promise<ResultadoSync> {
       `/sync/pull${q}`,
       { token }
     );
-    for (const r of resp.registros) await aplicarRegistro(r);
+    // Aplica resiliente (ordena pai→filho, isola falhas). O cursor avança SEMPRE
+    // que o pull chegou: antes, uma falha de FK no meio do lote abortava tudo e
+    // o cursor nunca era salvo — o acervo não descia nunca.
+    await aplicarLote(resp.registros);
     await gravarConfig(CHAVES.syncCursor, resp.servidorAgora);
 
     // Arquivos (PDFs/fotos): sobe os que faltam, baixa os ausentes.

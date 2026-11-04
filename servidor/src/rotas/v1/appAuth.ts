@@ -7,6 +7,7 @@ import { assinarTokenApp } from '../../auth/token.js';
 import { prisma } from '../../db/cliente.js';
 import {
   alterarSenhaSchema,
+  atualizarPerfilAppSchema,
   cadastroAppSchema,
   confirmarEmailSchema,
   esqueciSenhaSchema,
@@ -92,6 +93,20 @@ export async function rotasAppV1(app: FastifyInstance) {
     const usuario = await prisma.usuarioApp.findUnique({ where: { id: req.usuario!.id } });
     if (!usuario || !usuario.ativo) throw naoAutorizado();
     return { usuario: apresentarUsuarioApp(usuario) };
+  });
+
+  // ------------------------------------------------- atualização de perfil
+  // Hoje só o celular (capturado no cadastro, mas editável depois — é exigido
+  // para contratar serviços do Despachante e para o contato/suporte).
+  app.patch('/app/auth/perfil', { preHandler: exigirApp() }, async (req) => {
+    const { celular } = atualizarPerfilAppSchema.parse(req.body);
+    const usuario = await prisma.usuarioApp.findUnique({ where: { id: req.usuario!.id } });
+    if (!usuario || !usuario.ativo) throw naoAutorizado();
+    const atualizado = await prisma.usuarioApp.update({
+      where: { id: usuario.id },
+      data: { celular },
+    });
+    return { ok: true, usuario: apresentarUsuarioApp(atualizado) };
   });
 
   // -------------------------------------------- confirmação de e-mail (envio)

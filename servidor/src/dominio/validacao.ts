@@ -95,6 +95,11 @@ export const cadastroAppSchema = z.object({
   celular: celularOpcional,
 });
 
+/** Atualização de perfil pelo app (hoje só o celular). */
+export const atualizarPerfilAppSchema = z.object({
+  celular: celularOpcional,
+});
+
 export const registrarDispositivoSchema = z.object({
   token: z.string().trim().min(1, 'Token ausente'),
   plataforma: z.enum(PLATAFORMAS_PUSH as [string, ...string[]]),
@@ -112,12 +117,36 @@ export const alvoPushSchema = z.discriminatedUnion('tipo', [
   z.object({ tipo: z.literal('SEM_ARMA') }), // com conta, nenhuma arma cadastrada
 ]);
 
+/**
+ * Público do push como FILTROS COMBINÁVEIS (AND), não mais um alvo único.
+ *
+ * `base` define o conjunto de partida; os demais campos o restringem:
+ *   - plataformas: [] / ausente = todas; senão só IOS e/ou ANDROID
+ *   - entidadeId / semArma / semEmail / inativosDias: filtros de CONTA (AND)
+ * Ex.: base=CONTAS + plataformas=[ANDROID] + semArma + entidadeId → "Android,
+ * sem arma, de tal entidade". ANONIMOS (sem conta) só aceita o filtro de
+ * plataforma — os de conta não se aplicam.
+ */
+export const publicoPushSchema = z
+  .object({
+    base: z.enum(['CONTAS', 'TODOS', 'ANONIMOS', 'USUARIO']),
+    usuarioId: z.string().min(1).optional(),
+    plataformas: z.array(z.enum(['IOS', 'ANDROID'])).optional(),
+    entidadeId: z.string().min(1).optional(),
+    semArma: z.boolean().optional(),
+    semEmail: z.boolean().optional(),
+    inativosDias: z.number().int().min(1).max(3650).optional(),
+  })
+  .refine((p) => p.base !== 'USUARIO' || !!p.usuarioId, {
+    message: 'Escolha o usuário para o envio individual.',
+  });
+
 export const enviarPushSchema = z.object({
   titulo: z.string().trim().min(1, 'Informe o título').max(120),
   corpo: z.string().trim().min(1, 'Informe a mensagem').max(1000),
   /** Deep link opcional, ex.: { noticiaId: "..." }. */
   dados: z.record(z.string(), z.string()).optional(),
-  alvo: alvoPushSchema,
+  publico: publicoPushSchema,
 });
 
 /** Push disparado por uma entidade: o alvo é sempre a própria entidade. */

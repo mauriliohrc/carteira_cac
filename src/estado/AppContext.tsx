@@ -16,6 +16,7 @@ import { listarArquivos } from '@/db/arquivos';
 import { listarDocumentos } from '@/db/documentos';
 import { listarFotos, type Foto } from '@/db/fotos';
 import { listarHabitualidades } from '@/db/habitualidades';
+import { listarProcessos } from '@/db/processos';
 import { listarLocais } from '@/db/locais';
 import { CHAVES, gravarConfig, lerConfig } from '@/db/config';
 import {
@@ -27,7 +28,6 @@ import {
 } from '@/db/avisos';
 import { consultarPremium, consultarPremiumCache, observarPremium } from '@/billing';
 import { useConta } from '@/conta/ContaContext';
-import { marcarContaOnboardingPendente } from '@/conta/intencaoOnboarding';
 import { sincronizar } from '@/sync';
 import { pedirPermissao, prepararCanal, reagendarAlertas } from '@/notificacoes';
 import { limparCentral, observarRecebidos, sincronizarCaixa } from '@/notificacoes/caixa';
@@ -48,6 +48,7 @@ import type {
   Habitualidade,
   LocalTiro,
   NivelAtirador,
+  Processo,
 } from '@/domain/tipos';
 
 interface EstadoApp {
@@ -75,6 +76,8 @@ interface EstadoApp {
   habitualidades: Habitualidade[];
   /** Clubes e estandes cadastrados pelo usuário. */
   locais: LocalTiro[];
+  /** Processos de despachante contratados (server-owned, via sync). */
+  processos: Processo[];
   /** Andamento das 8 sessões por grupo na janela de 12 meses. */
   progressoHabitualidade: ProgressoHabitualidade;
   /** Nível do atirador (IN 311/2025) escolhido no perfil. Default Nível 1. */
@@ -111,13 +114,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [habitualidades, setHabitualidades] = useState<Habitualidade[]>([]);
   const [locais, setLocais] = useState<LocalTiro[]>([]);
+  const [processos, setProcessos] = useState<Processo[]>([]);
   const [premium, setPremium] = useState(false);
   const [gerenciarHabitualidade, setGerenciarHabitualidade] = useState(true);
   const [nivelAtirador, setNivelAtirador] = useState<NivelAtirador>(NIVEL_PADRAO);
   const [avisos, setAvisos] = useState<AvisoRecebido[]>([]);
   const [precisaOnboarding, setPrecisaOnboarding] = useState(false);
   const estadoAnterior = useRef<AppStateStatus>(AppState.currentState);
-  const { logado } = useConta();
+  const { logado, usuario } = useConta();
 
   const recarregarAvisos = useCallback(async () => {
     setAvisos(await listarAvisos());
@@ -134,6 +138,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       listaHabitualidades,
       listaLocais,
       listaFavoritos,
+      listaProcessos,
       ehPremium,
       valorGerenciar,
       valorNivel,
@@ -145,6 +150,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       listarHabitualidades(),
       listarLocais(),
       listarFavoritos(),
+      listarProcessos(),
       // Cache local: rápido e nunca bloqueia a abertura. A checagem real na
       // App Store roda em segundo plano (ver efeito abaixo).
       consultarPremiumCache(),
@@ -162,6 +168,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFotos(listaFotos);
     setHabitualidades(ordenarSessoes(listaHabitualidades));
     setLocais(listaLocais);
+    setProcessos(listaProcessos);
     setPremium(ehPremium);
     setGerenciarHabitualidade(gerencia);
     // Nível do atirador: valor salvo ou o padrão (Nível 1 = piso legal).
@@ -237,14 +244,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [carregar]);
 
+  // Logout: volta ao onboarding inicial (começar do zero). Rearma as flags de
+  // onboarding e mostra a tela cheia de novo. O logout em si (sessão, premium,
+  // acervo) é cuidado no [[ContaContext]]. Só dispara na transição logado→
+  // deslogado (não no boot anônimo nem ao logar).
+  const logadoAnterior = useRef(logado);
+  useEffect(() => {
+    if (logadoAnterior.current && !logado) {
+      void gravarConfig(CHAVES.onboardingVisto, null);
+      void gravarConfig(CHAVES.onboardingFluxo, null);
+      setPrecisaOnboarding(true);
+    }
+    logadoAnterior.current = logado;
+  }, [logado]);
+
   // Compra ou renovação confirmada pela loja (inclusive fora do paywall):
   // reflete o Premium na hora.
   useEffect(() => {
     observarPremium(setPremium);
   }, []);
 
-  // Confere a assinatura na App Store em segundo plano, uma vez. Tem timeout
-  // interno, então nunca trava a interface se o StoreKit demorar.
+  // Confere a assinatura na App Store em segundo plano. Roda ao abrir e SEMPRE
+  // que a conta muda (login/cadastro/logout): como o premium local é zerado na
+  // troca de sessão (ver [[ContaContext]]), é aqui que o premium legítimo volta —
+  // assinatura ativa no StoreKit ou cupom re-derivado. Tem timeout interno, então
+  // nunca trava a interface.
   useEffect(() => {
     let vivo = true;
     void consultarPremium()
@@ -255,7 +279,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => {
       vivo = false;
     };
-  }, []);
+  }, [usuario?.id]);
 
   // Avisos que chegam com o app aberto entram na caixa na hora.
   useEffect(() => {
@@ -267,11 +291,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (proximo) => {
       if (estadoAnterior.current.match(/inactive|background/) && proximo === 'active') {
-        // Volta do background: sincroniza (se logado) e recarrega.
-        void (async () => {
-          await sincronizarECarregar();
-          await carregar();
-        })();
+        // Volta do background: sincroniza (se logado) e recarrega. O
+        // sincronizarECarregar JÁ chama carregar ao final — não recarregamos de
+        // novo (dobrava o trabalho a cada foreground, inclusive ao voltar do
+        // checkout/app do banco no PIX).
+        void sincronizarECarregar();
       }
       estadoAnterior.current = proximo;
     });
@@ -320,10 +344,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const concluirOnboarding = useCallback(async () => {
     await gravarConfig(CHAVES.onboardingVisto, '1');
-    // Acabou o 1º onboarding: deixa o convite de conta pendente para a Raiz
-    // abrir assim que a Stack montar (o navegador não existe durante o
-    // onboarding). Ver [[intencaoOnboarding]].
-    marcarContaOnboardingPendente();
+    // Acabou o onboarding de permissões. A Raiz abre o fluxo guiado (conta →
+    // documento → arma → premium) assim que a Stack montar — o gatilho é a flag
+    // `onboardingFluxo` ainda não marcada, não precisa de latch em memória.
     setPrecisaOnboarding(false);
     // O usuário pode ter concedido as notificações agora: recarrega para
     // reagendar os alertas já com a permissão em mãos.
@@ -371,6 +394,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       fotosDaArma: (armaId: string) => fotos.filter((f) => f.armaId === armaId),
       habitualidades,
       locais,
+      processos,
       progressoHabitualidade: calcularProgresso(armas, habitualidades, undefined, gerenciarHabitualidade),
       nivelAtirador,
       definirNivelAtirador,
@@ -406,6 +430,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     fotos,
     habitualidades,
     locais,
+    processos,
     marcarAvisosLidos,
     marcarUmAvisoLido,
     precisaOnboarding,

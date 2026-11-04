@@ -1,10 +1,10 @@
-import { diffDias, hojeISO, type DataISO } from '@/lib/data';
+import { diffDias, ehISOValida, hojeISO, type DataISO } from '@/lib/data';
 import type { Paleta } from '@/tema/paleta';
 
 /** A partir de quantos dias antes do vencimento o app começa a alertar. */
 export const JANELA_ALERTA_DIAS = 30;
 
-export type Situacao = 'VENCIDO' | 'CRITICO' | 'ALERTA' | 'ATENCAO' | 'EM_DIA';
+export type Situacao = 'VENCIDO' | 'CRITICO' | 'ALERTA' | 'ATENCAO' | 'EM_DIA' | 'SEM_DATA';
 
 export interface InfoSituacao {
   situacao: Situacao;
@@ -25,6 +25,7 @@ const ROTULOS: Record<Situacao, string> = {
   ALERTA: 'Vencendo',
   ATENCAO: 'Atenção',
   EM_DIA: 'Em dia',
+  SEM_DATA: 'Sem validade',
 };
 
 export function classificar(dias: number): Situacao {
@@ -37,6 +38,12 @@ export function classificar(dias: number): Situacao {
 
 /** Avaliação pura: não sabe nada de cor, então serve também às notificações. */
 export function avaliar(validade: DataISO, referencia: DataISO = hojeISO()): InfoSituacao {
+  // Documento sem validade (campo opcional): estado neutro, nunca entra em
+  // alerta nem gera notificação. Antes isto virava NaN e era classificado como
+  // "Em dia" (verde), enganando o usuário.
+  if (!ehISOValida(validade)) {
+    return { situacao: 'SEM_DATA', dias: Infinity, rotulo: ROTULOS.SEM_DATA, emAlerta: false };
+  }
   const dias = diffDias(referencia, validade);
   const situacao = classificar(dias);
   return {
@@ -60,6 +67,8 @@ export function estiloSituacao(situacao: Situacao, c: Paleta): EstiloSituacao {
       return { cor: c.info, fundo: c.infoFraco };
     case 'EM_DIA':
       return { cor: c.primario, fundo: c.primarioFraco };
+    case 'SEM_DATA':
+      return { cor: c.textoFraco, fundo: c.superficie };
   }
 }
 
@@ -83,4 +92,5 @@ export const PESO_SITUACAO: Record<Situacao, number> = {
   ALERTA: 2,
   ATENCAO: 3,
   EM_DIA: 4,
+  SEM_DATA: 5,
 };

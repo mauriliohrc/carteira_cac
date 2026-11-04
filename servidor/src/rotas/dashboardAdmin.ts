@@ -83,6 +83,9 @@ export async function rotasDashboardAdmin(app: FastifyInstance) {
       premiumGratis,
       anonimos,
       armasSistema,
+      processosTotal,
+      processosAguardando,
+      processosPagos,
     ] = await Promise.all([
       prisma.usuarioApp.count(),
       prisma.usuarioApp.count({ where: { ativo: true } }),
@@ -98,6 +101,9 @@ export async function rotasDashboardAdmin(app: FastifyInstance) {
       prisma.usuarioApp.count({ where: { premium: true, premiumTipo: 'CUPOM' } }),
       prisma.dispositivoPush.count({ where: { usuarioId: null } }),
       prisma.registroSync.count({ where: { tipo: 'armas', removido: false } }),
+      prisma.processoDespachante.count(),
+      prisma.processoDespachante.count({ where: { status: 'aguardando_pagamento' } }),
+      prisma.processoDespachante.count({ where: { status: 'pago' } }),
     ]);
 
     // Distribuição de plataformas (aparelhos ativos).
@@ -125,6 +131,10 @@ export async function rotasDashboardAdmin(app: FastifyInstance) {
         planoAnual,
         planoMensal,
         premiumGratis,
+        // Processos de despachante (serviços).
+        processosTotal,
+        processosAguardando,
+        processosPagos,
         // Mantidos para compatibilidade com telas/drilldowns existentes.
         total,
         ativos,

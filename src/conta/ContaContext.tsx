@@ -18,6 +18,7 @@ import {
 import type { UsuarioApp } from './tipos';
 import { desassociarDispositivo, registrarDispositivo } from '@/push/registro';
 import { limparAcervoLocal } from '@/db/sync';
+import { limparPremiumLocal } from '@/billing';
 import { CHAVES, lerConfig } from '@/db/config';
 
 interface RespostaAuth {
@@ -52,6 +53,8 @@ interface Conta {
   confirmarEmail: (codigo: string) => Promise<void>;
   /** Troca a senha do usuário logado (exige a senha atual). */
   alterarSenha: (senhaAtual: string, senhaNova: string) => Promise<void>;
+  /** Atualiza dados do perfil (hoje só o celular); atualiza memória/cache. */
+  atualizarPerfil: (dados: { celular: string | null }) => Promise<void>;
 }
 
 const Contexto = createContext<Conta | null>(null);
@@ -123,6 +126,12 @@ export function ContaProvider({ children }: { children: React.ReactNode }) {
 
   const aplicar = useCallback(
     async (r: RespostaAuth) => {
+      // Premium é do APARELHO (cupom + cache do StoreKit), não da conta. Ao entrar
+      // numa conta (login ou cadastro), zera o premium local para a conta nova não
+      // herdar o da sessão anterior. O premium legítimo volta pelo processo normal
+      // (assinatura ativa no StoreKit, re-derivada logo abaixo, ou re-resgate do
+      // cupom). Era isto que deixava toda conta recém-criada "premium".
+      await limparPremiumLocal().catch(() => {});
       await guardarSessao(r.token, r.usuario);
       setUsuario(r.usuario);
       void registrarDispositivo(r.token); // registra push após login/cadastro
@@ -164,6 +173,10 @@ export function ContaProvider({ children }: { children: React.ReactNode }) {
     // Logout instantâneo e local. O usuário escolhe manter o acervo de forma
     // anônima no aparelho ou apagar tudo.
     await limparSessao();
+    // Premium SEMPRE sai junto (independe de manter o acervo): é do aparelho, não
+    // da conta, e não pode vazar para a próxima sessão. Só reativa pelo processo
+    // normal — recuperar a assinatura no StoreKit ou re-resgatar o cupom.
+    await limparPremiumLocal().catch(() => {});
     if (limparDados) {
       try {
         await limparAcervoLocal();
@@ -215,6 +228,17 @@ export function ContaProvider({ children }: { children: React.ReactNode }) {
     await apiApp('/auth/senha/alterar', { metodo: 'POST', token, corpo: { senhaAtual, senhaNova } });
   }, []);
 
+  const atualizarPerfil = useCallback<Conta['atualizarPerfil']>(async ({ celular }) => {
+    const token = await lerToken();
+    const r = await apiApp<{ ok: true; usuario: UsuarioApp }>('/auth/perfil', {
+      metodo: 'PATCH',
+      token,
+      corpo: { celular },
+    });
+    setUsuario(r.usuario);
+    await guardarUsuario(r.usuario);
+  }, []);
+
   const valor = useMemo<Conta>(
     () => ({
       usuario,
@@ -228,6 +252,7 @@ export function ContaProvider({ children }: { children: React.ReactNode }) {
       enviarCodigoEmail,
       confirmarEmail,
       alterarSenha,
+      atualizarPerfil,
     }),
     [
       usuario,
@@ -240,6 +265,7 @@ export function ContaProvider({ children }: { children: React.ReactNode }) {
       enviarCodigoEmail,
       confirmarEmail,
       alterarSenha,
+      atualizarPerfil,
     ]
   );
 

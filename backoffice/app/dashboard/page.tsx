@@ -19,6 +19,9 @@ interface Dashboard {
     planoAnual: number;
     planoMensal: number;
     premiumGratis: number;
+    processosTotal: number;
+    processosAguardando: number;
+    processosPagos: number;
     // compat
     total: number;
     ativos: number;
@@ -82,6 +85,9 @@ function Conteudo() {
     { titulo: 'Plano anual ativo', valor: d.cards.planoAnual, dica: 'Assinantes anuais', href: '/dashboard/planoAnual' },
     { titulo: 'Plano mensal ativo', valor: d.cards.planoMensal, dica: 'Assinantes mensais', href: '/dashboard/planoMensal' },
     { titulo: 'Premium grátis', valor: d.cards.premiumGratis, dica: 'Premium via cupom', href: '/dashboard/premiumGratis' },
+    { titulo: 'Processos', valor: d.cards.processosTotal, dica: 'Serviços contratados (total)', href: '/despachante' },
+    { titulo: 'Aguardando pagamento', valor: d.cards.processosAguardando, dica: 'Processos não pagos', href: '/despachante' },
+    { titulo: 'Processos pagos', valor: d.cards.processosPagos, dica: 'Pagos — a executar/concluir', href: '/despachante' },
   ];
 
   return (

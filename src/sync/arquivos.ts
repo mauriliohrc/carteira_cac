@@ -2,7 +2,7 @@ import * as FS from 'expo-file-system/legacy';
 
 import { apiApp } from '@/conta/api';
 import { abrirBanco } from '@/db';
-import { relativoAnexo } from '@/arquivos/caminho';
+import { relativoAnexo, resolverAnexo } from '@/arquivos/caminho';
 
 /** Extensão a partir do mime, para quando o nome original não tiver uma. */
 function extDoMime(mime: string | null): string {
@@ -31,9 +31,13 @@ async function listarLocais(): Promise<ArquivoLocal[]> {
   const fotos = await db.getAllAsync<{ id: string; uri: string; arma_id: string }>(
     'SELECT id, uri, arma_id FROM fotos'
   );
+  // Resolve a URI para o container ATUAL: o iOS troca o UUID a cada
+  // atualização, então a URI absoluta GRAVADA (de um container antigo) não
+  // existe mais — e era por isso que o upload pulava o arquivo (`existe` falso) e
+  // o blob nunca chegava à nuvem. A exibição já resolvia; o sync, não.
   return [
-    ...arquivos.map((a) => ({ id: a.id, uri: a.uri, mime: a.mime, pasta: `acervo/${a.documento_id}` })),
-    ...fotos.map((f) => ({ id: f.id, uri: f.uri, mime: 'image/jpeg', pasta: `fotos/${f.arma_id}` })),
+    ...arquivos.map((a) => ({ id: a.id, uri: resolverAnexo(a.uri), mime: a.mime, pasta: `acervo/${a.documento_id}` })),
+    ...fotos.map((f) => ({ id: f.id, uri: resolverAnexo(f.uri), mime: 'image/jpeg', pasta: `fotos/${f.arma_id}` })),
   ];
 }
 
@@ -95,9 +99,10 @@ export async function sincronizarArquivos(token: string): Promise<void> {
       await FS.makeDirectoryAsync(dir, { intermediates: true }).catch(() => {});
       const destino = `${dir}/${nomeArq}`;
       await FS.writeAsStringAsync(destino, r.base64, { encoding: FS.EncodingType.Base64 });
-      // Corrige a uri local para apontar ao arquivo recém-baixado.
+      // Grava a uri RELATIVA do arquivo baixado (nunca o absoluto com UUID do
+      // container): sobrevive a updates/reinstalações e à troca de aparelho.
       const tabela = a.pasta.startsWith('fotos/') ? 'fotos' : 'arquivos';
-      await db.runAsync(`UPDATE ${tabela} SET uri = ? WHERE id = ?`, destino, a.id);
+      await db.runAsync(`UPDATE ${tabela} SET uri = ? WHERE id = ?`, relativoAnexo(destino), a.id);
     } catch {
       /* tenta de novo na próxima sincronização */
     }

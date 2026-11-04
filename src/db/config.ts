@@ -27,6 +27,8 @@ export const CHAVES = {
   onboardingVisto: 'app.onboarding',
   /** Já mostramos o onboarding adicional de acervo (CR/Posse-Porte → armas). */
   onboardingAcervoVisto: 'app.onboardingAcervo',
+  /** Já abrimos o fluxo guiado (conta → documento → arma → premium) ao menos uma vez. */
+  onboardingFluxo: 'app.onboardingFluxo',
   tema: 'app.tema',
   /**
    * O usuário quer acompanhar habitualidade no app. Ligado por padrão; se

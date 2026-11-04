@@ -134,6 +134,23 @@ async function marcarPremium(ativo: boolean): Promise<void> {
   aoMudarPremium?.(ativo);
 }
 
+/**
+ * Zera TODO o premium local do aparelho: cache da loja, tipo e o cupom.
+ *
+ * Premium não é por conta no cliente — vive em flags do aparelho (cupom e cache
+ * do StoreKit). Ao trocar de sessão (login, cadastro, logout) uma conta herdava
+ * o premium de outra. Limpamos aqui; o premium legítimo volta pelo processo
+ * normal: assinatura ativa no StoreKit (recuperação automática) ou re-resgate do
+ * cupom. O cupom, em especial, NUNCA voltava sozinho (ele vencia tudo e não caía)
+ * — era o que deixava toda conta nova "premium".
+ */
+export async function limparPremiumLocal(): Promise<void> {
+  await gravarConfig(CHAVES.premium, '0');
+  await gravarConfig(CHAVES.premiumTipo, '');
+  await gravarConfig(CHAVES.premiumCodigo, null);
+  aoMudarPremium?.(false);
+}
+
 export async function iniciarBilling(): Promise<void> {
   if (conectado) return;
   if (iniciando) return iniciando;

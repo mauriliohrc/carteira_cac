@@ -1,5 +1,5 @@
 import { agoraISO } from '@/lib/data';
-import { resolverAnexo } from '@/arquivos/caminho';
+import { relativoAnexo, resolverAnexo } from '@/arquivos/caminho';
 import { abrirBanco, limpo, novoId } from './index';
 import { registrarExclusao } from './sync';
 
@@ -53,10 +53,14 @@ export async function registrarFoto(dados: {
     dados.armaId
   );
 
+  // Guarda RELATIVO ('fotos/<arma>/<arquivo>'): o absoluto embute o UUID do
+  // container do iOS, que muda a cada update/reinstalação. `resolverAnexo`
+  // reconstrói o absoluto atual na leitura (ver [[arquivos]]).
+  const rel = relativoAnexo(dados.uri);
   const foto: Foto = {
     id: novoId(),
     armaId: dados.armaId,
-    uri: dados.uri,
+    uri: rel,
     legenda: limpo(dados.legenda),
     ordem: ultima?.proxima ?? 0,
     criadoEm: agoraISO(),
@@ -71,7 +75,7 @@ export async function registrarFoto(dados: {
     foto.ordem,
     foto.criadoEm
   );
-  return foto;
+  return { ...foto, uri: resolverAnexo(rel) }; // absoluto atual p/ uso imediato
 }
 
 export async function removerRegistroFoto(id: string): Promise<void> {

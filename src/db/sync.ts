@@ -1,6 +1,7 @@
 import { agoraISO } from '@/lib/data';
 import { abrirBanco } from './index';
 import { CHAVES, gravarConfig } from './config';
+import { ordenarParaAplicar } from './ordemSync';
 
 /** Um registro no formato de sincronização (genérico por tabela). */
 export interface RegistroSync {
@@ -18,7 +19,9 @@ export interface RegistroSync {
 // antigos não o conhecem: ignoram o tipo no pull (TABELAS_VALIDAS) e nunca o
 // enviam — por isso é seguro sincronizá-lo sem quebrar versões anteriores.
 const TABELAS_SIMPLES = ['locais_tiro', 'armas', 'documentos', 'arquivos', 'fotos', 'favoritos', 'ambitos_competicao'] as const;
-const TABELAS_VALIDAS = new Set<string>([...TABELAS_SIMPLES, 'habitualidades']);
+// 'processos' é só de leitura no app (criado/tocado pelo servidor): entra em
+// VALIDAS (aplica no pull) mas NÃO em SIMPLES (o app nunca faz push disso).
+const TABELAS_VALIDAS = new Set<string>([...TABELAS_SIMPLES, 'habitualidades', 'processos']);
 
 type Linha = Record<string, unknown> & { id: string };
 
@@ -82,6 +85,34 @@ export async function limparExclusoes(): Promise<void> {
 }
 
 /**
+ * Aplica um lote de registros vindos do pull de forma resiliente.
+ *
+ * Dois problemas históricos travavam o acervo inteiro ao descer em outro
+ * aparelho:
+ *  1. ordem — o pull chega por carimbo do servidor, não por dependência de FK,
+ *     então filhos chegavam antes dos pais e a FK estourava (ver [[ordemSync]]);
+ *  2. propagação — uma única exceção abortava o `for` do pull, o cursor não era
+ *     salvo e NADA era aplicado (ficava tentando o mesmo lote e falhando sempre).
+ *
+ * Aqui ordenamos pai→filho e isolamos cada registro: um órfão (ex.: documento de
+ * uma arma já removida que ficou ativo no espelho) é ignorado, sem derrubar o
+ * resto. Devolve quantos foram aplicados.
+ */
+export async function aplicarLote(registros: RegistroSync[]): Promise<number> {
+  const ordenados = ordenarParaAplicar(registros);
+  let aplicados = 0;
+  for (const r of ordenados) {
+    try {
+      await aplicarRegistro(r);
+      aplicados += 1;
+    } catch (e) {
+      console.warn('[CAC Brasil] registro ignorado no pull', r.tipo, r.registroId, e);
+    }
+  }
+  return aplicados;
+}
+
+/**
  * Apaga todo o acervo local e o estado de sincronização. Usado no logout, para
  * voltar ao modo anônimo limpo — os dados seguem no espelho da nuvem e voltam
  * ao religar. Evita vazar dados de uma conta para outra no mesmo aparelho.
@@ -98,6 +129,7 @@ export async function limparAcervoLocal(): Promise<void> {
       'fotos',
       'documentos',
       'favoritos',
+      'processos',
       'armas',
       'locais_tiro',
       'exclusoes',

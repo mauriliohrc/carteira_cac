@@ -8,6 +8,7 @@ import { useApp } from '@/estado/AppContext';
 import { Botao, Secao, Tela, Vazio } from '@/ui/base';
 import { CartaoDocumento } from '@/ui/cartoes';
 import { CartaoConta } from '@/conta/CartaoConta';
+import { BotaoSino } from '@/ui/BotaoSino';
 import { SecaoNoticiasPainel } from '@/noticias/SecaoNoticiasPainel';
 import { SecaoCompeticoesPainel } from '@/competicoes/SecaoCompeticoesPainel';
 import { ResumoHabitualidade } from '@/ui/habitualidade';
@@ -25,12 +26,15 @@ export default function Painel() {
       sobBarra
       aoAtualizar={sincronizarAgora}
       acao={
-        !premium ? (
-          <Pressable onPress={() => router.push('/premium')} style={p.selo} hitSlop={8}>
-            <Ionicons name="star" size={10} color={c.latao} />
-            <Text style={p.seloTexto}>PREMIUM</Text>
-          </Pressable>
-        ) : null
+        <View style={p.acoes}>
+          {!premium ? (
+            <Pressable onPress={() => router.push('/premium')} style={p.selo} hitSlop={8}>
+              <Ionicons name="star" size={10} color={c.latao} />
+              <Text style={p.seloTexto}>PREMIUM</Text>
+            </Pressable>
+          ) : null}
+          <BotaoSino />
+        </View>
       }
     >
       <CartaoConta />
@@ -91,6 +95,7 @@ export default function Painel() {
 
 const folha = (c: Paleta) =>
   StyleSheet.create({
+    acoes: { flexDirection: 'row', alignItems: 'center', gap: espaco.sm },
     selo: {
       flexDirection: 'row',
       alignItems: 'center',

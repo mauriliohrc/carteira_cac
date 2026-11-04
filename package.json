@@ -55,7 +55,7 @@
     "web:servir": "node scripts/servir-web.mjs dist 8080",
     "android": "expo run:android",
     "simulador": "./scripts/preparar-simulador.sh",
-    "test": "node --experimental-strip-types --import ./testes/alias.mjs testes/planejamento.test.ts && node --experimental-strip-types --import ./testes/alias.mjs testes/variantes-plataforma.test.ts && node --experimental-strip-types --import ./testes/alias.mjs testes/backup.test.ts && node --experimental-strip-types --import ./testes/alias.mjs testes/pin.test.ts && node --experimental-strip-types --import ./testes/alias.mjs testes/habitualidade.test.ts",
+    "test": "node --experimental-strip-types --import ./testes/alias.mjs testes/planejamento.test.ts && node --experimental-strip-types --import ./testes/alias.mjs testes/variantes-plataforma.test.ts && node --experimental-strip-types --import ./testes/alias.mjs testes/backup.test.ts && node --experimental-strip-types --import ./testes/alias.mjs testes/pin.test.ts && node --experimental-strip-types --import ./testes/alias.mjs testes/habitualidade.test.ts && node --experimental-strip-types --import ./testes/alias.mjs testes/sync-ordem.test.ts",
     "typecheck": "tsc --noEmit",
     "setup": "node scripts/setup-secrets.mjs",
     "versao": "node scripts/versao.mjs",

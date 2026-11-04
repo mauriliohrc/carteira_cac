@@ -6,6 +6,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { useApp } from '@/estado/AppContext';
 import { Tela, TituloTela } from '@/ui/base';
+import { BotaoSino } from '@/ui/BotaoSino';
 import { ConteudoAcervo } from '@/ui/ConteudoAcervo';
 import { ConteudoHabitualidade } from '@/ui/ConteudoHabitualidade';
 import { LIMITE_GRATUITO_ARMAS, podeCadastrarArma } from '@/billing';
@@ -59,7 +60,7 @@ export default function TelaAcervo() {
       : progressoHabitualidade.grupos.length - progressoHabitualidade.cumpridos;
 
   return (
-    <Tela sobBarra aoAtualizar={sincronizarAgora}>
+    <Tela sobBarra aoAtualizar={sincronizarAgora} acao={<BotaoSino />}>
       <View style={s.topo}>
         <View style={{ flex: 1 }}>
           {ehHabitualidade ? (

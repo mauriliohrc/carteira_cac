@@ -49,4 +49,20 @@ export const ambiente = {
   whatsapp: {
     authDir: process.env.WHATS_AUTH_DIR ?? '.whatsapp-auth',
   },
+  /**
+   * Asaas — gateway de pagamento dos serviços do Despachante (Renovação de CRAF,
+   * Emissão de Guias). Cobrança via checkout hospedado (PIX/cartão), confirmada
+   * por webhook. Default aponta para o SANDBOX; produção define ASAAS_BASE_URL
+   * como https://api.asaas.com/v3. Sem ASAAS_API_KEY o módulo fica inativo.
+   * ASAAS_WEBHOOK_TOKEN é o token compartilhado que o Asaas envia no header
+   * `asaas-access-token` de cada webhook (configurado no painel do Asaas).
+   */
+  asaas: {
+    baseUrl: (process.env.ASAAS_BASE_URL ?? 'https://api-sandbox.asaas.com/v3').replace(/\/$/, ''),
+    apiKey: process.env.ASAAS_API_KEY ?? '',
+    webhookToken: process.env.ASAAS_WEBHOOK_TOKEN ?? '',
+    get ativo(): boolean {
+      return Boolean(this.apiKey);
+    },
+  },
 } as const;

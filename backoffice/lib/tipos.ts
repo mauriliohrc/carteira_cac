@@ -275,11 +275,23 @@ export type TipoAlvoPush =
   | 'SEM_EMAIL'
   | 'SEM_ARMA';
 
+/** Público do push (filtros combináveis). Enviado ao /api/admin/push. */
+export interface PublicoPush {
+  base: 'CONTAS' | 'TODOS' | 'ANONIMOS' | 'USUARIO';
+  usuarioId?: string;
+  plataformas?: ('IOS' | 'ANDROID')[];
+  entidadeId?: string;
+  semArma?: boolean;
+  semEmail?: boolean;
+  inativosDias?: number;
+}
+
 export interface EnvioPush {
   id: string;
   titulo: string;
   corpo: string;
-  alvoTipo: TipoAlvoPush;
+  /** Resumo legível do público (ex.: "Contas · Android · Sem arma"). */
+  alvoTipo: string;
   alvoRef: string | null;
   totalUsuarios: number;
   totalTokens: number;
@@ -495,4 +507,70 @@ export interface Contato {
 export interface ListaContatos {
   contatos: Contato[];
   naoTratados: number;
+}
+
+// ------------------------------------------------------------- despachante
+
+export type TipoServicoDespachante = 'RENOVACAO_CRAF' | 'EMISSAO_GUIA';
+export type StatusProcesso =
+  | 'aguardando_pagamento'
+  | 'pago'
+  | 'em_andamento'
+  | 'concluido'
+  | 'cancelado';
+
+export interface ProcessoAdmin {
+  id: string;
+  tipoServico: TipoServicoDespachante;
+  status: StatusProcesso;
+  valorCentavos: number;
+  armaNome: string | null;
+  invoiceUrl: string | null;
+  criadoEm: string;
+  atualizadoEm: string;
+  usuario: { id: string; nome: string; email: string; cpf: string; celular: string | null };
+}
+
+export interface ListaProcessosDespachante {
+  processos: ProcessoAdmin[];
+  total: number;
+  pagina: number;
+  tamanhoPagina: number;
+}
+
+export const ROTULO_SERVICO_DESPACHANTE: Record<TipoServicoDespachante, string> = {
+  RENOVACAO_CRAF: 'Renovação de CRAF',
+  EMISSAO_GUIA: 'Emissão de Guia',
+};
+
+export const ROTULO_STATUS_PROCESSO: Record<StatusProcesso, string> = {
+  aguardando_pagamento: 'Aguardando pagamento',
+  pago: 'Pago',
+  em_andamento: 'Em andamento',
+  concluido: 'Concluído',
+  cancelado: 'Cancelado',
+};
+
+export interface ServicoConfigAdmin {
+  tipo: TipoServicoDespachante;
+  nome: string;
+  descricao: string;
+  unidade: string;
+  gruCentavos: number;
+  servicoCentavos: number;
+  precoCentavos: number;
+  ativo: boolean;
+}
+
+export interface ListaServicosConfig {
+  servicos: ServicoConfigAdmin[];
+}
+
+export interface ConfigAsaasAdmin {
+  ambiente: 'sandbox' | 'producao';
+  apiKeyDefinida: boolean;
+  apiKeyDica: string;
+  webhookTokenDefinido: boolean;
+  webhookTokenDica: string;
+  webhookUrl: string;
 }

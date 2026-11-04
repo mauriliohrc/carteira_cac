@@ -111,6 +111,10 @@ export async function atualizarDocumento(
 
 export async function removerDocumento(id: string): Promise<void> {
   const db = await abrirBanco();
+  // Carimba os anexos antes: a FK apaga as linhas de `arquivos` localmente, mas
+  // sem tombstone elas ficariam ativas no espelho da nuvem e virariam órfãs.
+  const arqs = await db.getAllAsync<{ id: string }>('SELECT id FROM arquivos WHERE documento_id = ?', id);
+  for (const a of arqs) await registrarExclusao('arquivos', a.id);
   await db.runAsync('DELETE FROM documentos WHERE id = ?', id);
   await registrarExclusao('documentos', id);
 }
