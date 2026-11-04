@@ -255,6 +255,14 @@ tr:hover td { background: var(--superficie-2); }
   cursor: pointer;
 }
 .editor-select:hover { border-color: var(--borda-forte); }
+.editor-dica {
+  margin: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--texto-suave);
+  background: var(--superficie);
+  border-bottom: 1px solid var(--borda);
+}
 
 .prosa {
   min-height: 260px;

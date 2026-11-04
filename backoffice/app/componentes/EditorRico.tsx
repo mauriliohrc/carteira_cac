@@ -7,13 +7,19 @@ import Image from '@tiptap/extension-image';
 import Youtube from '@tiptap/extension-youtube';
 import { TextStyle, FontSize, FontFamily } from '@tiptap/extension-text-style';
 
-/** Tamanhos de fonte oferecidos na barra (rótulo → valor CSS no HTML gerado). */
+/**
+ * Tamanhos de fonte oferecidos na barra (rótulo → valor CSS no HTML gerado).
+ * Aplica-se SEMPRE ao trecho selecionado: selecione o pedaço do texto e escolha
+ * o tamanho — cada trecho pode ter o seu (um bem pequeno, outro normal etc.).
+ */
 const TAMANHOS: { rotulo: string; valor: string }[] = [
-  { rotulo: 'Pequena', valor: '14px' },
+  { rotulo: 'Bem pequena', valor: '11px' },
+  { rotulo: 'Pequena', valor: '13px' },
   { rotulo: 'Normal', valor: '' }, // '' = remove o estilo (volta ao padrão da página)
-  { rotulo: 'Média', valor: '20px' },
-  { rotulo: 'Grande', valor: '26px' },
-  { rotulo: 'Enorme', valor: '34px' },
+  { rotulo: 'Média', valor: '19px' },
+  { rotulo: 'Grande', valor: '25px' },
+  { rotulo: 'Enorme', valor: '33px' },
+  { rotulo: 'Gigante', valor: '44px' },
 ];
 
 /** Fontes oferecidas (rótulo → font-family aplicada no HTML). */
@@ -63,9 +69,16 @@ export function EditorRico({
 
   if (!editor) return <div className="editor-caixa">Carregando editor…</div>;
 
+  const temSelecao = !editor.state.selection.empty;
+
   return (
     <div className="editor-caixa">
       <Barra editor={editor} />
+      <p className="editor-dica">
+        {temSelecao
+          ? 'Trecho selecionado — escolha o tamanho ou a fonte para aplicar só nele.'
+          : 'Dica: selecione um trecho e escolha o tamanho/fonte para formatar só aquela parte.'}
+      </p>
       <EditorContent editor={editor} />
     </div>
   );
@@ -108,10 +121,12 @@ function Barra({ editor }: { editor: Editor }) {
         className="editor-select"
         value={tamanhoAtual}
         onChange={(e) => aplicarTamanho(e.target.value)}
-        title="Tamanho da fonte"
+        title="Tamanho da fonte do trecho selecionado"
       >
         {TAMANHOS.map((t) => (
-          <option key={t.rotulo} value={t.valor}>{t.rotulo}</option>
+          <option key={t.rotulo} value={t.valor} style={t.valor ? { fontSize: t.valor } : undefined}>
+            {t.rotulo}
+          </option>
         ))}
       </select>
       <select
