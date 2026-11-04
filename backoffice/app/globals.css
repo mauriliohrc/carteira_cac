@@ -244,6 +244,17 @@ tr:hover td { background: var(--superficie-2); }
 .editor-btn:hover { background: var(--superficie-2); }
 .editor-btn.ativo { background: var(--acento); color: var(--sobre-acento); }
 .editor-sep { width: 1px; height: 20px; background: var(--borda); margin: 0 4px; }
+.editor-select {
+  height: 32px;
+  padding: 0 8px;
+  font-size: 13px;
+  background: var(--superficie-2);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  color: var(--texto);
+  cursor: pointer;
+}
+.editor-select:hover { border-color: var(--borda-forte); }
 
 .prosa {
   min-height: 260px;

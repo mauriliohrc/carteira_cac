@@ -55,6 +55,21 @@ export function apresentarNoticiaPublica(n: NoticiaComMidias) {
   };
 }
 
+/**
+ * Resumo público enxuto para listas (sidebar do portal web: "mais notícias" /
+ * "notícias anteriores"). Sem conteúdo/mídias — só o necessário para o card.
+ */
+export function apresentarNoticiaResumoPublico(n: NoticiaComMidias) {
+  return {
+    id: n.id,
+    titulo: n.titulo,
+    resumo: n.resumo,
+    imagemUrl: n.imagemUrl,
+    publicadaEm: n.publicadaEm,
+    entidadeNome: n.entidade?.nome ?? null,
+  };
+}
+
 export function apresentarUsuarioApp(u: UsuarioApp) {
   return {
     id: u.id,

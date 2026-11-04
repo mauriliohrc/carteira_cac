@@ -5,6 +5,24 @@ import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Youtube from '@tiptap/extension-youtube';
+import { TextStyle, FontSize, FontFamily } from '@tiptap/extension-text-style';
+
+/** Tamanhos de fonte oferecidos na barra (rótulo → valor CSS no HTML gerado). */
+const TAMANHOS: { rotulo: string; valor: string }[] = [
+  { rotulo: 'Pequena', valor: '14px' },
+  { rotulo: 'Normal', valor: '' }, // '' = remove o estilo (volta ao padrão da página)
+  { rotulo: 'Média', valor: '20px' },
+  { rotulo: 'Grande', valor: '26px' },
+  { rotulo: 'Enorme', valor: '34px' },
+];
+
+/** Fontes oferecidas (rótulo → font-family aplicada no HTML). */
+const FONTES: { rotulo: string; valor: string }[] = [
+  { rotulo: 'Padrão', valor: '' },
+  { rotulo: 'Serifada', valor: 'Georgia, "Times New Roman", serif' },
+  { rotulo: 'Arredondada', valor: '"Trebuchet MS", Verdana, sans-serif' },
+  { rotulo: 'Monoespaçada', valor: 'ui-monospace, "Courier New", monospace' },
+];
 
 /**
  * Editor rich text do conteúdo da notícia. Entrada e saída em HTML.
@@ -23,6 +41,10 @@ export function EditorRico({
       StarterKit.configure({ link: { openOnClick: false } }),
       Image.configure({ inline: false }),
       Youtube.configure({ width: 640, height: 360, nocookie: true }),
+      // Base para marcas de estilo inline (tamanho/fonte) no HTML gerado.
+      TextStyle,
+      FontSize,
+      FontFamily,
     ],
     content: valor || '',
     onUpdate: ({ editor }) => aoMudar(editor.getHTML()),
@@ -67,8 +89,42 @@ function Barra({ editor }: { editor: Editor }) {
     else editor.chain().focus().setLink({ href: url.trim() }).run();
   }
 
+  // Tamanho/fonte atuais da seleção (para refletir no <select>).
+  const tamanhoAtual = (editor.getAttributes('textStyle').fontSize as string) || '';
+  const fonteAtual = (editor.getAttributes('textStyle').fontFamily as string) || '';
+
+  function aplicarTamanho(valor: string) {
+    if (valor === '') editor.chain().focus().unsetFontSize().run();
+    else editor.chain().focus().setFontSize(valor).run();
+  }
+  function aplicarFonte(valor: string) {
+    if (valor === '') editor.chain().focus().unsetFontFamily().run();
+    else editor.chain().focus().setFontFamily(valor).run();
+  }
+
   return (
     <div className="editor-barra">
+      <select
+        className="editor-select"
+        value={tamanhoAtual}
+        onChange={(e) => aplicarTamanho(e.target.value)}
+        title="Tamanho da fonte"
+      >
+        {TAMANHOS.map((t) => (
+          <option key={t.rotulo} value={t.valor}>{t.rotulo}</option>
+        ))}
+      </select>
+      <select
+        className="editor-select"
+        value={fonteAtual}
+        onChange={(e) => aplicarFonte(e.target.value)}
+        title="Fonte"
+      >
+        {FONTES.map((f) => (
+          <option key={f.rotulo} value={f.valor}>{f.rotulo}</option>
+        ))}
+      </select>
+      <span className="editor-sep" />
       <button type="button" className={b(editor.isActive('bold'))} onClick={() => editor.chain().focus().toggleBold().run()} title="Negrito"><b>B</b></button>
       <button type="button" className={b(editor.isActive('italic'))} onClick={() => editor.chain().focus().toggleItalic().run()} title="Itálico"><i>I</i></button>
       <span className="editor-sep" />

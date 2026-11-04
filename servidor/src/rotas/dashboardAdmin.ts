@@ -188,6 +188,74 @@ export async function rotasDashboardAdmin(app: FastifyInstance) {
     return { horas, base: 'ULTIMO_ACESSO', fuso: 'BRT' };
   });
 
+  // Médias por dia da semana + média de ativos/dia. Como só guardamos o ÚLTIMO
+  // acesso de cada usuário (não há log de acessos), "acessos" e "ativos/dia" são
+  // aproximações a partir de `ultimoAcessoEm` — o mesmo critério do gráfico de
+  // acessos por hora. "Novos" usa `criadoEm` (dado exato).
+  app.get('/api/admin/dashboard/semana', async () => {
+    const usuarios = await prisma.usuarioApp.findMany({
+      select: { criadoEm: true, ultimoAcessoEm: true },
+    });
+
+    // Componentes em horário de Brasília (UTC-3).
+    const emBRT = (d: Date) => new Date(d.getTime() - 3 * 3_600_000);
+    const diaSemana = (d: Date) => emBRT(d).getUTCDay(); // 0=Dom … 6=Sáb
+    const isoDia = (d: Date) => emBRT(d).toISOString().slice(0, 10);
+    const hojeISO = isoDia(new Date());
+
+    // Quantas vezes cada dia da semana ocorreu entre `inicioISO` e hoje (BRT).
+    // Serve de denominador da média (ex.: nº de segundas no período observado).
+    function ocorrenciasPorDia(inicioISO: string | null): number[] {
+      const cont = [0, 0, 0, 0, 0, 0, 0];
+      if (!inicioISO) return cont;
+      const [ay, am, ad] = inicioISO.split('-').map(Number);
+      const [hy, hm, hd] = hojeISO.split('-').map(Number);
+      const cur = new Date(Date.UTC(ay, am - 1, ad));
+      const fim = new Date(Date.UTC(hy, hm - 1, hd));
+      while (cur <= fim) {
+        cont[cur.getUTCDay()]! += 1;
+        cur.setUTCDate(cur.getUTCDate() + 1);
+      }
+      return cont;
+    }
+
+    const totNovos = [0, 0, 0, 0, 0, 0, 0];
+    const totAcessos = [0, 0, 0, 0, 0, 0, 0];
+    let minCriado: string | null = null;
+    let minAcesso: string | null = null;
+    const corteAtivo = new Date(Date.now() - DIAS_ATIVO * 86_400_000);
+    let ativos = 0;
+
+    for (const u of usuarios) {
+      const dc = isoDia(u.criadoEm);
+      totNovos[diaSemana(u.criadoEm)]! += 1;
+      if (!minCriado || dc < minCriado) minCriado = dc;
+      if (u.ultimoAcessoEm) {
+        totAcessos[diaSemana(u.ultimoAcessoEm)]! += 1;
+        const da = isoDia(u.ultimoAcessoEm);
+        if (!minAcesso || da < minAcesso) minAcesso = da;
+        if (u.ultimoAcessoEm >= corteAtivo) ativos += 1;
+      }
+    }
+
+    const ocNovos = ocorrenciasPorDia(minCriado);
+    const ocAcessos = ocorrenciasPorDia(minAcesso);
+    const media = (total: number, oc: number) => (oc > 0 ? Number((total / oc).toFixed(1)) : 0);
+
+    const novos = totNovos.map((total, dia) => ({ dia, total, media: media(total, ocNovos[dia]!) }));
+    const acessos = totAcessos.map((total, dia) => ({ dia, total, media: media(total, ocAcessos[dia]!) }));
+
+    return {
+      novos,
+      acessos,
+      // Usuários ativos (último acesso nos últimos DIAS_ATIVO dias) ÷ dias.
+      mediaAtivosPorDia: Number((ativos / DIAS_ATIVO).toFixed(1)),
+      ativos,
+      diasAtivo: DIAS_ATIVO,
+      base: 'ULTIMO_ACESSO',
+    };
+  });
+
   // Crescimento de usuários por período. `dias` = 7|30|60|90 (bucket diário);
   // acima de 120 dias agrupa por mês. Devolve novos e total acumulado por ponto.
   app.get('/api/admin/dashboard/crescimento', async (req) => {

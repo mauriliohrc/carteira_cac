@@ -141,6 +141,8 @@ function Conteudo() {
         <GraficoPlataformas ios={d.plataformas.ios} android={d.plataformas.android} />
       </div>
 
+      <GraficosSemana />
+
       {/* Crescimento × Acessos por horário, lado a lado (uma coluna cada).
           Cada gráfico vai num wrapper próprio: senão o fragment (cabeçalho +
           cartão) espalha 4 itens no grid e desalinha. */}
@@ -529,6 +531,158 @@ function BarrasHora({ horas }: { horas: HoraPonto[] }) {
       <p className="subtitulo" style={{ margin: '8px 0 0' }}>
         Horário (BRT) do último acesso de cada usuário — padrão aproximado de uso.
       </p>
+    </div>
+  );
+}
+
+// ------------------------------------------------- médias por dia da semana
+interface DiaSemana {
+  dia: number; // 0=Dom … 6=Sáb
+  total: number;
+  media: number;
+}
+interface RespSemana {
+  novos: DiaSemana[];
+  acessos: DiaSemana[];
+  mediaAtivosPorDia: number;
+  ativos: number;
+  diasAtivo: number;
+}
+
+const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+function GraficosSemana() {
+  const [d, setD] = useState<RespSemana | null>(null);
+
+  useEffect(() => {
+    api<RespSemana>('/api/admin/dashboard/semana').then(setD).catch(() => setD(null));
+  }, []);
+
+  const picoNovos = d ? d.novos.reduce((a, b) => (b.media > a.media ? b : a), d.novos[0]!) : null;
+  const picoAcessos = d ? d.acessos.reduce((a, b) => (b.media > a.media ? b : a), d.acessos[0]!) : null;
+
+  return (
+    <>
+      <div className="cabeca-secao" style={{ marginTop: 32 }}>
+        <h2 style={{ margin: 0 }}>Padrão semanal</h2>
+      </div>
+
+      <div
+        className="cartao"
+        style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16, borderColor: 'rgba(147,173,101,.4)' }}
+      >
+        <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1 }}>{d ? d.mediaAtivosPorDia : '—'}</div>
+        <div style={{ color: 'var(--texto-suave)', fontSize: 14 }}>
+          usuários ativos por dia (média) · {d ? d.ativos : '—'} ativos nos últimos {d ? d.diasAtivo : 30} dias
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 20, alignItems: 'start' }}>
+        <div style={{ minWidth: 0 }}>
+          <div className="cabeca-secao">
+            <h2 style={{ margin: 0, fontSize: 18 }}>Novos usuários por dia da semana</h2>
+          </div>
+          <div className="cartao">
+            {!d ? (
+              <div className="vazio">Carregando…</div>
+            ) : (
+              <BarrasSemana
+                dados={d.novos}
+                pico={picoNovos?.dia ?? null}
+                legenda={
+                  picoNovos && picoNovos.media > 0
+                    ? `Em média, ${DIAS_SEMANA[picoNovos.dia]} é o dia de mais cadastros (${picoNovos.media}/dia).`
+                    : 'Média de novos cadastros por dia da semana.'
+                }
+              />
+            )}
+          </div>
+        </div>
+
+        <div style={{ minWidth: 0 }}>
+          <div className="cabeca-secao">
+            <h2 style={{ margin: 0, fontSize: 18 }}>Acessos por dia da semana</h2>
+          </div>
+          <div className="cartao">
+            {!d ? (
+              <div className="vazio">Carregando…</div>
+            ) : (
+              <BarrasSemana
+                dados={d.acessos}
+                pico={picoAcessos?.dia ?? null}
+                legenda={
+                  picoAcessos && picoAcessos.media > 0
+                    ? `Em média, ${DIAS_SEMANA[picoAcessos.dia]} é o dia de mais acessos (${picoAcessos.media}/dia). Base: último acesso.`
+                    : 'Média de acessos por dia da semana (base: último acesso).'
+                }
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function BarrasSemana({ dados, pico, legenda }: { dados: DiaSemana[]; pico: number | null; legenda: string }) {
+  const W = 420;
+  const H = 220;
+  const padL = 40;
+  const padR = 12;
+  const padT = 18;
+  const padB = 28;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+  const max = Math.max(1, ...dados.map((x) => x.media));
+  const bw = innerW / 7;
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        width="100%"
+        preserveAspectRatio="xMidYMid meet"
+        role="img"
+        aria-label="Média por dia da semana"
+        style={{ display: 'block', minWidth: 360 }}
+      >
+        {[0, 0.5, 1].map((f) => (
+          <g key={f}>
+            <line x1={padL} x2={W - padR} y1={padT + innerH * f} y2={padT + innerH * f} stroke="var(--borda)" strokeWidth={1} />
+            <text x={padL - 6} y={padT + innerH * f + 3.5} textAnchor="end" fontSize="10.5" fill="var(--texto-suave)">
+              {(max * (1 - f)).toFixed(max < 5 ? 1 : 0)}
+            </text>
+          </g>
+        ))}
+        {dados.map((x) => {
+          const barH = (innerH * x.media) / max;
+          const xb = padL + x.dia * bw;
+          return (
+            <g key={x.dia}>
+              <rect
+                x={xb + bw * 0.18}
+                y={padT + innerH - barH}
+                width={bw * 0.64}
+                height={barH}
+                rx={3}
+                fill="var(--acento)"
+                opacity={x.dia === pico ? 0.95 : 0.55}
+              >
+                <title>{`${DIAS_SEMANA[x.dia]}: ${x.media}/dia em média (${x.total} no total)`}</title>
+              </rect>
+              {x.media > 0 && (
+                <text x={xb + bw / 2} y={padT + innerH - barH - 5} textAnchor="middle" fontSize="10" fontWeight={x.dia === pico ? 700 : 400} fill="var(--texto)">
+                  {x.media}
+                </text>
+              )}
+              <text x={xb + bw / 2} y={H - 10} textAnchor="middle" fontSize="11" fontWeight={x.dia === pico ? 700 : 400} fill="var(--texto-suave)">
+                {DIAS_SEMANA[x.dia]}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <p className="subtitulo" style={{ margin: '8px 0 0' }}>{legenda}</p>
     </div>
   );
 }
