@@ -2,8 +2,14 @@ import type { FastifyInstance } from 'fastify';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../db/cliente.js';
 import { JANELA_ONLINE_MIN } from '../dominio/tipos.js';
-import { addVinculoSchema, editarUsuarioAppSchema, enviarPushSchema } from '../dominio/validacao.js';
-import { enviarPush } from '../push/expo.js';
+import {
+  addVinculoSchema,
+  editarUsuarioAppSchema,
+  enviarPushSchema,
+  enviarPushHabitualidadeSchema,
+} from '../dominio/validacao.js';
+import { enviarPush, enviarPushLote, type ItemPush } from '../push/expo.js';
+import { progressoHabitualidade } from '../dominio/habitualidadeProgresso.js';
 import { conflito, naoEncontrado } from '../http/erros.js';
 import { exigirAdmin } from '../http/guardas.js';
 import { buscarArmas } from '../integracoes/shootinghouse.js';
@@ -93,6 +99,35 @@ async function tokensDoPublico(p: Publico): Promise<{ tokens: string[]; totalUsu
       })
     : [];
   return { tokens: disp.map((d) => d.token), totalUsuarios: ids.length };
+}
+
+/**
+ * `where` de CONTAS a partir do público, para disparos que precisam dos dados
+ * de cada usuário (não só dos tokens). Só vale para quem tem conta — ANONIMOS
+ * não se aplica. Mesmos filtros combináveis (AND) de `tokensDoPublico`.
+ */
+function whereUsuariosPublico(p: Publico): Prisma.UsuarioAppWhereInput {
+  const where: Prisma.UsuarioAppWhereInput = { ativo: true };
+  if (p.base === 'USUARIO' && p.usuarioId) where.id = p.usuarioId;
+  if (p.entidadeId) where.vinculos = { some: { entidadeId: p.entidadeId } };
+  if (p.semArma) where.registrosSync = { none: { tipo: 'armas', removido: false } };
+  if (p.semEmail) where.emailVerificado = false;
+  if (p.inativosDias) {
+    const corte = new Date(Date.now() - p.inativosDias * 86_400_000);
+    where.OR = [{ ultimoAcessoEm: null }, { ultimoAcessoEm: { lt: corte } }];
+  }
+  return where;
+}
+
+/** Substitui as variáveis do modelo pelos valores do usuário. */
+function aplicarModelo(
+  modelo: string,
+  v: { nome: string; feitas: number; faltam: number }
+): string {
+  return modelo
+    .replace(/\{nome\}/g, v.nome)
+    .replace(/\{feitas\}/g, String(v.feitas))
+    .replace(/\{faltam\}/g, String(v.faltam));
 }
 
 export async function rotasPushAdmin(app: FastifyInstance) {
@@ -353,6 +388,147 @@ export async function rotasPushAdmin(app: FastifyInstance) {
     return {
       totalUsuarios,
       totalTokens: tokens.length,
+      aceitos: resultado.aceitos,
+      falhas: resultado.erros.length,
+    };
+  });
+
+  // ---------------------------------- lembrete de habitualidade (por usuário)
+  // Push PERSONALIZADO: calcula, para cada usuário, quantas habitualidades
+  // faltam nos últimos 12 meses (mesma regra do app) e envia o modelo com as
+  // variáveis {nome}/{feitas}/{faltam} já substituídas. Quem está em dia recebe
+  // o modelo "em dia" (se marcado); quem não é atirador é ignorado.
+  app.post('/api/admin/push/habitualidade', async (req) => {
+    const dados = enviarPushHabitualidadeSchema.parse(req.body);
+    const { publico } = dados;
+
+    if (publico.base === 'ANONIMOS') {
+      throw conflito('Sem cadastro não tem dados de habitualidade. Escolha contas.');
+    }
+    if (publico.entidadeId) {
+      const ent = await prisma.entidadeTiro.findUnique({ where: { id: publico.entidadeId } });
+      if (!ent) throw naoEncontrado('Entidade não encontrada');
+    }
+    if (publico.base === 'USUARIO') {
+      const u = await prisma.usuarioApp.findUnique({ where: { id: publico.usuarioId! } });
+      if (!u) throw naoEncontrado('Usuário não encontrado');
+    }
+
+    const porPlataforma = publico.plataformas?.length
+      ? { plataforma: { in: publico.plataformas } }
+      : {};
+
+    // Carrega os usuários do público com acervo, sessões e aparelhos ativos.
+    const usuarios = await prisma.usuarioApp.findMany({
+      where: whereUsuariosPublico(publico),
+      select: {
+        id: true,
+        nome: true,
+        registrosSync: {
+          where: { tipo: { in: ['armas', 'habitualidades'] }, removido: false },
+          select: { tipo: true, dados: true },
+        },
+        dispositivos: {
+          where: { ativo: true, ...porPlataforma },
+          select: { token: true },
+        },
+      },
+    });
+
+    let usuariosFalta = 0;
+    let usuariosEmDia = 0;
+    let usuariosSemObrigacao = 0;
+    let usuariosSemDispositivo = 0;
+    const itens: ItemPush[] = [];
+
+    for (const u of usuarios) {
+      const armas: unknown[] = [];
+      const sessoes: unknown[] = [];
+      for (const r of u.registrosSync) {
+        try {
+          const obj = JSON.parse(r.dados);
+          if (r.tipo === 'armas') armas.push(obj);
+          else sessoes.push(obj);
+        } catch {
+          // Registro corrompido: ignora essa linha, não derruba o lote.
+        }
+      }
+
+      const prog = progressoHabitualidade(armas as never[], sessoes as never[]);
+      if (!prog.exigido) {
+        usuariosSemObrigacao += 1;
+        continue;
+      }
+
+      const emDia = prog.cumprido;
+      if (emDia && !dados.incluirEmDia) continue;
+
+      if (emDia) usuariosEmDia += 1;
+      else usuariosFalta += 1;
+
+      if (u.dispositivos.length === 0) {
+        usuariosSemDispositivo += 1;
+        continue;
+      }
+
+      const vars = {
+        nome: u.nome.trim().split(/\s+/)[0] || u.nome,
+        feitas: prog.feitasJanela,
+        faltam: prog.faltamTotal,
+      };
+      const titulo = aplicarModelo(emDia ? dados.tituloOk! : dados.tituloFalta, vars);
+      const corpo = aplicarModelo(emDia ? dados.corpoOk! : dados.corpoFalta, vars);
+      for (const d of u.dispositivos) {
+        itens.push({ token: d.token, titulo, corpo, dados: { tipo: 'habitualidade' } });
+      }
+    }
+
+    const distribuicao = {
+      usuariosAvaliados: usuarios.length,
+      usuariosFalta,
+      usuariosEmDia,
+      usuariosSemObrigacao,
+      usuariosSemDispositivo,
+      totalTokens: itens.length,
+    };
+
+    // Prévia: devolve a distribuição sem enviar nem registrar histórico.
+    if (dados.simular) {
+      return { simulado: true, ...distribuicao, aceitos: 0, falhas: 0 };
+    }
+
+    const resultado = await enviarPushLote(itens);
+
+    // Desativa tokens que a Expo diz não existirem mais.
+    const mortos = resultado.erros
+      .filter((e) => /DeviceNotRegistered/i.test(e.motivo))
+      .map((e) => e.token);
+    if (mortos.length) {
+      await prisma.dispositivoPush.updateMany({
+        where: { token: { in: mortos } },
+        data: { ativo: false },
+      });
+    }
+
+    const alvos = usuariosFalta + usuariosEmDia;
+    await prisma.envioPush.create({
+      data: {
+        titulo: `🎯 Habitualidade · ${usuariosFalta} faltando${
+          dados.incluirEmDia ? ` + ${usuariosEmDia} em dia` : ''
+        }`,
+        corpo: dados.corpoFalta,
+        alvoTipo: `Habitualidade · ${resumoPublico(publico)}`,
+        alvoRef: publico.entidadeId ?? publico.usuarioId ?? null,
+        totalUsuarios: alvos,
+        totalTokens: itens.length,
+        totalAceitos: resultado.aceitos,
+        autorId: req.usuario!.id,
+      },
+    });
+
+    return {
+      simulado: false,
+      ...distribuicao,
       aceitos: resultado.aceitos,
       falhas: resultado.erros.length,
     };

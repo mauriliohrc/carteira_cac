@@ -70,3 +70,57 @@ export async function enviarPush(
 
   return resultado;
 }
+
+/** Uma mensagem individual: cada token com seu próprio texto. */
+export interface ItemPush {
+  token: string;
+  titulo: string;
+  corpo: string;
+  dados?: Record<string, string>;
+}
+
+/**
+ * Envia mensagens PERSONALIZADAS (texto distinto por token) num único fluxo.
+ * A API da Expo aceita um array heterogêneo de mensagens por requisição, então
+ * cada item leva o seu título/corpo. Mesma lógica de lotes e de erros do envio
+ * em massa — usado pelo lembrete de habitualidade, em que cada usuário recebe a
+ * sua contagem.
+ */
+export async function enviarPushLote(itens: ItemPush[]): Promise<ResultadoEnvio> {
+  const resultado: ResultadoEnvio = { aceitos: 0, erros: [] };
+  if (itens.length === 0) return resultado;
+
+  for (const lote of dividir(itens, LOTE)) {
+    const corpo = lote.map((it) => ({
+      to: it.token,
+      title: it.titulo,
+      body: it.corpo,
+      sound: 'default' as const,
+      data: it.dados ?? {},
+    }));
+
+    let dados: { data?: { status: string; message?: string }[] };
+    try {
+      const resp = await fetch(ENDPOINT, {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(corpo),
+      });
+      dados = (await resp.json()) as { data?: { status: string; message?: string }[] };
+    } catch (e) {
+      for (const it of lote) {
+        resultado.erros.push({ token: it.token, motivo: e instanceof Error ? e.message : 'rede' });
+      }
+      continue;
+    }
+
+    const tickets = dados.data ?? [];
+    lote.forEach((it, i) => {
+      const t = tickets[i];
+      if (t && t.status === 'ok') resultado.aceitos += 1;
+      else resultado.erros.push({ token: it.token, motivo: t?.message ?? 'desconhecido' });
+    });
+  }
+
+  return resultado;
+}

@@ -50,6 +50,20 @@ function Push() {
   const [erro, setErro] = useState('');
   const [resultado, setResultado] = useState<string | null>(null);
 
+  // ---- Lembrete de habitualidade (push personalizado por usuário) ----
+  const [tituloFalta, setTituloFalta] = useState('🎯 Faltam {faltam} habitualidades');
+  const [corpoFalta, setCorpoFalta] = useState(
+    'Olá {nome}! Faltam apenas {faltam} habitualidades para ficar ok no período de 12 meses. Vá ao clube ou lance suas habitualidades!'
+  );
+  const [incluirEmDia, setIncluirEmDia] = useState(false);
+  const [tituloOk, setTituloOk] = useState('🎯 Habitualidade em dia!');
+  const [corpoOk, setCorpoOk] = useState(
+    'Parabéns {nome}! Suas {feitas} habitualidades estão em dia nos últimos 12 meses. Continue assim!'
+  );
+  const [enviandoHab, setEnviandoHab] = useState(false);
+  const [erroHab, setErroHab] = useState('');
+  const [resultadoHab, setResultadoHab] = useState<string | null>(null);
+
   // Filtros de conta só valem para público com conta.
   const permiteFiltroConta = base === 'CONTAS' || base === 'TODOS';
 
@@ -116,6 +130,54 @@ function Push() {
       setErro(e instanceof ErroApi ? e.message : 'Falha ao enviar');
     } finally {
       setEnviando(false);
+    }
+  }
+
+  type RespostaHab = {
+    simulado: boolean;
+    usuariosAvaliados: number;
+    usuariosFalta: number;
+    usuariosEmDia: number;
+    usuariosSemObrigacao: number;
+    usuariosSemDispositivo: number;
+    totalTokens: number;
+    aceitos: number;
+    falhas: number;
+  };
+
+  async function dispararHabitualidade(simular: boolean) {
+    setErroHab('');
+    setResultadoHab(null);
+    setEnviandoHab(true);
+    try {
+      const r = await api<RespostaHab>('/api/admin/push/habitualidade', {
+        metodo: 'POST',
+        corpo: {
+          tituloFalta,
+          corpoFalta,
+          incluirEmDia,
+          tituloOk: incluirEmDia ? tituloOk : undefined,
+          corpoOk: incluirEmDia ? corpoOk : undefined,
+          simular,
+          publico: montarPublico(),
+        },
+      });
+      const base =
+        `${r.usuariosFalta} com habitualidade faltando` +
+        (incluirEmDia ? ` · ${r.usuariosEmDia} em dia` : '') +
+        ` · ${r.totalTokens} dispositivo(s)` +
+        ` · ${r.usuariosSemObrigacao} sem obrigação` +
+        (r.usuariosSemDispositivo ? ` · ${r.usuariosSemDispositivo} sem aparelho` : '');
+      setResultadoHab(
+        r.simulado
+          ? `Prévia (nada enviado): ${base}`
+          : `Enviado! ${base} · ${r.aceitos} aceito(s)` + (r.falhas ? ` · ${r.falhas} falha(s)` : '')
+      );
+      if (!r.simulado) carregarHistorico();
+    } catch (e) {
+      setErroHab(e instanceof ErroApi ? e.message : 'Falha ao disparar');
+    } finally {
+      setEnviandoHab(false);
     }
   }
 
@@ -253,6 +315,92 @@ function Push() {
         <button onClick={enviar} disabled={enviando || !titulo || !corpo || !publicoValido}>
           {enviando ? 'Enviando…' : 'Enviar push'}
         </button>
+      </div>
+
+      <h2>Lembrete de habitualidade</h2>
+      <p className="subtitulo">
+        Push personalizado: cada usuário recebe quantas habitualidades faltam para ficar em dia nos
+        últimos 12 meses. Usa o <strong>mesmo público selecionado acima</strong> (quem não é atirador
+        é ignorado automaticamente).
+      </p>
+
+      <div className="cartao">
+        <div
+          style={{
+            background: 'var(--fundo-suave, rgba(0,0,0,.04))',
+            borderRadius: 8,
+            padding: '10px 12px',
+            marginBottom: 14,
+            fontSize: 13,
+            color: 'var(--texto-suave)',
+          }}
+        >
+          Variáveis: <code>{'{nome}'}</code> (primeiro nome) · <code>{'{faltam}'}</code> (quantas
+          faltam) · <code>{'{feitas}'}</code> (habitualidades nos últimos 12 meses)
+        </div>
+
+        <div className="campo">
+          <label>Título — quem está faltando *</label>
+          <input value={tituloFalta} onChange={(e) => setTituloFalta(e.target.value)} maxLength={120} />
+        </div>
+        <div className="campo">
+          <label>Mensagem — quem está faltando *</label>
+          <textarea
+            value={corpoFalta}
+            onChange={(e) => setCorpoFalta(e.target.value)}
+            maxLength={1000}
+            style={{ minHeight: 80 }}
+          />
+        </div>
+
+        <div className="campo">
+          <label className="radio-opcao" style={{ cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={incluirEmDia}
+              onChange={(e) => setIncluirEmDia(e.target.checked)}
+              style={{ width: 'auto' }}
+            />
+            Também avisar quem já está em dia
+          </label>
+        </div>
+
+        {incluirEmDia && (
+          <>
+            <div className="campo">
+              <label>Título — quem está em dia *</label>
+              <input value={tituloOk} onChange={(e) => setTituloOk(e.target.value)} maxLength={120} />
+            </div>
+            <div className="campo">
+              <label>Mensagem — quem está em dia *</label>
+              <textarea
+                value={corpoOk}
+                onChange={(e) => setCorpoOk(e.target.value)}
+                maxLength={1000}
+                style={{ minHeight: 80 }}
+              />
+            </div>
+          </>
+        )}
+
+        {resultadoHab && <div className="resultado-ok">{resultadoHab}</div>}
+        {erroHab && <p className="erro">{erroHab}</p>}
+
+        <div className="linha-acoes" style={{ gap: 10 }}>
+          <button
+            className="secundario"
+            onClick={() => dispararHabitualidade(true)}
+            disabled={enviandoHab || !tituloFalta || !corpoFalta || !publicoValido}
+          >
+            {enviandoHab ? 'Calculando…' : 'Simular (não envia)'}
+          </button>
+          <button
+            onClick={() => dispararHabitualidade(false)}
+            disabled={enviandoHab || !tituloFalta || !corpoFalta || !publicoValido}
+          >
+            {enviandoHab ? 'Enviando…' : 'Enviar lembrete'}
+          </button>
+        </div>
       </div>
 
       <h2>Histórico</h2>

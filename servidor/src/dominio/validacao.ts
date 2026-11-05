@@ -149,6 +149,28 @@ export const enviarPushSchema = z.object({
   publico: publicoPushSchema,
 });
 
+/**
+ * Lembrete de habitualidade: um push PERSONALIZADO por usuário com a sua
+ * contagem. Os textos são modelos com variáveis {nome}, {feitas} e {faltam},
+ * substituídas por usuário no servidor. Dois modelos: um para quem está com
+ * habitualidade faltando e, opcionalmente, outro para quem já está em dia.
+ * `simular` calcula a distribuição sem enviar nada (prévia segura).
+ */
+export const enviarPushHabitualidadeSchema = z
+  .object({
+    tituloFalta: z.string().trim().min(1, 'Informe o título (faltando)').max(120),
+    corpoFalta: z.string().trim().min(1, 'Informe a mensagem (faltando)').max(1000),
+    incluirEmDia: z.boolean().optional().default(false),
+    tituloOk: z.string().trim().max(120).optional(),
+    corpoOk: z.string().trim().max(1000).optional(),
+    simular: z.boolean().optional().default(false),
+    publico: publicoPushSchema,
+  })
+  .refine((v) => !v.incluirEmDia || (!!v.tituloOk?.trim() && !!v.corpoOk?.trim()), {
+    message: 'Informe título e mensagem para quem está em dia.',
+    path: ['corpoOk'],
+  });
+
 /** Push disparado por uma entidade: o alvo é sempre a própria entidade. */
 export const enviarPushEntidadeSchema = z.object({
   titulo: z.string().trim().min(1, 'Informe o título').max(120),
