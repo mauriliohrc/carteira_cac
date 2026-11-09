@@ -197,6 +197,10 @@ export interface PerfilUsuarioApp {
     entidades: VinculoEntidade[];
     ultimoAcessoEm: string | null;
     criadoEm: string;
+    /** Versão do app (a mais nova entre os aparelhos ativos). Null = não reportada. */
+    appVersao?: string | null;
+    /** Plataformas dos aparelhos ativos: 'IOS' | 'ANDROID'. */
+    plataformas?: string[];
   };
   armas: ArmaApp[];
   documentos: DocumentoApp[];

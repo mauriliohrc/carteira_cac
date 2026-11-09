@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { useApp } from '@/estado/AppContext';
@@ -9,6 +10,10 @@ import { Tela, TituloTela } from '@/ui/base';
 import { BotaoSino } from '@/ui/BotaoSino';
 import { ConteudoAcervo } from '@/ui/ConteudoAcervo';
 import { ConteudoHabitualidade } from '@/ui/ConteudoHabitualidade';
+import { DuasColunas } from '@/ui/layout/DuasColunas';
+import { useLargura } from '@/ui/layout/useLargura';
+import { useFolgaBarra } from '@/ui/BarraAbas';
+import { FichaArma } from '@/ui/detalhe/FichaArma';
 import { LIMITE_GRATUITO_ARMAS, podeCadastrarArma } from '@/billing';
 import { MESES_JANELA, MINIMO_POR_GRUPO } from '@/domain/habitualidade';
 
@@ -38,6 +43,13 @@ export default function TelaAcervo() {
     else if (abaPedida === 'armas') setAba('ARMAS');
   }, [abaPedida]);
 
+  // Tela larga (iPad, iPhone Duo aberto, tablet Android): acervo vira painel
+  // master-detail (lista + ficha). No telefone segue empilhado (push).
+  const { duasColunas } = useLargura();
+  const folgaBarra = useFolgaBarra();
+  const insets = useSafeAreaInsets();
+  const [selArma, setSelArma] = useState<string | null>(null);
+
   // Com o acompanhamento desligado nas configurações, a habitualidade some: o
   // seletor nem aparece e a aba cai sempre no acervo.
   const ehHabitualidade = gerenciarHabitualidade && aba === 'HABITUALIDADE';
@@ -59,8 +71,16 @@ export default function TelaAcervo() {
         : 1
       : progressoHabitualidade.grupos.length - progressoHabitualidade.cumpridos;
 
-  return (
-    <Tela sobBarra aoAtualizar={sincronizarAgora} acao={<BotaoSino />}>
+  // Two-pane só na aba de armas e com acervo não vazio.
+  const usarDuas = duasColunas && !ehHabitualidade && armas.length > 0;
+  const selId = usarDuas
+    ? selArma && armas.some((a) => a.id === selArma)
+      ? selArma
+      : armas[0].id
+    : null;
+
+  const cabecalho = (
+    <>
       <View style={s.topo}>
         <View style={{ flex: 1 }}>
           {ehHabitualidade ? (
@@ -108,7 +128,48 @@ export default function TelaAcervo() {
           />
         </View>
       ) : null}
+    </>
+  );
 
+  // Painel master-detail (tablet / Duo aberto): lista rola à esquerda, ficha à
+  // direita. Sem a ScrollView única da Tela — cada coluna rola por si.
+  if (usarDuas && selId) {
+    return (
+      <Tela
+        sobBarra
+        rolavel={false}
+        acao={<BotaoSino />}
+        estilo={{ paddingLeft: insets.left, paddingRight: insets.right }}
+      >
+        <View style={{ paddingHorizontal: espaco.lg }}>{cabecalho}</View>
+        <DuasColunas
+          lista={
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{
+                paddingLeft: espaco.lg,
+                paddingRight: espaco.md,
+                paddingTop: espaco.md,
+                paddingBottom: folgaBarra,
+              }}
+            >
+              <ConteudoAcervo
+                aoAdicionar={adicionar}
+                aoSelecionar={setSelArma}
+                selecionadoId={selId}
+                compacto
+              />
+            </ScrollView>
+          }
+          detalhe={<FichaArma id={selId} embutido />}
+        />
+      </Tela>
+    );
+  }
+
+  return (
+    <Tela sobBarra aoAtualizar={sincronizarAgora} acao={<BotaoSino />}>
+      {cabecalho}
       {ehHabitualidade ? (
         <ConteudoHabitualidade aoRegistrar={() => router.push('/habitualidade/editar')} />
       ) : (

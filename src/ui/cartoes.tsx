@@ -45,6 +45,7 @@ export function CartaoArma({
   aoFavoritar,
   aoTocar,
   bloqueado,
+  selecionado,
 }: {
   arma: Arma;
   documentos: DocumentoComContexto[];
@@ -61,6 +62,8 @@ export function CartaoArma({
    * nesse caso, é o paywall. Some a estrela de favoritar.
    */
   bloqueado?: boolean;
+  /** No painel master-detail (tablet): realça o item aberto à direita. */
+  selecionado?: boolean;
 }) {
   const c = useCores();
   const e = useEstilos(folha);
@@ -74,7 +77,11 @@ export function CartaoArma({
   return (
     <Pressable
       onPress={aoTocar}
-      style={({ pressed }) => [e.cartaoArma, pressed ? { opacity: 0.65 } : null]}
+      style={({ pressed }) => [
+        e.cartaoArma,
+        selecionado ? { borderColor: c.primario, backgroundColor: c.primarioFraco } : null,
+        pressed ? { opacity: 0.65 } : null,
+      ]}
     >
       <View style={[e.faixa, { backgroundColor: pior?.cor ?? c.borda }]} />
       <View style={{ flex: 1, padding: espaco.lg }}>
@@ -160,10 +167,13 @@ export function CartaoDocumento({
   documento,
   aoTocar,
   mostrarArma = true,
+  selecionado,
 }: {
   documento: DocumentoComContexto;
   aoTocar: () => void;
   mostrarArma?: boolean;
+  /** Realça o item aberto no painel master-detail (tablet). */
+  selecionado?: boolean;
 }) {
   const c = useCores();
   const e = useEstilos(folha);
@@ -183,6 +193,7 @@ export function CartaoDocumento({
       style={({ pressed }) => [
         e.cartaoDoc,
         { borderLeftColor: info.cor },
+        selecionado ? { backgroundColor: c.primarioFraco, borderColor: c.primario } : null,
         pressed ? { opacity: 0.65 } : null,
       ]}
     >

@@ -30,7 +30,15 @@ const TITULOS: Record<string, string> = {
   planoAnual: 'Assinantes do plano anual',
   planoMensal: 'Assinantes do plano mensal',
   premiumGratis: 'Premium grátis (cupom)',
+  desatualizados: 'Usuários com versão desatualizada',
+  semVersao: 'Usuários sem versão reportada',
 };
+
+/** Título da métrica (trata `versao:<x>` dinamicamente). */
+function tituloMetrica(metrica: string): string {
+  if (metrica.startsWith('versao:')) return `Usuários na versão ${metrica.slice('versao:'.length)}`;
+  return TITULOS[metrica] ?? 'Usuários';
+}
 
 export default function PaginaMetrica() {
   return (
@@ -85,7 +93,7 @@ function Lista() {
       </p>
       <div className="cabeca-secao">
         <div>
-          <h1>{TITULOS[metrica] ?? 'Usuários'}</h1>
+          <h1>{tituloMetrica(metrica)}</h1>
           <p className="subtitulo">{usuarios ? `${usuarios.length} usuário(s)` : 'Carregando…'}</p>
         </div>
         <button className="secundario" onClick={exportarCsv} disabled={!usuarios || usuarios.length === 0}>

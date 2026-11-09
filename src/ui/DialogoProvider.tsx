@@ -144,8 +144,11 @@ const folha = (c: Paleta) =>
       bottom: 0,
       padding: espaco.md,
       gap: espaco.sm,
+      // Em tela larga (iPad/Mac/Duo aberto) a folha não ocupa a largura toda —
+      // fica numa coluna centrada, tamanho de telefone.
+      alignItems: 'center',
     },
-    painel: { overflow: 'hidden' },
+    painel: { overflow: 'hidden', width: '100%', maxWidth: 440 },
     cabecalho: {
       paddingHorizontal: espaco.lg,
       paddingTop: espaco.lg,
@@ -170,6 +173,6 @@ const folha = (c: Paleta) =>
       borderBottomColor: c.borda,
     },
     opcaoTexto: { flex: 1, fontSize: 16, color: c.texto, fontWeight: '500' },
-    cancelar: { paddingVertical: 16, alignItems: 'center' },
+    cancelar: { paddingVertical: 16, alignItems: 'center', width: '100%', maxWidth: 440 },
     cancelarTexto: { fontSize: 16, fontWeight: '600', color: c.textoMedio },
   });

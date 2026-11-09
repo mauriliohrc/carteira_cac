@@ -1,5 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -10,10 +19,15 @@ import { formatarData, linkPublicoNoticia, marcarNoticiaLida, obterNoticia } fro
 import { CorpoHtml } from '@/noticias/CorpoHtml';
 import type { Noticia } from '@/noticias/tipos';
 
-export default function DetalheNoticia() {
+/** Rota da notícia. Corpo em `DetalheNoticia`, reutilizado no painel (tablet). */
+export default function RotaNoticia() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  return <DetalheNoticia id={id} />;
+}
+
+export function DetalheNoticia({ id, embutido }: { id: string; embutido?: boolean }) {
   const c = useCores();
   const p = useEstilos(folha);
-  const { id } = useLocalSearchParams<{ id: string }>();
 
   const [noticia, setNoticia] = useState<Noticia | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -52,6 +66,59 @@ export default function DetalheNoticia() {
       vivo = false;
     };
   }, [id]);
+
+  const acaoCompartilhar = noticia ? (
+    <Pressable
+      onPress={compartilhar}
+      accessibilityRole="button"
+      accessibilityLabel="Compartilhar notícia"
+      hitSlop={8}
+    >
+      <Ionicons name="share-outline" size={20} color={c.primario} />
+    </Pressable>
+  ) : null;
+
+  // Painel master-detail (tablet): sem a moldura de Tela — o painel já é o frame.
+  if (embutido) {
+    return (
+      <View style={{ flex: 1 }}>
+        <View style={p.cabEmbutido}>
+          <Text style={p.titEmbutido} numberOfLines={1}>
+            Notícia
+          </Text>
+          {acaoCompartilhar}
+        </View>
+        {carregando ? (
+          <View style={p.centro}>
+            <ActivityIndicator color={c.primario} />
+          </View>
+        ) : erro || !noticia ? (
+          <Vazio
+            icone="newspaper-outline"
+            titulo="Não foi possível abrir"
+            descricao={erro ?? 'Notícia indisponível.'}
+          />
+        ) : (
+          <ScrollView
+            contentContainerStyle={{ padding: espaco.lg, paddingBottom: 110 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {noticia.imagemUrl ? (
+              <Image source={{ uri: noticia.imagemUrl }} style={p.imagem} resizeMode="cover" />
+            ) : null}
+            {noticia.publicadaEm ? (
+              <Text style={p.data}>{formatarData(noticia.publicadaEm)}</Text>
+            ) : null}
+            <Text style={p.titulo}>{noticia.titulo}</Text>
+            {noticia.resumo ? <Text style={p.resumo}>{noticia.resumo}</Text> : null}
+            <View style={{ marginTop: espaco.lg }}>
+              <CorpoHtml html={noticia.conteudo} />
+            </View>
+          </ScrollView>
+        )}
+      </View>
+    );
+  }
 
   if (carregando) {
     return (
@@ -106,6 +173,17 @@ export default function DetalheNoticia() {
 const folha = (c: Paleta) =>
   StyleSheet.create({
     centro: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    cabEmbutido: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: espaco.md,
+      paddingHorizontal: espaco.lg,
+      paddingVertical: espaco.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.borda,
+    },
+    titEmbutido: { ...tipo.titulo, fontSize: 17, color: c.texto, flex: 1 },
     imagem: {
       width: '100%',
       height: 200,

@@ -61,6 +61,58 @@ const FILTROS: Record<string, () => Prisma.UsuarioAppWhereInput> = {
   premiumGratis: () => ({ premium: true, premiumTipo: 'CUPOM' }),
 };
 
+/** Compara versões de marketing ("1.8.1" vs "1.8.0") por segmentos numéricos. */
+function compararVersao(a: string, b: string): number {
+  const pa = a.split('.').map((n) => parseInt(n, 10) || 0);
+  const pb = b.split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
+/**
+ * IDs de usuários para as métricas de VERSÃO do app (dado por dispositivo, não
+ * por conta): `desatualizados` (abaixo da mais nova), `semVersao` (nenhum
+ * aparelho reporta) e `versao:<x>` (exatamente nessa versão). Retorna null
+ * quando `metrica` não é de versão — aí o chamador usa FILTROS.
+ */
+async function idsPorVersao(metrica: string): Promise<string[] | null> {
+  const ehVersao =
+    metrica === 'desatualizados' || metrica === 'semVersao' || metrica.startsWith('versao:');
+  if (!ehVersao) return null;
+
+  const disp = await prisma.dispositivoPush.findMany({
+    where: { ativo: true, usuarioId: { not: null } },
+    select: { usuarioId: true, appVersao: true },
+  });
+
+  // Versão mais nova entre os aparelhos ativos de cada usuário.
+  const porUsuario = new Map<string, string | null>();
+  for (const d of disp) {
+    const atual = porUsuario.get(d.usuarioId!);
+    if (atual === undefined) porUsuario.set(d.usuarioId!, d.appVersao);
+    else if (d.appVersao && (!atual || compararVersao(d.appVersao, atual) > 0))
+      porUsuario.set(d.usuarioId!, d.appVersao);
+  }
+  const latest =
+    [...porUsuario.values()].filter((v): v is string => !!v).sort(compararVersao).at(-1) ?? null;
+
+  const alvo = metrica.startsWith('versao:') ? metrica.slice('versao:'.length) : null;
+  const ids: string[] = [];
+  for (const [uid, v] of porUsuario) {
+    if (metrica === 'semVersao') {
+      if (!v) ids.push(uid);
+    } else if (metrica === 'desatualizados') {
+      if (v && latest && compararVersao(v, latest) < 0) ids.push(uid);
+    } else if (alvo) {
+      if (v === alvo) ids.push(uid);
+    }
+  }
+  return ids;
+}
+
 /** Dashboard do admin do app: números, listas por métrica e crescimento. */
 export async function rotasDashboardAdmin(app: FastifyInstance) {
   app.addHook('preHandler', exigirAdmin());
@@ -342,10 +394,15 @@ export async function rotasDashboardAdmin(app: FastifyInstance) {
   // Lista de usuários de uma métrica (para abrir o card e exportar CSV no cliente).
   app.get('/api/admin/dashboard/usuarios', async (req) => {
     const { metrica } = req.query as { metrica?: string };
-    const filtro = FILTROS[metrica ?? 'todos'];
-    if (!filtro) return { metrica, usuarios: [] };
+    const m = metrica ?? 'todos';
+    // Métricas de versão (device-level) vêm por lista de IDs; as demais, por FILTROS.
+    const idsVersao = await idsPorVersao(m);
+    const where: Prisma.UsuarioAppWhereInput | null = idsVersao
+      ? { id: { in: idsVersao } }
+      : (FILTROS[m]?.() ?? null);
+    if (!where) return { metrica, usuarios: [] };
     const usuarios = await prisma.usuarioApp.findMany({
-      where: filtro(),
+      where,
       orderBy: { criadoEm: 'desc' },
       take: 5000,
       select: {

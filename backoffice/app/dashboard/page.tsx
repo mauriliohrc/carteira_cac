@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { ESTADOS_BR, VIEWBOX_BR } from '@/lib/brasilMapa';
+import type { AppVersoes } from '@/lib/tipos';
 import { Protegido } from '../componentes/Protegido';
 
 interface Dashboard {
@@ -59,9 +60,11 @@ export default function PaginaDashboard() {
 
 function Conteudo() {
   const [d, setD] = useState<Dashboard | null>(null);
+  const [versoes, setVersoes] = useState<AppVersoes | null>(null);
 
   useEffect(() => {
     api<Dashboard>('/api/admin/dashboard').then(setD).catch(() => setD(null));
+    api<AppVersoes>('/api/admin/app-versoes').then(setVersoes).catch(() => {});
   }, []);
 
   if (!d) return <div className="vazio">Carregando…</div>;
@@ -89,6 +92,31 @@ function Conteudo() {
     { titulo: 'Aguardando pagamento', valor: d.cards.processosAguardando, dica: 'Processos não pagos', href: '/despachante' },
     { titulo: 'Processos pagos', valor: d.cards.processosPagos, dica: 'Pagos — a executar/concluir', href: '/despachante' },
   ];
+
+  // Cards de versão do app entram no MESMO grid dos demais, clicáveis (abrem a
+  // lista de usuários daquela fatia).
+  if (versoes) {
+    cards.push(
+      {
+        titulo: `Na última${versoes.latest ? ` · ${versoes.latest}` : ''}`,
+        valor: versoes.versoes.find((v) => v.versao === versoes.latest)?.usuarios ?? 0,
+        dica: 'Na versão mais nova',
+        href: versoes.latest ? `/dashboard/versao:${versoes.latest}` : undefined,
+      },
+      {
+        titulo: 'Desatualizados',
+        valor: versoes.desatualizados,
+        dica: 'Abaixo da última versão',
+        href: '/dashboard/desatualizados',
+      },
+      {
+        titulo: 'Sem versão',
+        valor: versoes.desconhecidos,
+        dica: 'App antigo, não reporta',
+        href: '/dashboard/semVersao',
+      }
+    );
+  }
 
   return (
     <>
@@ -131,6 +159,30 @@ function Conteudo() {
           );
         })}
       </div>
+
+      {versoes && versoes.versoes.length > 0 && (
+        <div className="cartao" style={{ marginTop: 16 }}>
+          <div style={{ fontWeight: 600, marginBottom: 10 }}>Distribuição por versão</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {versoes.versoes.map((v) => (
+              <Link
+                key={v.versao ?? 'desc'}
+                href={v.versao ? `/dashboard/versao:${v.versao}` : '/dashboard/semVersao'}
+                className={`etiqueta${v.versao === versoes.latest ? ' ok' : !v.versao ? ' inativo' : ''}`}
+                style={{
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                  ...(v.versao && v.versao !== versoes.latest
+                    ? { color: 'var(--latao)', borderColor: 'rgba(197,160,40,.4)' }
+                    : {}),
+                }}
+              >
+                {v.versao ?? 'sem versão'} · {v.usuarios}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <MapaRegioes />
 
@@ -407,7 +459,7 @@ function Grafico({ pontos, escala }: { pontos: Ponto[]; escala: 'dia' | 'mes' })
         preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label="Crescimento de usuários"
-        style={{ display: 'block', minWidth: 560 }}
+        style={{ display: 'block', width: '100%', height: 'auto', maxHeight: 300, minWidth: 560 }}
       >
         {[0, 0.25, 0.5, 0.75, 1].map((f) => (
           <g key={f}>
@@ -493,7 +545,7 @@ function BarrasHora({ horas }: { horas: HoraPonto[] }) {
         preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label="Acessos por horário"
-        style={{ display: 'block', minWidth: 520 }}
+        style={{ display: 'block', width: '100%', height: 'auto', maxHeight: 300, minWidth: 520 }}
       >
         {[0, 0.5, 1].map((f) => (
           <g key={f}>
@@ -644,7 +696,7 @@ function BarrasSemana({ dados, pico, legenda }: { dados: DiaSemana[]; pico: numb
         preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label="Média por dia da semana"
-        style={{ display: 'block', minWidth: 360 }}
+        style={{ display: 'block', width: '100%', height: 'auto', maxHeight: 260, minWidth: 360 }}
       >
         {[0, 0.5, 1].map((f) => (
           <g key={f}>

@@ -3,15 +3,15 @@
     "name": "Carteira CAC",
     "slug": "cac-brasil",
     "version": "1.8.1",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "scheme": "cacbrasil",
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#101310",
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "bundleIdentifier": "br.com.cacbrasil.carteira",
-      "buildNumber": "20",
+      "buildNumber": "21",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "A Carteira CAC usa suas fotos para você anexar imagens dos seus documentos — CRAF, guia de tráfego, laudo e CR — à carteira. As imagens ficam salvas só neste aparelho.",
         "NSCameraUsageDescription": "A Carteira CAC usa a câmera para você fotografar seus documentos — CRAF, guia de tráfego, laudo e CR — e anexá-los à carteira. As fotos ficam salvas só neste aparelho.",
@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "br.com.cacbrasil.carteira",
-      "versionCode": 20,
+      "versionCode": 21,
       "googleServicesFile": "./google-services.json",
       "predictiveBackGestureEnabled": false,
       "adaptiveIcon": {

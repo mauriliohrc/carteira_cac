@@ -7,6 +7,7 @@ import type { BottomTabBarProps } from 'expo-router/tabs';
 
 import { espaco, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { GrupoVidro, Vidro, VIDRO_NATIVO } from './Vidro';
+import { useLargura } from './layout/useLargura';
 
 /** Altura útil da barra, sem a área segura. */
 export const ALTURA_BARRA = 60;
@@ -15,6 +16,8 @@ const RAIO = 26;
 const FOLGA_INTERNA = 5;
 /** Diâmetro do círculo da aba central ("Serviços"), centrado DENTRO da barra. */
 const CIRCULO = 56;
+/** Largura máxima da barra flutuante — impede esticar na tela larga (Duo/iPad). */
+const MAXW_BARRA = 520;
 
 /**
  * Barra de abas flutuante em vidro.
@@ -35,8 +38,18 @@ export interface PropsBarraAbas extends BottomTabBarProps {
 export function BarraAbas({ state, descriptors, navigation, icones }: PropsBarraAbas) {
   const c = useCores();
   const b = useEstilos(folha);
-  const inferior = useSafeAreaInsets().bottom;
+  const insets = useSafeAreaInsets();
+  const inferior = insets.bottom;
+  const { duasColunas } = useLargura();
   const [larguraUtil, setLarguraUtil] = useState(0);
+
+  // Em tela larga (iPad/Duo) o vidro translúcido fica sobre MUITO conteúdo e
+  // perde legibilidade — damos um reforço opaco à barra.
+  const tomBarra = duasColunas
+    ? c.nome === 'claro'
+      ? 'rgba(255,255,255,0.62)'
+      : 'rgba(23,27,22,0.62)'
+    : undefined;
 
   // Só mostramos na barra as rotas que têm ícone declarado em `icones` — que é
   // exatamente o conjunto de abas visíveis. Rotas ocultas (ex.: Avisos, que
@@ -86,12 +99,25 @@ export function BarraAbas({ state, descriptors, navigation, icones }: PropsBarra
   }, [deslocamento, larguraAba, indiceAtivo]);
 
   return (
-    <View style={[b.raiz, { paddingBottom }]} pointerEvents="box-none">
+    <View
+      style={[
+        b.raiz,
+        {
+          paddingBottom,
+          // Insets laterais: a tela interna do Duo tem trilho vertical; iPad em
+          // paisagem também. Em retrato no iPhone, left/right são 0 (sem efeito).
+          paddingLeft: MARGEM_LATERAL + insets.left,
+          paddingRight: MARGEM_LATERAL + insets.right,
+        },
+      ]}
+      pointerEvents="box-none"
+    >
       {/* Área relativa SEM padding: ancora o círculo central à borda de cima da
-          barra, sem depender de como o Yoga trata padding em filho absoluto. */}
+          barra. maxWidth + centro impedem a barra de esticar na tela larga
+          (Duo aberto / iPad) — e o círculo, centrado nela, segue alinhado. */}
       <View style={b.barraArea} pointerEvents="box-none">
       <GrupoVidro proximidade={30} estilo={b.grupo}>
-        <Vidro raioCanto={RAIO} material="regular" estilo={b.barra}>
+        <Vidro raioCanto={RAIO} material="regular" tom={tomBarra} estilo={b.barra}>
           <View
             style={b.trilho}
             onLayout={(ev) => setLarguraUtil(ev.nativeEvent.layout.width)}
@@ -267,8 +293,12 @@ const folha = (c: Paleta) =>
       left: 0,
       right: 0,
       bottom: 0,
-      paddingHorizontal: MARGEM_LATERAL,
+      // paddingHorizontal agora é aplicado inline (MARGEM_LATERAL + inset).
     },
+    // Teto de largura: em telas largas a barra não estica de ponta a ponta —
+    // fica numa cápsula centrada, tamanho de telefone. Abaixo do teto (iPhone,
+    // Duo fechado) o width:100% vence e nada muda.
+    barraArea: { position: 'relative', width: '100%', maxWidth: MAXW_BARRA, alignSelf: 'center' },
     grupo: { borderRadius: RAIO },
     barra: {
       height: ALTURA_BARRA,
@@ -320,8 +350,6 @@ const folha = (c: Paleta) =>
       color: '#FFF',
       includeFontPadding: false,
     },
-    // Envolve só a barra (sem padding) para ancorar o círculo central.
-    barraArea: { position: 'relative' },
     // Camada do círculo: centrado DENTRO da barra (mesmo nível dos demais
     // ícones, sem saltar) e centrado na largura — despachante é a 3ª de 5 abas,
     // então o centro da tela coincide com a coluna do meio.

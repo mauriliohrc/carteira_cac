@@ -10,17 +10,24 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { Tela, Vazio } from '@/ui/base';
 import { ErroConta } from '@/conta/api';
 import { formatarData, listarNoticias } from '@/noticias/api';
 import { registrarPresenca } from '@/push/presenca';
+import { DuasColunas } from '@/ui/layout/DuasColunas';
+import { useLargura } from '@/ui/layout/useLargura';
+import { DetalheNoticia } from './[id]';
 import type { Noticia } from '@/noticias/tipos';
 
 export default function Noticias() {
   const c = useCores();
   const p = useEstilos(folha);
+  const { duasColunas } = useLargura();
+  const insets = useSafeAreaInsets();
+  const [selNot, setSelNot] = useState<string | null>(null);
 
   const [itens, setItens] = useState<Noticia[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -97,49 +104,89 @@ export default function Noticias() {
     );
   }
 
+  const usarDuas = duasColunas && itens.length > 0;
+  const selId = usarDuas
+    ? selNot && itens.some((n) => n.id === selNot)
+      ? selNot
+      : itens[0].id
+    : null;
+  const aoTocarItem = (nid: string) =>
+    usarDuas ? setSelNot(nid) : router.push({ pathname: '/noticias/[id]', params: { id: nid } });
+
+  const listaNoticias = (
+    <FlatList
+      data={itens}
+      keyExtractor={(n) => n.id}
+      contentContainerStyle={p.lista}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={atualizando} onRefresh={aoAtualizar} tintColor={c.primario} />
+      }
+      onEndReached={carregarMais}
+      onEndReachedThreshold={0.4}
+      ListEmptyComponent={
+        <Vazio
+          icone="newspaper-outline"
+          titulo="Nenhuma notícia ainda"
+          descricao="Quando houver novidades, elas aparecem aqui."
+        />
+      }
+      ListFooterComponent={
+        carregandoMais ? (
+          <ActivityIndicator color={c.primario} style={{ marginVertical: espaco.lg }} />
+        ) : acabou && itens.length > 0 ? (
+          <Text style={p.fim}>• fim das notícias •</Text>
+        ) : null
+      }
+      renderItem={({ item }) => (
+        <CartaoNoticia
+          noticia={item}
+          selecionado={item.id === selId}
+          aoTocar={() => aoTocarItem(item.id)}
+        />
+      )}
+    />
+  );
+
+  if (usarDuas && selId) {
+    return (
+      <Tela
+        voltar
+        rolavel={false}
+        tituloCabecalho="Notícias"
+        estilo={{ paddingLeft: insets.left, paddingRight: insets.right }}
+      >
+        <DuasColunas lista={listaNoticias} detalhe={<DetalheNoticia id={selId} embutido />} />
+      </Tela>
+    );
+  }
+
   return (
     <Tela voltar rolavel={false} tituloCabecalho="Notícias">
-      <FlatList
-        data={itens}
-        keyExtractor={(n) => n.id}
-        contentContainerStyle={p.lista}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={atualizando} onRefresh={aoAtualizar} tintColor={c.primario} />
-        }
-        onEndReached={carregarMais}
-        onEndReachedThreshold={0.4}
-        ListEmptyComponent={
-          <Vazio
-            icone="newspaper-outline"
-            titulo="Nenhuma notícia ainda"
-            descricao="Quando houver novidades, elas aparecem aqui."
-          />
-        }
-        ListFooterComponent={
-          carregandoMais ? (
-            <ActivityIndicator color={c.primario} style={{ marginVertical: espaco.lg }} />
-          ) : acabou && itens.length > 0 ? (
-            <Text style={p.fim}>• fim das notícias •</Text>
-          ) : null
-        }
-        renderItem={({ item }) => (
-          <CartaoNoticia
-            noticia={item}
-            aoTocar={() => router.push({ pathname: '/noticias/[id]', params: { id: item.id } })}
-          />
-        )}
-      />
+      {listaNoticias}
     </Tela>
   );
 }
 
-function CartaoNoticia({ noticia, aoTocar }: { noticia: Noticia; aoTocar: () => void }) {
+function CartaoNoticia({
+  noticia,
+  aoTocar,
+  selecionado,
+}: {
+  noticia: Noticia;
+  aoTocar: () => void;
+  selecionado?: boolean;
+}) {
+  const c = useCores();
   const p = useEstilos(folha);
   return (
     <Pressable
       onPress={aoTocar}
-      style={({ pressed }) => [p.cartao, pressed ? { opacity: 0.7 } : null]}
+      style={({ pressed }) => [
+        p.cartao,
+        selecionado ? { borderColor: c.primario, backgroundColor: c.primarioFraco } : null,
+        pressed ? { opacity: 0.7 } : null,
+      ]}
     >
       {noticia.imagemUrl ? (
         <Image source={{ uri: noticia.imagemUrl }} style={p.imagem} resizeMode="cover" />

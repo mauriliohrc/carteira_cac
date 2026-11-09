@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -34,8 +34,14 @@ import {
 } from '@/arquivos/cofre';
 import type { Arquivo } from '@/domain/tipos';
 
-export default function DetalheDocumento() {
+/** Rota do documento. O corpo vive em `DetalheDocumento`, reutilizado no painel
+ *  master-detail (tablet / Duo aberto). */
+export default function RotaDocumento() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  return <DetalheDocumento id={id} />;
+}
+
+export function DetalheDocumento({ id, embutido }: { id: string; embutido?: boolean }) {
   const c = useCores();
   const v = useEstilos(folha);
   const { documentos, recarregar } = useApp();
@@ -46,10 +52,11 @@ export default function DetalheDocumento() {
   const def = doc ? TIPO_DOC_POR_VALOR[doc.tipo] : null;
 
   if (!doc || !def) {
-    return (
-      <Tela voltar>
-        <Text style={v.aviso}>Documento não encontrado.</Text>
-      </Tela>
+    const aviso = <Text style={v.aviso}>Documento não encontrado.</Text>;
+    return embutido ? (
+      <View style={{ flex: 1, padding: espaco.lg }}>{aviso}</View>
+    ) : (
+      <Tela voltar>{aviso}</Tela>
     );
   }
 
@@ -166,22 +173,13 @@ export default function DetalheDocumento() {
     await apagarPastaDoDocumento(doc.id);
     await removerDocumento(doc.id);
     await recarregar();
-    router.back();
+    if (!embutido) router.back();
   };
 
-  return (
-    <Tela
-      voltar
-      tituloCabecalho={def.curto}
-      acao={
-        <Pressable
-          onPress={() => router.push({ pathname: '/documento/editar', params: { id: doc.id } })}
-          hitSlop={12}
-        >
-          <Ionicons name="create-outline" size={20} color={c.primario} />
-        </Pressable>
-      }
-    >
+  const editar = () => router.push({ pathname: '/documento/editar', params: { id: doc.id } });
+
+  const conteudo = (
+    <>
       <Cartao corBorda={info.cor}>
         <Text style={v.tipo}>{def.rotulo}</Text>
         {doc.arma ? (
@@ -266,6 +264,41 @@ export default function DetalheDocumento() {
       />
 
       <AnalisandoDocumento visivel={analisando} />
+    </>
+  );
+
+  if (embutido) {
+    return (
+      <View style={{ flex: 1 }}>
+        <View style={v.cabEmbutido}>
+          <Text style={v.titEmbutido} numberOfLines={1}>
+            {def.curto}
+          </Text>
+          <Pressable onPress={editar} hitSlop={12}>
+            <Ionicons name="create-outline" size={20} color={c.primario} />
+          </Pressable>
+        </View>
+        <ScrollView
+          contentContainerStyle={{ padding: espaco.lg, paddingBottom: 110 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {conteudo}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  return (
+    <Tela
+      voltar
+      tituloCabecalho={def.curto}
+      acao={
+        <Pressable onPress={editar} hitSlop={12}>
+          <Ionicons name="create-outline" size={20} color={c.primario} />
+        </Pressable>
+      }
+    >
+      {conteudo}
     </Tela>
   );
 }
@@ -332,6 +365,17 @@ function ItemArquivo({ arquivo, aoRemover }: { arquivo: Arquivo; aoRemover: () =
 const folha = (c: Paleta) =>
   StyleSheet.create({
     aviso: { ...tipo.corpo, color: c.textoMedio, textAlign: 'center', marginTop: espaco.xxl },
+    cabEmbutido: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: espaco.md,
+      paddingHorizontal: espaco.lg,
+      paddingVertical: espaco.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.borda,
+    },
+    titEmbutido: { ...tipo.titulo, fontSize: 17, color: c.texto, flex: 1 },
     tipo: { ...tipo.titulo, fontSize: 17, color: c.texto, lineHeight: 23 },
     linkArma: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 7 },
     linkArmaTexto: { ...tipo.etiqueta, color: c.primario },

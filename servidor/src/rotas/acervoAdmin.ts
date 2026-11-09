@@ -48,6 +48,26 @@ export async function rotasAcervoAdmin(app: FastifyInstance) {
     });
     const acervo = await lerAcervo(id);
 
+    // Versão do app (a mais nova entre os aparelhos ativos) + plataformas.
+    const dispositivos = await prisma.dispositivoPush.findMany({
+      where: { usuarioId: id, ativo: true },
+      select: { plataforma: true, appVersao: true },
+    });
+    const appVersao =
+      dispositivos
+        .map((d) => d.appVersao)
+        .filter((v): v is string => !!v)
+        .sort((a, b) => {
+          const pa = a.split('.').map((n) => parseInt(n, 10) || 0);
+          const pb = b.split('.').map((n) => parseInt(n, 10) || 0);
+          for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+            const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+            if (d !== 0) return d;
+          }
+          return 0;
+        })
+        .at(-1) ?? null;
+
     return {
       usuario: {
         id: u.id,
@@ -61,6 +81,8 @@ export async function rotasAcervoAdmin(app: FastifyInstance) {
         entidades: vinculos.map((v) => ({ id: v.entidade.id, nome: v.entidade.nome, origem: v.origem })),
         ultimoAcessoEm: u.ultimoAcessoEm,
         criadoEm: u.criadoEm,
+        appVersao,
+        plataformas: [...new Set(dispositivos.map((d) => d.plataforma))],
       },
       armas: acervo.armas ?? [],
       documentos: acervo.documentos ?? [],

@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 
 import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
+import { useLargura } from '@/ui/layout/useLargura';
 import { Botao } from '@/ui/base';
 import { Cabecalho } from '@/ui/Cabecalho';
 import { LeitorPdf } from '@/ui/LeitorPdf';
@@ -26,6 +27,7 @@ export default function Visualizador() {
   }>();
   const c = useCores();
   const v = useEstilos(folha);
+  const { duasColunas } = useLargura();
   const [falhou, setFalhou] = useState(false);
 
   const ehPdf = (mime ?? '').includes('pdf') || nome?.toLowerCase().endsWith('.pdf');
@@ -54,7 +56,16 @@ export default function Visualizador() {
           maximumZoomScale={4}
           minimumZoomScale={1}
         >
-          <Image source={{ uri }} style={v.imagem} resizeMode="contain" />
+          <Image
+            source={{ uri }}
+            style={[
+              v.imagem,
+              // Tela larga: sem minHeight forçado e com teto, para a imagem não
+              // esticar de ponta a ponta no iPad/Mac/Duo aberto.
+              duasColunas && { minHeight: undefined, maxWidth: 1000, alignSelf: 'center' },
+            ]}
+            resizeMode="contain"
+          />
         </ScrollView>
         {barra}
       </View>

@@ -1,12 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
-import { espaco, raio, tipo, useEstilos, type Paleta } from '@/tema';
+import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { useApp } from '@/estado/AppContext';
 import { Botao, Vazio } from '@/ui/base';
 import { CartaoArma } from '@/ui/cartoes';
 import { ACERVOS } from '@/domain/catalogos';
+import { nomeArma } from '@/domain/rotulos';
 import { LIMITE_GRATUITO_ARMAS } from '@/billing';
 import type { Arma } from '@/domain/tipos';
 
@@ -63,7 +65,19 @@ function corresponde(a: Arma, filtro: Filtro): boolean {
  * conteúdos — acervo e habitualidade — e cada arquivo dentro de `app/` seria
  * uma rota nova.
  */
-export function ConteudoAcervo({ aoAdicionar }: { aoAdicionar: () => void }) {
+export function ConteudoAcervo({
+  aoAdicionar,
+  aoSelecionar,
+  selecionadoId,
+  compacto,
+}: {
+  aoAdicionar: () => void;
+  /** Painel master-detail (tablet): seleciona em vez de navegar; realça o item. */
+  aoSelecionar?: (id: string) => void;
+  selecionadoId?: string;
+  /** No painel, a lista vira linhas enxutas (não cards) — a cara de master-detail. */
+  compacto?: boolean;
+}) {
   const s = useEstilos(folha);
   const { armas, favoritos, alternarFavorito, documentosDaArma, fotosDaArma, premium } = useApp();
   const [filtro, setFiltro] = useState<Filtro>('TODOS');
@@ -149,18 +163,34 @@ export function ConteudoAcervo({ aoAdicionar }: { aoAdicionar: () => void }) {
         {TIPOS_ARMA.map((t) => chip(t.valor, t.rotulo))}
       </View>
 
-      <View style={{ marginTop: espaco.lg }}>
-        {visiveis.map((arma) => (
-          <CartaoArma
-            key={arma.id}
-            arma={arma}
-            documentos={documentosDaArma(arma.id)}
-            capa={fotosDaArma(arma.id)[0]?.uri}
-            favorito={favoritos.has(arma.id)}
-            aoFavoritar={() => alternarFavorito(arma.id)}
-            aoTocar={() => router.push({ pathname: '/arma/[id]', params: { id: arma.id } })}
-          />
-        ))}
+      <View style={{ marginTop: compacto ? espaco.md : espaco.lg }}>
+        {visiveis.map((arma) =>
+          compacto ? (
+            <LinhaArma
+              key={arma.id}
+              arma={arma}
+              docs={documentosDaArma(arma.id).length}
+              capa={fotosDaArma(arma.id)[0]?.uri}
+              selecionado={arma.id === selecionadoId}
+              aoTocar={() => aoSelecionar?.(arma.id)}
+            />
+          ) : (
+            <CartaoArma
+              key={arma.id}
+              arma={arma}
+              documentos={documentosDaArma(arma.id)}
+              capa={fotosDaArma(arma.id)[0]?.uri}
+              favorito={favoritos.has(arma.id)}
+              aoFavoritar={() => alternarFavorito(arma.id)}
+              selecionado={!!selecionadoId && arma.id === selecionadoId}
+              aoTocar={() =>
+                aoSelecionar
+                  ? aoSelecionar(arma.id)
+                  : router.push({ pathname: '/arma/[id]', params: { id: arma.id } })
+              }
+            />
+          )
+        )}
 
         {bloqueadasVisiveis.length > 0 ? (
           <>
@@ -168,16 +198,20 @@ export function ConteudoAcervo({ aoAdicionar }: { aoAdicionar: () => void }) {
               O plano grátis mostra {LIMITE_GRATUITO_ARMAS}. As demais ficam aqui, bloqueadas —
               assine o Premium para ver todo o acervo.
             </Text>
-            {bloqueadasVisiveis.map((arma) => (
-              <CartaoArma
-                key={arma.id}
-                arma={arma}
-                documentos={documentosDaArma(arma.id)}
-                capa={fotosDaArma(arma.id)[0]?.uri}
-                bloqueado
-                aoTocar={irParaPremium}
-              />
-            ))}
+            {bloqueadasVisiveis.map((arma) =>
+              compacto ? (
+                <LinhaArma key={arma.id} arma={arma} docs={0} bloqueado aoTocar={irParaPremium} />
+              ) : (
+                <CartaoArma
+                  key={arma.id}
+                  arma={arma}
+                  documentos={documentosDaArma(arma.id)}
+                  capa={fotosDaArma(arma.id)[0]?.uri}
+                  bloqueado
+                  aoTocar={irParaPremium}
+                />
+              )
+            )}
           </>
         ) : null}
       </View>
@@ -185,8 +219,92 @@ export function ConteudoAcervo({ aoAdicionar }: { aoAdicionar: () => void }) {
   );
 }
 
+/** Linha enxuta da arma para o painel master-detail (sem card). */
+function LinhaArma({
+  arma,
+  docs,
+  capa,
+  selecionado,
+  bloqueado,
+  aoTocar,
+}: {
+  arma: Arma;
+  docs: number;
+  capa?: string | null;
+  selecionado?: boolean;
+  bloqueado?: boolean;
+  aoTocar: () => void;
+}) {
+  const c = useCores();
+  const s = useEstilos(folha);
+  return (
+    <Pressable
+      onPress={aoTocar}
+      style={({ pressed }) => [s.linha, selecionado ? s.linhaSel : null, pressed && { opacity: 0.7 }]}
+    >
+      {capa && !bloqueado ? (
+        <Image source={{ uri: capa }} style={s.linhaCapa} />
+      ) : (
+        <View style={s.linhaIcone}>
+          <Ionicons
+            name={bloqueado ? 'lock-closed' : 'ellipse-outline'}
+            size={16}
+            color={bloqueado ? c.latao : c.textoFraco}
+          />
+        </View>
+      )}
+      <View style={{ flex: 1 }}>
+        <Text style={s.linhaNome} numberOfLines={1}>
+          {bloqueado ? 'Desbloquear no Premium' : nomeArma(arma)}
+        </Text>
+        <Text style={s.linhaSub} numberOfLines={1}>
+          {[arma.especie, arma.calibre].filter(Boolean).join(' · ')}
+        </Text>
+      </View>
+      {bloqueado ? null : (
+        <Text style={s.linhaDocs}>
+          {docs} doc{docs === 1 ? '' : 's'}
+        </Text>
+      )}
+      <Ionicons name="chevron-forward" size={15} color={selecionado ? c.primario : c.textoFraco} />
+    </Pressable>
+  );
+}
+
 const folha = (c: Paleta) =>
   StyleSheet.create({
+    // Linha compacta do painel master-detail.
+    linha: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: espaco.md,
+      paddingVertical: espaco.md,
+      paddingHorizontal: espaco.sm,
+      borderRadius: raio.sm,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.borda,
+    },
+    linhaSel: { backgroundColor: c.primarioFraco, borderBottomColor: 'transparent' },
+    linhaCapa: {
+      width: 34,
+      height: 34,
+      borderRadius: raio.sm,
+      backgroundColor: c.superficieAlta,
+    },
+    linhaIcone: {
+      width: 34,
+      height: 34,
+      borderRadius: raio.sm,
+      backgroundColor: c.superficie,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.borda,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    linhaNome: { ...tipo.subtitulo, fontSize: 14.5, color: c.texto },
+    linhaSub: { ...tipo.legenda, fontSize: 11.5, color: c.textoFraco, marginTop: 1 },
+    linhaDocs: { ...tipo.legenda, fontSize: 11, color: c.textoFraco },
+
     filtros: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: espaco.lg },
     filtro: {
       paddingHorizontal: espaco.md,

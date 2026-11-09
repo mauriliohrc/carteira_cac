@@ -189,6 +189,14 @@ function Perfil({ id }: { id: string }) {
             <Campo rotulo="E-mail verificado" valor={u.emailVerificado ? 'Sim' : 'Não'} />
             <Campo rotulo="Plano" valor={rotuloPlano(u.premium, u.premiumTipo)} />
             <Campo rotulo="Status" valor={u.ativo ? 'Ativa' : 'Inativa'} />
+            <Campo
+              rotulo="Versão do app"
+              valor={
+                u.appVersao
+                  ? `${u.appVersao}${u.plataformas?.length ? ` · ${u.plataformas.map((p) => (p === 'IOS' ? 'iOS' : 'Android')).join('/')}` : ''}`
+                  : 'Não reportada'
+              }
+            />
           </div>
         </div>
       )}

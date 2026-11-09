@@ -219,7 +219,16 @@ export async function fotografar(): Promise<ArquivoEscolhido | null> {
     );
     return null;
   }
-  const r = await ImagePicker.launchCameraAsync({ quality: 0.85 });
+  // No Mac (app de iPad via compatibilidade) pode não haver câmera: o
+  // launchCameraAsync falha. Degrada com um aviso em vez de quebrar — o usuário
+  // segue pela galeria/PDF.
+  let r: ImagePicker.ImagePickerResult;
+  try {
+    r = await ImagePicker.launchCameraAsync({ quality: 0.85 });
+  } catch {
+    avisar('Câmera indisponível', 'Este aparelho não tem câmera. Use "Escolher arquivo".');
+    return null;
+  }
   if (r.canceled || !r.assets?.length) return null;
   const a = r.assets[0];
   return {

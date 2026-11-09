@@ -41,24 +41,6 @@ const DESTINOS_PUSH: { valor: string; rotulo: string }[] = [
   { valor: '/premium', rotulo: 'Paywall (assinatura)' },
 ];
 
-function CartaoNumero({ titulo, valor, cor }: { titulo: string; valor: number; cor?: string }) {
-  return (
-    <div
-      style={{
-        minWidth: 110,
-        flex: '1 1 110px',
-        padding: '10px 14px',
-        borderRadius: 10,
-        border: '1px solid var(--borda, #e2e2e2)',
-        background: 'var(--fundo-suave, #fafafa)',
-      }}
-    >
-      <div style={{ fontSize: 22, fontWeight: 700, color: cor ?? 'var(--texto, #222)' }}>{valor}</div>
-      <div style={{ fontSize: 12, color: 'var(--texto-suave)' }}>{titulo}</div>
-    </div>
-  );
-}
-
 function Push() {
   const sp = useSearchParams();
   const [titulo, setTitulo] = useState('');
@@ -240,43 +222,6 @@ function Push() {
     <>
       <h1>Enviar push</h1>
       <p className="subtitulo">Notificação para os usuários do aplicativo.</p>
-
-      {/* ---------- Versões do app (estatística em cards) ---------- */}
-      {versoes && (
-        <div className="cartao" style={{ marginBottom: 16 }}>
-          <label style={{ fontWeight: 600 }}>Versões do app</label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, margin: '10px 0' }}>
-            <CartaoNumero titulo="Com conta" valor={versoes.totalUsuarios} />
-            <CartaoNumero
-              titulo={`Na última${versoes.latest ? ` (${versoes.latest})` : ''}`}
-              valor={versoes.versoes.find((v) => v.versao === versoes.latest)?.usuarios ?? 0}
-              cor="#1a7f37"
-            />
-            <CartaoNumero titulo="Desatualizados" valor={versoes.desatualizados} cor="#b25000" />
-            <CartaoNumero titulo="Sem versão" valor={versoes.desconhecidos} cor="var(--texto-suave)" />
-          </div>
-          {versoes.versoes.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {versoes.versoes.map((v) => (
-                <span
-                  key={v.versao ?? 'desc'}
-                  style={{
-                    fontSize: 12,
-                    padding: '3px 8px',
-                    borderRadius: 999,
-                    background: 'var(--fundo-suave, #f0f0f0)',
-                    border: '1px solid var(--borda, #ddd)',
-                    color:
-                      v.versao && v.versao !== versoes.latest ? '#b25000' : 'var(--texto, #222)',
-                  }}
-                >
-                  {v.versao ?? 'sem versão'} · {v.usuarios}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       <div className="cartao">
         <div className="campo">

@@ -16,9 +16,18 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { KeyboardAvoidingView, Platform } from 'react-native';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { espaco, MONO, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { useFolgaBarra } from './BarraAbas';
 import { Cabecalho, useFolgaCabecalho } from './Cabecalho';
+
+/**
+ * Teto de largura do conteúdo. Em telas largas (iPhone Duo aberto, iPad) o
+ * texto não estica de margem a margem — fica numa coluna legível e centrada.
+ * No iPhone (e Duo fechado) a largura real é menor, então não há corte.
+ */
+const MAXW_CONTEUDO = 700;
 
 // ------------------------------------------------------------------- layout
 
@@ -55,7 +64,18 @@ export function Tela({
   const e = useEstilos(folha);
   const folgaBarra = useFolgaBarra();
   const folgaCabecalho = useFolgaCabecalho();
+  const insets = useSafeAreaInsets();
   const [atualizando, setAtualizando] = React.useState(false);
+
+  // Coluna de conteúdo: centrada e com teto nas telas largas; respeita o trilho
+  // lateral do Duo aberto (insets.left/right; 0 no retrato de iPhone).
+  const colunaConteudo = {
+    maxWidth: MAXW_CONTEUDO,
+    width: '100%' as const,
+    alignSelf: 'center' as const,
+    paddingLeft: espaco.lg + insets.left,
+    paddingRight: espaco.lg + insets.right,
+  };
 
   const topo = semCabecalho ? espaco.lg : folgaCabecalho;
   const rodape = sobBarra ? folgaBarra : 48;
@@ -73,7 +93,7 @@ export function Tela({
   const conteudo = rolavel ? (
     <ScrollView
       contentContainerStyle={[
-        { paddingHorizontal: espaco.lg, paddingTop: topo, paddingBottom: rodape },
+        { ...colunaConteudo, paddingTop: topo, paddingBottom: rodape },
         estilo,
       ]}
       keyboardShouldPersistTaps="handled"
