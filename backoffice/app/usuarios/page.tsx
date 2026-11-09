@@ -185,6 +185,7 @@ function ListaUsuarios() {
                 <Th coluna="armas">Armas</Th>
                 <Th coluna="armasSH">Armas SH</Th>
                 <Th coluna="dispositivos">Disp.</Th>
+                <Th>Versão</Th>
                 <Th></Th>
               </tr>
             </thead>
@@ -248,6 +249,9 @@ function ListaUsuarios() {
                       ))}
                       <span>{u.dispositivos}</span>
                     </div>
+                  </td>
+                  <td style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                    {u.appVersao ?? <span style={{ color: 'var(--texto-suave)' }}>—</span>}
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <Link href={`/push?usuarioId=${u.id}&nome=${encodeURIComponent(u.nome)}`}>

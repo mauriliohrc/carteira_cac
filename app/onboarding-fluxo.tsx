@@ -43,9 +43,14 @@ export default function OnboardingFluxo() {
         ? 'validar'
         : documentos.length === 0 && !pulouCR
           ? 'cr'
-          : armas.length === 0 && !pulouCRAF
+          : !pulouCRAF
             ? 'craf'
             : 'premium';
+
+  // O passo do CRAF é um laço: enviou um, perguntamos "mais um?" e só saímos
+  // quando ele disser que não quer mais. Assim ele cadastra o acervo inteiro já
+  // no onboarding — e vê, logo em seguida, quanta coisa o Premium destrava.
+  const jaInseriuCraf = armas.length > 0;
 
   const concluir = async () => {
     await gravarConfig(CHAVES.onboardingFluxo, '1').catch(() => {});
@@ -115,7 +120,7 @@ export default function OnboardingFluxo() {
           />
         ) : null}
 
-        {etapa === 'craf' ? (
+        {etapa === 'craf' && !jaInseriuCraf ? (
           <Passo
             p={p}
             c={c}
@@ -123,6 +128,17 @@ export default function OnboardingFluxo() {
             icone="shield-checkmark"
             titulo={'Envie o CRAF\nde uma arma'}
             sub="Suba o CRAF e a IA cria a ficha da arma automaticamente, com o documento já anexado. Você revisa e ajusta quando quiser."
+          />
+        ) : null}
+
+        {etapa === 'craf' && jaInseriuCraf ? (
+          <Passo
+            p={p}
+            c={c}
+            selo={`${armas.length} ARMA${armas.length > 1 ? 'S' : ''} NO ACERVO`}
+            icone="checkmark-circle"
+            titulo={'Deseja inserir\nmais um CRAF?'}
+            sub="Tem mais de uma arma? Adicione o CRAF de cada uma agora — a IA monta a ficha de todas. Pare quando terminar."
           />
         ) : null}
 
@@ -172,10 +188,17 @@ export default function OnboardingFluxo() {
           </>
         ) : null}
 
-        {etapa === 'craf' ? (
+        {etapa === 'craf' && !jaInseriuCraf ? (
           <>
             <Botao titulo="Enviar CRAF" icone="scan-outline" aoTocar={enviarCRAF} carregando={ocupado} />
             <Botao titulo="Pular por enquanto" variante="fantasma" aoTocar={() => setPulouCRAF(true)} estilo={{ marginTop: espaco.xs }} />
+          </>
+        ) : null}
+
+        {etapa === 'craf' && jaInseriuCraf ? (
+          <>
+            <Botao titulo="Inserir mais um CRAF" icone="add" aoTocar={enviarCRAF} carregando={ocupado} />
+            <Botao titulo="Não, continuar" variante="fantasma" aoTocar={() => setPulouCRAF(true)} estilo={{ marginTop: espaco.xs }} />
           </>
         ) : null}
 

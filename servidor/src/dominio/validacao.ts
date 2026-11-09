@@ -103,6 +103,8 @@ export const atualizarPerfilAppSchema = z.object({
 export const registrarDispositivoSchema = z.object({
   token: z.string().trim().min(1, 'Token ausente'),
   plataforma: z.enum(PLATAFORMAS_PUSH as [string, ...string[]]),
+  /** Versão de marketing do app (ex.: "1.8.1"). Opcional: apps antigos não mandam. */
+  appVersao: z.string().trim().max(20).optional(),
 });
 
 // ---------------------------------------------------- push (backoffice)
@@ -133,9 +135,14 @@ export const publicoPushSchema = z
     usuarioId: z.string().min(1).optional(),
     plataformas: z.array(z.enum(['IOS', 'ANDROID'])).optional(),
     entidadeId: z.string().min(1).optional(),
+    /** Exclui do envio quem tem vínculo com QUALQUER destas entidades (AND NOT). */
+    excluirEntidadeIds: z.array(z.string().min(1)).optional(),
     semArma: z.boolean().optional(),
     semEmail: z.boolean().optional(),
     inativosDias: z.number().int().min(1).max(3650).optional(),
+    /** Só aparelhos cuja versão do app é MENOR que esta (desatualizados). Apps
+     *  sem versão reportada (null) também entram, por serem os mais antigos. */
+    versaoMenorQue: z.string().trim().max(20).optional(),
   })
   .refine((p) => p.base !== 'USUARIO' || !!p.usuarioId, {
     message: 'Escolha o usuário para o envio individual.',

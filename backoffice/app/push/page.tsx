@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api, ErroApi } from '@/lib/api';
 import { dataHora } from '@/lib/formato';
-import type { Entidade, EnvioPush, PublicoPush, UsuarioApp } from '@/lib/tipos';
+import type { AppVersoes, Entidade, EnvioPush, PublicoPush, UsuarioApp } from '@/lib/tipos';
 import { Protegido } from '../componentes/Protegido';
 
 type Base = PublicoPush['base'];
@@ -27,10 +27,43 @@ export default function PaginaPush() {
   );
 }
 
+/**
+ * Destino ao tocar no push: vira `dados.tela` (rota literal), que o app resolve
+ * em `hrefDeDados`. Retrocompatível — apps que não conhecem a rota só abrem
+ * normalmente. 'premium' leva ao paywall (o app manda quem já é Premium pro
+ * acervo). '' = sem destino (abre a caixa de avisos).
+ */
+const DESTINOS_PUSH: { valor: string; rotulo: string }[] = [
+  { valor: '', rotulo: 'Nenhum (abre o app)' },
+  { valor: '/(tabs)/acervo', rotulo: 'Acervo' },
+  { valor: '/(tabs)/despachante', rotulo: 'Serviços' },
+  { valor: '/(tabs)/pessoais', rotulo: 'Meus docs' },
+  { valor: '/premium', rotulo: 'Paywall (assinatura)' },
+];
+
+function CartaoNumero({ titulo, valor, cor }: { titulo: string; valor: number; cor?: string }) {
+  return (
+    <div
+      style={{
+        minWidth: 110,
+        flex: '1 1 110px',
+        padding: '10px 14px',
+        borderRadius: 10,
+        border: '1px solid var(--borda, #e2e2e2)',
+        background: 'var(--fundo-suave, #fafafa)',
+      }}
+    >
+      <div style={{ fontSize: 22, fontWeight: 700, color: cor ?? 'var(--texto, #222)' }}>{valor}</div>
+      <div style={{ fontSize: 12, color: 'var(--texto-suave)' }}>{titulo}</div>
+    </div>
+  );
+}
+
 function Push() {
   const sp = useSearchParams();
   const [titulo, setTitulo] = useState('');
   const [corpo, setCorpo] = useState('');
+  const [destino, setDestino] = useState('');
 
   // Público = filtros combináveis (AND).
   const [base, setBase] = useState<Base>('CONTAS');
@@ -39,6 +72,10 @@ function Push() {
   const [usuarioNome, setUsuarioNome] = useState('');
   const [entidadeAtiva, setEntidadeAtiva] = useState(false);
   const [entidadeId, setEntidadeId] = useState('');
+  const [excluirEntidades, setExcluirEntidades] = useState(false);
+  const [excluirIds, setExcluirIds] = useState<string[]>([]);
+  const [soDesatualizados, setSoDesatualizados] = useState(false);
+  const [versoes, setVersoes] = useState<AppVersoes | null>(null);
   const [semArma, setSemArma] = useState(false);
   const [semEmail, setSemEmail] = useState(false);
   const [inativosAtivo, setInativosAtivo] = useState(false);
@@ -85,8 +122,13 @@ function Push() {
 
   useEffect(() => {
     api<{ entidades: Entidade[] }>('/api/admin/entidades').then((r) => setEntidades(r.entidades));
+    api<AppVersoes>('/api/admin/app-versoes').then(setVersoes).catch(() => {});
     carregarHistorico();
   }, [carregarHistorico]);
+
+  function alternarExcluir(id: string) {
+    setExcluirIds((atual) => (atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id]));
+  }
 
   function alternarPlataforma(p: Plataforma) {
     setPlataformas((atual) => (atual.includes(p) ? atual.filter((x) => x !== p) : [...atual, p]));
@@ -102,6 +144,9 @@ function Push() {
       if (semEmail) pub.semEmail = true;
       if (inativosAtivo && dias >= 1) pub.inativosDias = Number(dias);
     }
+    // Exclusão por entidade e filtro de versão valem para qualquer base.
+    if (excluirEntidades && excluirIds.length) pub.excluirEntidadeIds = excluirIds;
+    if (soDesatualizados && versoes?.latest) pub.versaoMenorQue = versoes.latest;
     return pub;
   }
 
@@ -117,7 +162,16 @@ function Push() {
     try {
       const r = await api<{ totalUsuarios: number; totalTokens: number; aceitos: number; falhas: number }>(
         '/api/admin/push',
-        { metodo: 'POST', corpo: { titulo, corpo, publico: montarPublico() } }
+        {
+          metodo: 'POST',
+          corpo: {
+            titulo,
+            corpo,
+            // Só manda `dados` quando há destino escolhido.
+            ...(destino ? { dados: { tela: destino } } : {}),
+            publico: montarPublico(),
+          },
+        }
       );
       setResultado(
         `Enviado para ${r.totalUsuarios} usuário(s) · ${r.totalTokens} dispositivo(s) · ${r.aceitos} aceito(s)` +
@@ -125,6 +179,7 @@ function Push() {
       );
       setTitulo('');
       setCorpo('');
+      setDestino('');
       carregarHistorico();
     } catch (e) {
       setErro(e instanceof ErroApi ? e.message : 'Falha ao enviar');
@@ -186,6 +241,43 @@ function Push() {
       <h1>Enviar push</h1>
       <p className="subtitulo">Notificação para os usuários do aplicativo.</p>
 
+      {/* ---------- Versões do app (estatística em cards) ---------- */}
+      {versoes && (
+        <div className="cartao" style={{ marginBottom: 16 }}>
+          <label style={{ fontWeight: 600 }}>Versões do app</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, margin: '10px 0' }}>
+            <CartaoNumero titulo="Com conta" valor={versoes.totalUsuarios} />
+            <CartaoNumero
+              titulo={`Na última${versoes.latest ? ` (${versoes.latest})` : ''}`}
+              valor={versoes.versoes.find((v) => v.versao === versoes.latest)?.usuarios ?? 0}
+              cor="#1a7f37"
+            />
+            <CartaoNumero titulo="Desatualizados" valor={versoes.desatualizados} cor="#b25000" />
+            <CartaoNumero titulo="Sem versão" valor={versoes.desconhecidos} cor="var(--texto-suave)" />
+          </div>
+          {versoes.versoes.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {versoes.versoes.map((v) => (
+                <span
+                  key={v.versao ?? 'desc'}
+                  style={{
+                    fontSize: 12,
+                    padding: '3px 8px',
+                    borderRadius: 999,
+                    background: 'var(--fundo-suave, #f0f0f0)',
+                    border: '1px solid var(--borda, #ddd)',
+                    color:
+                      v.versao && v.versao !== versoes.latest ? '#b25000' : 'var(--texto, #222)',
+                  }}
+                >
+                  {v.versao ?? 'sem versão'} · {v.usuarios}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="cartao">
         <div className="campo">
           <label>Título *</label>
@@ -199,6 +291,21 @@ function Push() {
             maxLength={1000}
             style={{ minHeight: 90 }}
           />
+        </div>
+
+        {/* ---------- Abrir ao tocar (deep link) ---------- */}
+        <div className="campo">
+          <label>Abrir ao tocar</label>
+          <select value={destino} onChange={(e) => setDestino(e.target.value)}>
+            {DESTINOS_PUSH.map((d) => (
+              <option key={d.valor} value={d.valor}>
+                {d.rotulo}
+              </option>
+            ))}
+          </select>
+          <span style={{ color: 'var(--texto-suave)', fontSize: 12 }}>
+            Para onde o app vai quando o usuário toca na notificação.
+          </span>
         </div>
 
         {/* ---------- Plataforma (checklist) ---------- */}
@@ -222,6 +329,59 @@ function Push() {
               ? 'Todas as plataformas'
               : `Só ${plataformas[0] === 'IOS' ? 'iOS' : 'Android'}`}
           </span>
+        </div>
+
+        {/* ---------- Excluir entidades + desatualizados (qualquer base) ---------- */}
+        <div className="campo">
+          <label>Refinos do envio</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <label className="radio-opcao" style={{ cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={excluirEntidades}
+                onChange={(e) => setExcluirEntidades(e.target.checked)}
+                style={{ width: 'auto' }}
+              />
+              Excluir entidades do envio
+            </label>
+            {excluirEntidades && (
+              <div style={{ marginLeft: 26, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {entidades.map((e) => (
+                  <label
+                    key={e.id}
+                    className={`radio-opcao ${excluirIds.includes(e.id) ? 'sel' : ''}`}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={excluirIds.includes(e.id)}
+                      onChange={() => alternarExcluir(e.id)}
+                      style={{ width: 'auto' }}
+                    />
+                    {e.nome}
+                  </label>
+                ))}
+                {entidades.length === 0 && (
+                  <span style={{ color: 'var(--texto-suave)', fontSize: 12 }}>Nenhuma entidade.</span>
+                )}
+              </div>
+            )}
+
+            <label
+              className="radio-opcao"
+              style={{ cursor: versoes?.latest ? 'pointer' : 'not-allowed', opacity: versoes?.latest ? 1 : 0.6 }}
+            >
+              <input
+                type="checkbox"
+                checked={soDesatualizados}
+                onChange={(e) => setSoDesatualizados(e.target.checked)}
+                disabled={!versoes?.latest}
+                style={{ width: 'auto' }}
+              />
+              Só desatualizados{' '}
+              {versoes?.latest ? `(versão < ${versoes.latest})` : '(sem dados de versão)'}
+            </label>
+          </div>
         </div>
 
         {/* ---------- Público base (radio) ---------- */}

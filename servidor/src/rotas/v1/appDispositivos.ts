@@ -16,13 +16,15 @@ const JANELA_VINCULOS_MS = 6 * 60 * 60 * 1000; // revê filiação na SH no máx
 export async function rotasDispositivosAppV1(app: FastifyInstance) {
   // Registra/atualiza o token deste aparelho. Associa à conta se autenticado.
   app.post('/app/dispositivos', async (req, reply) => {
-    const { token, plataforma } = registrarDispositivoSchema.parse(req.body);
+    const { token, plataforma, appVersao } = registrarDispositivoSchema.parse(req.body);
     const usuarioId = usuarioAppOpcional(req); // null = anônimo
 
+    // appVersao só é gravada quando veio (apps antigos não mandam): num update
+    // nunca sobrescreve o valor conhecido com null.
     await prisma.dispositivoPush.upsert({
       where: { token },
-      create: { token, plataforma, usuarioId, ativo: true },
-      update: { plataforma, usuarioId, ativo: true },
+      create: { token, plataforma, usuarioId, ativo: true, ...(appVersao ? { appVersao } : {}) },
+      update: { plataforma, usuarioId, ativo: true, ...(appVersao ? { appVersao } : {}) },
     });
 
     if (usuarioId) {

@@ -1,8 +1,9 @@
 import React from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 
-import { espaco, MONO, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
+import { espaco, MONO, raio, tipo, useCores, useEstilos, useTema, type Paleta } from '@/tema';
 import { isoParaBR, textoPrazo } from '@/lib/data';
 import { avaliarComCor } from '@/domain/vencimento';
 import {
@@ -43,6 +44,7 @@ export function CartaoArma({
   favorito,
   aoFavoritar,
   aoTocar,
+  bloqueado,
 }: {
   arma: Arma;
   documentos: DocumentoComContexto[];
@@ -53,9 +55,17 @@ export function CartaoArma({
   /** Alterna o favorito (opcional: quando ausente, a estrela não aparece). */
   aoFavoritar?: () => void;
   aoTocar: () => void;
+  /**
+   * Arma fora do limite grátis (ou amostra de vitrine): mostra o cartão sob um
+   * borrão forte com "Toque para desbloquear". O toque leva ao `aoTocar` — que,
+   * nesse caso, é o paywall. Some a estrela de favoritar.
+   */
+  bloqueado?: boolean;
 }) {
   const c = useCores();
   const e = useEstilos(folha);
+  const { esquema } = useTema();
+  const escuro = esquema === 'escuro';
   const acervo = ACERVO_POR_VALOR[arma.acervo];
   const grupo = GRUPO_POR_VALOR[arma.grupo];
   const corAcervo = corDe(acervo?.cor, c);
@@ -117,6 +127,31 @@ export function CartaoArma({
           )}
         </View>
       </View>
+
+      {bloqueado ? (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          {/* Android só borra de verdade com o método experimental; o scrim por
+              cima garante que o conteúdo fique ilegível em qualquer plataforma. */}
+          <BlurView
+            intensity={Platform.OS === 'android' ? 30 : 48}
+            tint={escuro ? 'dark' : 'light'}
+            experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+            style={StyleSheet.absoluteFill}
+          />
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: escuro ? 'rgba(12,13,10,0.42)' : 'rgba(246,246,243,0.50)' },
+            ]}
+          />
+          <View style={e.bloqueioCentro}>
+            <View style={e.bloqueioIcone}>
+              <Ionicons name="lock-closed" size={17} color={c.latao} />
+            </View>
+            <Text style={e.bloqueioTexto}>Toque para desbloquear</Text>
+          </View>
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -338,6 +373,33 @@ const folha = (c: Paleta) =>
       marginBottom: espaco.md,
     },
     faixa: { width: 3 },
+    bloqueioCentro: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: espaco.sm,
+    },
+    bloqueioIcone: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: c.lataoFraco,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: `${c.latao}88`,
+    },
+    bloqueioTexto: {
+      ...tipo.subtitulo,
+      fontSize: 13,
+      fontWeight: '700',
+      color: c.latao,
+      letterSpacing: 0.2,
+    },
     topoArma: { flexDirection: 'row', alignItems: 'center', gap: espaco.md },
     capa: {
       width: 46,

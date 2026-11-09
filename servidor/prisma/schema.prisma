@@ -428,6 +428,9 @@ model DispositivoPush {
   token        String   @unique
   /// IOS | ANDROID
   plataforma   String
+  /// Versão de marketing do app reportada no registro (ex.: "1.8.1"). Null em
+  /// apps antigos que ainda não mandam — tratados como "desconhecida".
+  appVersao    String?
   ativo        Boolean  @default(true)
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt

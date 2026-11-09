@@ -37,10 +37,13 @@ export async function registrarDispositivo(authToken?: string): Promise<void> {
   const token = await obterTokenExpo();
   if (!token) return;
   const plataforma = Platform.OS === 'ios' ? 'IOS' : 'ANDROID';
+  // Versão de marketing (app.json → "1.8.1"). O backoffice usa para rastrear
+  // quem está desatualizado. Campo opcional: servidor aceita ausência.
+  const appVersao = Constants.expoConfig?.version ?? undefined;
   try {
     await apiApp('/dispositivos', {
       metodo: 'POST',
-      corpo: { token, plataforma },
+      corpo: { token, plataforma, appVersao },
       token: authToken ?? null,
     });
   } catch {

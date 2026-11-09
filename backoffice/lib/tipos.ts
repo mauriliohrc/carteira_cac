@@ -98,6 +98,8 @@ export interface UsuarioApp {
   dispositivos: number;
   /** Plataformas dos aparelhos ativos: 'IOS' | 'ANDROID'. */
   plataformas?: string[];
+  /** Versão do app (a mais nova entre os aparelhos ativos). Null = não reportada. */
+  appVersao?: string | null;
   /** Armas cadastradas no app (acervo sincronizado). */
   armasSistema?: number;
   criadoEm: string;
@@ -281,9 +283,22 @@ export interface PublicoPush {
   usuarioId?: string;
   plataformas?: ('IOS' | 'ANDROID')[];
   entidadeId?: string;
+  /** Exclui do envio quem tem vínculo com qualquer destas entidades. */
+  excluirEntidadeIds?: string[];
   semArma?: boolean;
   semEmail?: boolean;
   inativosDias?: number;
+  /** Só aparelhos com versão do app menor que esta (desatualizados). */
+  versaoMenorQue?: string;
+}
+
+/** Distribuição de versões do app (cards no envio de push). */
+export interface AppVersoes {
+  latest: string | null;
+  totalUsuarios: number;
+  versoes: { versao: string | null; usuarios: number }[];
+  desatualizados: number;
+  desconhecidos: number;
 }
 
 export interface EnvioPush {

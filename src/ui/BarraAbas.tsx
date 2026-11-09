@@ -13,6 +13,8 @@ export const ALTURA_BARRA = 60;
 const MARGEM_LATERAL = 14;
 const RAIO = 26;
 const FOLGA_INTERNA = 5;
+/** Diâmetro do círculo da aba central ("Serviços"), centrado DENTRO da barra. */
+const CIRCULO = 56;
 
 /**
  * Barra de abas flutuante em vidro.
@@ -52,6 +54,19 @@ export function BarraAbas({ state, descriptors, navigation, icones }: PropsBarra
   const deslocamento = useRef(new Animated.Value(0)).current;
   const primeiraMedida = useRef(true);
 
+  const paddingBottom = Math.max(inferior, 10);
+
+  // A aba "Serviços" (despachante) vira um círculo verde saltado, centrado na
+  // coluna dela. Fica fora do vidro (que recorta) e navega no toque.
+  const rotaCentral = rotasVisiveis.find((r) => r.name === 'despachante');
+  const idxCentral = rotasVisiveis.findIndex((r) => r.name === 'despachante');
+  const centralAtiva = rotaCentral?.key === rotaAtiva?.key;
+  const irParaCentral = () => {
+    if (!rotaCentral) return;
+    const evento = navigation.emit({ type: 'tabPress', target: rotaCentral.key, canPreventDefault: true });
+    if (!centralAtiva && !evento.defaultPrevented) navigation.navigate(rotaCentral.name, rotaCentral.params);
+  };
+
   useEffect(() => {
     if (!larguraAba || indiceAtivo < 0) return;
     const destino = indiceAtivo * larguraAba;
@@ -71,7 +86,10 @@ export function BarraAbas({ state, descriptors, navigation, icones }: PropsBarra
   }, [deslocamento, larguraAba, indiceAtivo]);
 
   return (
-    <View style={[b.raiz, { paddingBottom: Math.max(inferior, 10) }]} pointerEvents="box-none">
+    <View style={[b.raiz, { paddingBottom }]} pointerEvents="box-none">
+      {/* Área relativa SEM padding: ancora o círculo central à borda de cima da
+          barra, sem depender de como o Yoga trata padding em filho absoluto. */}
+      <View style={b.barraArea} pointerEvents="box-none">
       <GrupoVidro proximidade={30} estilo={b.grupo}>
         <Vidro raioCanto={RAIO} material="regular" estilo={b.barra}>
           <View
@@ -132,6 +150,9 @@ export function BarraAbas({ state, descriptors, navigation, icones }: PropsBarra
                     rotulo={rotulo}
                     icone={icones[rota.name] ?? 'ellipse-outline'}
                     badge={opcoes.tabBarBadge}
+                    // "Serviços" ganha o círculo verde saltado desenhado por
+                    // cima; aqui dentro só fica o rótulo, sem ícone.
+                    ocultarIcone={rota.name === 'despachante'}
                   />
                 </Pressable>
               );
@@ -139,6 +160,30 @@ export function BarraAbas({ state, descriptors, navigation, icones }: PropsBarra
           </View>
         </Vidro>
       </GrupoVidro>
+
+      {/* Círculo saltado da aba central, por cima do vidro (que recortaria).
+          Ancorado ao topo da barra (top: -CIRCULO/2 → centro na borda) e
+          centrado na largura (= centro da tela = coluna do meio das 5 abas). */}
+      {idxCentral >= 0 ? (
+        <View pointerEvents="box-none" style={b.centralCamada}>
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityState={{ selected: centralAtiva }}
+            accessibilityLabel="Serviços"
+            onPress={irParaCentral}
+            onLongPress={() =>
+              rotaCentral && navigation.emit({ type: 'tabLongPress', target: rotaCentral.key })
+            }
+            style={({ pressed }) => [b.central, pressed ? { transform: [{ scale: 0.94 }] } : null]}
+          >
+            <Ionicons name="briefcase" size={23} color={c.sobrePrimario} />
+            <Text style={b.centralRotulo} numberOfLines={1}>
+              Serviços
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+      </View>
     </View>
   );
 }
@@ -148,11 +193,15 @@ function ItemAba({
   rotulo,
   icone,
   badge,
+  ocultarIcone,
 }: {
   ativo: boolean;
   rotulo: string;
   icone: string;
   badge?: number | string;
+  /** Esconde o ícone: a aba central o exibe num círculo saltado, desenhado fora
+   *  do vidro (ver {@link BotaoCentral}). Mantém um vão para alinhar o rótulo. */
+  ocultarIcone?: boolean;
 }) {
   const c = useCores();
   const b = useEstilos(folha);
@@ -182,25 +231,31 @@ function ItemAba({
           ],
         }}
       >
-        <Ionicons name={nome} size={21} color={cor} />
+        {ocultarIcone ? (
+          <View style={{ width: 21, height: 21 }} />
+        ) : (
+          <Ionicons name={nome} size={21} color={cor} />
+        )}
         {badge ? (
           <View style={b.badge}>
             <Text style={b.badgeTexto}>{badge}</Text>
           </View>
         ) : null}
       </Animated.View>
-      {/* Com 6 abas cada fatia cai para ~58pt no iPhone de 375pt, e rótulos de
-          9 caracteres ("Meus docs", "Habitual.") raspam no limite. Encolher um
-          fio é melhor que cortar a palavra com reticências; nas telas maiores
-          nada muda, porque só reduz quando não cabe. */}
-      <Text
-        style={[b.rotulo, ativo ? b.rotuloAtivo : null]}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-        minimumFontScale={0.85}
-      >
-        {rotulo}
-      </Text>
+      {/* A aba central carrega ícone E rótulo dentro do círculo; aqui o slot
+          fica sem texto para não duplicar. Com 6 abas cada fatia cai para ~58pt
+          no iPhone de 375pt, e rótulos de 9 caracteres ("Meus docs") raspam no
+          limite — por isso o adjustsFontSizeToFit nas demais. */}
+      {ocultarIcone ? null : (
+        <Text
+          style={[b.rotulo, ativo ? b.rotuloAtivo : null]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.85}
+        >
+          {rotulo}
+        </Text>
+      )}
     </View>
   );
 }
@@ -264,6 +319,44 @@ const folha = (c: Paleta) =>
       fontWeight: '800',
       color: '#FFF',
       includeFontPadding: false,
+    },
+    // Envolve só a barra (sem padding) para ancorar o círculo central.
+    barraArea: { position: 'relative' },
+    // Camada do círculo: centrado DENTRO da barra (mesmo nível dos demais
+    // ícones, sem saltar) e centrado na largura — despachante é a 3ª de 5 abas,
+    // então o centro da tela coincide com a coluna do meio.
+    centralCamada: {
+      position: 'absolute',
+      top: (ALTURA_BARRA - CIRCULO) / 2,
+      left: 0,
+      right: 0,
+      alignItems: 'center',
+    },
+    central: {
+      width: CIRCULO,
+      height: CIRCULO,
+      borderRadius: CIRCULO / 2,
+      backgroundColor: c.primario,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 2,
+      ...Platform.select({
+        ios: {
+          shadowColor: c.nome === 'claro' ? c.sombra : '#000',
+          shadowOpacity: c.nome === 'claro' ? 0.22 : 0.4,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 4 },
+        },
+        default: { elevation: 12 },
+      }),
+    },
+    centralRotulo: {
+      ...tipo.etiqueta,
+      fontSize: 8.5,
+      lineHeight: 10,
+      fontWeight: '800',
+      letterSpacing: 0.2,
+      color: c.sobrePrimario,
     },
   });
 

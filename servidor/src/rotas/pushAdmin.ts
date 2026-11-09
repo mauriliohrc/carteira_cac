@@ -20,14 +20,30 @@ type Publico = {
   usuarioId?: string;
   plataformas?: ('IOS' | 'ANDROID')[];
   entidadeId?: string;
+  excluirEntidadeIds?: string[];
   semArma?: boolean;
   semEmail?: boolean;
   inativosDias?: number;
+  versaoMenorQue?: string;
 };
 
 function estaOnline(ultimoAcessoEm: Date | null): boolean {
   if (!ultimoAcessoEm) return false;
   return Date.now() - ultimoAcessoEm.getTime() < JANELA_ONLINE_MIN * 60_000;
+}
+
+/**
+ * Compara versões de marketing ("1.8.1" vs "1.8.0") por segmentos numéricos.
+ * Retorna <0 se a<b, 0 se iguais, >0 se a>b. Segmentos ausentes contam como 0.
+ */
+function compararVersao(a: string, b: string): number {
+  const pa = a.split('.').map((n) => parseInt(n, 10) || 0);
+  const pb = b.split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
 }
 
 /** Resumo legível do público, guardado no histórico (coluna alvoTipo). */
@@ -43,9 +59,12 @@ function resumoPublico(p: Publico): string {
   ];
   if (p.plataformas?.length === 1) partes.push(p.plataformas[0] === 'IOS' ? 'iOS' : 'Android');
   if (p.entidadeId) partes.push('Entidade');
+  if (p.excluirEntidadeIds?.length)
+    partes.push(`Exceto ${p.excluirEntidadeIds.length} entidade(s)`);
   if (p.semArma) partes.push('Sem arma');
   if (p.semEmail) partes.push('E-mail não validado');
   if (p.inativosDias) partes.push(`Inativos ${p.inativosDias}d`);
+  if (p.versaoMenorQue) partes.push(`Desatualizados (< ${p.versaoMenorQue})`);
   return partes.join(' · ');
 }
 
@@ -59,46 +78,70 @@ async function tokensDoPublico(p: Publico): Promise<{ tokens: string[]; totalUsu
     ? { plataforma: { in: p.plataformas } }
     : {};
   const temFiltroConta = !!(p.entidadeId || p.semArma || p.semEmail || p.inativosDias);
+  const sel = { token: true, appVersao: true } as const;
 
-  // Sem cadastro: aparelhos anônimos (sem usuário).
+  let disp: { token: string; appVersao: string | null }[] = [];
+  let totalUsuarios = 0;
+
   if (p.base === 'ANONIMOS') {
-    const disp = await prisma.dispositivoPush.findMany({
+    // Sem cadastro: aparelhos anônimos (sem usuário).
+    disp = await prisma.dispositivoPush.findMany({
       where: { ativo: true, usuarioId: null, ...porPlataforma },
-      select: { token: true },
+      select: sel,
     });
-    return { tokens: disp.map((d) => d.token), totalUsuarios: 0 };
-  }
-
-  // Todos SEM filtro de conta: alcança contas + anônimos (só plataforma restringe).
-  if (p.base === 'TODOS' && !temFiltroConta) {
-    const disp = await prisma.dispositivoPush.findMany({
+  } else if (p.base === 'TODOS' && !temFiltroConta) {
+    // Todos SEM filtro de conta: contas + anônimos (só plataforma restringe).
+    disp = await prisma.dispositivoPush.findMany({
       where: { ativo: true, ...porPlataforma },
-      select: { token: true },
+      select: sel,
     });
-    const totalUsuarios = await prisma.usuarioApp.count({ where: { ativo: true } });
-    return { tokens: disp.map((d) => d.token), totalUsuarios };
+    totalUsuarios = await prisma.usuarioApp.count({ where: { ativo: true } });
+  } else {
+    // Contas / usuário / "todos" COM filtro de conta: resolve os usuários que
+    // casam (AND) e pega os aparelhos deles.
+    const where: Prisma.UsuarioAppWhereInput = { ativo: true };
+    if (p.base === 'USUARIO' && p.usuarioId) where.id = p.usuarioId;
+    if (p.entidadeId) where.vinculos = { some: { entidadeId: p.entidadeId } };
+    if (p.semArma) where.registrosSync = { none: { tipo: 'armas', removido: false } };
+    if (p.semEmail) where.emailVerificado = false;
+    if (p.inativosDias) {
+      const corte = new Date(Date.now() - p.inativosDias * 86_400_000);
+      where.OR = [{ ultimoAcessoEm: null }, { ultimoAcessoEm: { lt: corte } }];
+    }
+    const usuarios = await prisma.usuarioApp.findMany({ where, select: { id: true } });
+    const ids = usuarios.map((u) => u.id);
+    totalUsuarios = ids.length;
+    disp = ids.length
+      ? await prisma.dispositivoPush.findMany({
+          where: { usuarioId: { in: ids }, ativo: true, ...porPlataforma },
+          select: sel,
+        })
+      : [];
   }
 
-  // Contas / usuário / "todos" COM filtro de conta: resolve os usuários que
-  // casam (AND) e pega os aparelhos deles.
-  const where: Prisma.UsuarioAppWhereInput = { ativo: true };
-  if (p.base === 'USUARIO' && p.usuarioId) where.id = p.usuarioId;
-  if (p.entidadeId) where.vinculos = { some: { entidadeId: p.entidadeId } };
-  if (p.semArma) where.registrosSync = { none: { tipo: 'armas', removido: false } };
-  if (p.semEmail) where.emailVerificado = false;
-  if (p.inativosDias) {
-    const corte = new Date(Date.now() - p.inativosDias * 86_400_000);
-    where.OR = [{ ultimoAcessoEm: null }, { ultimoAcessoEm: { lt: corte } }];
+  // Exclusão por entidade (vale para qualquer base; anônimos nunca têm vínculo).
+  if (p.excluirEntidadeIds?.length) {
+    const excluidos = await prisma.dispositivoPush.findMany({
+      where: {
+        ativo: true,
+        usuario: { vinculos: { some: { entidadeId: { in: p.excluirEntidadeIds } } } },
+      },
+      select: { token: true },
+    });
+    const bloqueados = new Set(excluidos.map((d) => d.token));
+    disp = disp.filter((d) => !bloqueados.has(d.token));
   }
-  const usuarios = await prisma.usuarioApp.findMany({ where, select: { id: true } });
-  const ids = usuarios.map((u) => u.id);
-  const disp = ids.length
-    ? await prisma.dispositivoPush.findMany({
-        where: { usuarioId: { in: ids }, ativo: true, ...porPlataforma },
-        select: { token: true },
-      })
-    : [];
-  return { tokens: disp.map((d) => d.token), totalUsuarios: ids.length };
+
+  // Desatualizados: só aparelhos com versão MENOR que a pedida (null = app
+  // antigo sem versão, o mais desatualizado de todos, também entra).
+  const corte = p.versaoMenorQue;
+  const tokens = (
+    corte
+      ? disp.filter((d) => d.appVersao == null || compararVersao(d.appVersao, corte) < 0)
+      : disp
+  ).map((d) => d.token);
+
+  return { tokens, totalUsuarios };
 }
 
 /**
@@ -110,6 +153,8 @@ function whereUsuariosPublico(p: Publico): Prisma.UsuarioAppWhereInput {
   const where: Prisma.UsuarioAppWhereInput = { ativo: true };
   if (p.base === 'USUARIO' && p.usuarioId) where.id = p.usuarioId;
   if (p.entidadeId) where.vinculos = { some: { entidadeId: p.entidadeId } };
+  if (p.excluirEntidadeIds?.length)
+    where.NOT = { vinculos: { some: { entidadeId: { in: p.excluirEntidadeIds } } } };
   if (p.semArma) where.registrosSync = { none: { tipo: 'armas', removido: false } };
   if (p.semEmail) where.emailVerificado = false;
   if (p.inativosDias) {
@@ -188,7 +233,7 @@ export async function rotasPushAdmin(app: FastifyInstance) {
 
     const include = {
       vinculos: { include: { entidade: { select: { id: true, nome: true } } } },
-      dispositivos: { where: { ativo: true }, select: { plataforma: true } },
+      dispositivos: { where: { ativo: true }, select: { plataforma: true, appVersao: true } },
       _count: { select: { registrosSync: { where: { tipo: 'armas', removido: false } } } },
     } satisfies Prisma.UsuarioAppInclude;
 
@@ -237,6 +282,14 @@ export async function rotasPushAdmin(app: FastifyInstance) {
         dispositivos: u.dispositivos.length,
         // Plataformas dos aparelhos ativos (IOS/ANDROID), distintas.
         plataformas: [...new Set(u.dispositivos.map((d) => d.plataforma))],
+        // Versão do app = a mais nova entre os aparelhos ativos (null se nenhum
+        // reportou — app antigo). Serve para a coluna e o filtro de desatualizados.
+        appVersao:
+          u.dispositivos
+            .map((d) => d.appVersao)
+            .filter((v): v is string => !!v)
+            .sort(compararVersao)
+            .at(-1) ?? null,
         // Armas cadastradas no app (acervo sincronizado).
         armasSistema: u._count.registrosSync,
         criadoEm: u.criadoEm,
@@ -342,6 +395,51 @@ export async function rotasPushAdmin(app: FastifyInstance) {
     await prisma.vinculoEntidade.deleteMany({ where: { usuarioId: id, entidadeId } });
     reply.code(204);
     return null;
+  });
+
+  // ----------------------------------------------- versões do app (cards)
+  // Distribuição de versões por USUÁRIO (a versão mais nova entre os aparelhos
+  // ativos de cada conta). `latest` = maior versão vista; `desatualizados` =
+  // usuários abaixo dela; `desconhecidos` = contas cujos apps não reportam versão.
+  app.get('/api/admin/app-versoes', async () => {
+    const disp = await prisma.dispositivoPush.findMany({
+      where: { ativo: true, usuarioId: { not: null } },
+      select: { usuarioId: true, appVersao: true },
+    });
+
+    const porUsuario = new Map<string, string | null>();
+    for (const d of disp) {
+      const atual = porUsuario.get(d.usuarioId!);
+      if (atual === undefined) {
+        porUsuario.set(d.usuarioId!, d.appVersao);
+      } else if (d.appVersao && (!atual || compararVersao(d.appVersao, atual) > 0)) {
+        porUsuario.set(d.usuarioId!, d.appVersao);
+      }
+    }
+
+    const contagem = new Map<string, number>(); // '' = desconhecida
+    for (const v of porUsuario.values()) {
+      const k = v ?? '';
+      contagem.set(k, (contagem.get(k) ?? 0) + 1);
+    }
+
+    const conhecidas = [...contagem.keys()].filter((k) => k !== '').sort(compararVersao);
+    const latest = conhecidas.at(-1) ?? null;
+
+    const versoes = [...contagem.entries()]
+      .map(([versao, usuarios]) => ({ versao: versao || null, usuarios }))
+      .sort((a, b) => {
+        if (a.versao && b.versao) return compararVersao(b.versao, a.versao);
+        return a.versao ? -1 : 1; // desconhecida por último
+      });
+
+    const desconhecidos = contagem.get('') ?? 0;
+    let desatualizados = 0;
+    for (const [k, n] of contagem) {
+      if (k !== '' && latest && compararVersao(k, latest) < 0) desatualizados += n;
+    }
+
+    return { latest, totalUsuarios: porUsuario.size, versoes, desatualizados, desconhecidos };
   });
 
   // ---------------------------------------------------------- enviar push

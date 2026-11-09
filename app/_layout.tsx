@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { hrefDeDados, type DadosNotificacao } from '@/notificacoes/rotas';
+import { consultarPremiumCache } from '@/billing';
 import { AppProvider, useApp } from '@/estado/AppContext';
 import { ContaProvider, useConta } from '@/conta/ContaContext';
 import { CHAVES, gravarConfig, lerConfig } from '@/db/config';
@@ -169,6 +170,14 @@ function Raiz() {
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener((resposta) => {
       const dados = resposta.notification.request.content.data as DadosNotificacao | undefined;
+      // Paywall só faz sentido para quem ainda não assinou; quem já é Premium
+      // cai no acervo em vez de bater numa tela de "você já é Premium".
+      if (dados?.tela === '/premium') {
+        void consultarPremiumCache().then((ehPremium) =>
+          router.push((ehPremium ? '/(tabs)/acervo' : '/premium') as never)
+        );
+        return;
+      }
       const destino = hrefDeDados(dados);
       router.push((destino ?? '/(tabs)/avisos') as never);
     });
