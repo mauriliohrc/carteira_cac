@@ -3,7 +3,7 @@ import { prisma } from '../db/cliente.js';
 import { ambiente } from '../config/ambiente.js';
 import { uploadImagemSchema } from '../dominio/validacao.js';
 import { invalido, naoEncontrado } from '../http/erros.js';
-import { exigirAdmin, exigirEntidade } from '../http/guardas.js';
+import { exigirAdmin, exigirApp, exigirEntidade } from '../http/guardas.js';
 
 /** Teto do arquivo enviado (após decodificar o base64). */
 const LIMITE_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -38,6 +38,8 @@ async function criarUpload(req: FastifyRequest, reply: FastifyReply) {
 export async function rotasUploads(app: FastifyInstance) {
   app.post('/api/entidade/uploads', { preHandler: exigirEntidade() }, criarUpload);
   app.post('/api/admin/uploads', { preHandler: exigirAdmin() }, criarUpload);
+  // Foto do marketplace, enviada pelo usuário do app (mesmo handler/limite).
+  app.post('/api/v1/app/uploads', { preHandler: exigirApp() }, criarUpload);
 
   // Servir a imagem — público (os <img> do backoffice e o app carregam por aqui).
   app.get('/uploads/:id', async (req, reply) => {

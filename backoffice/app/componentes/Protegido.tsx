@@ -11,6 +11,7 @@ const NAV = [
   { href: '/noticias', rotulo: 'Notícias' },
   { href: '/usuarios', rotulo: 'Usuários' },
   { href: '/despachante', rotulo: 'Serviços' },
+  { href: '/marketplace', rotulo: 'Marketplace' },
   { href: '/push', rotulo: 'Push' },
   { href: '/whatsapp', rotulo: 'WhatsApp' },
   { href: '/automacoes', rotulo: 'Automações' },

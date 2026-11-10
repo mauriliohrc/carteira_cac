@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { headers } from 'next/headers';
 import { BotoesCompartilhar } from './BotoesCompartilhar';
+import { buscarAnuncioPublico, MercadoDetalhe, metadataAnuncio } from './MercadoPublico';
 
 /**
  * Página PÚBLICA de uma notícia, servida no subdomínio
@@ -65,6 +66,11 @@ async function noHostDeNoticias(): Promise<boolean> {
   return host.startsWith('noticias.');
 }
 
+async function noHostDeMercado(): Promise<boolean> {
+  const host = (await headers()).get('host') ?? '';
+  return host.startsWith('mercado.');
+}
+
 async function buscar(id: string): Promise<Noticia | null> {
   try {
     // O endpoint serve apenas status PUBLICADA — rascunho responde 404.
@@ -107,6 +113,11 @@ export async function generateMetadata({
 }: {
   params: Promise<{ slugId: string }>;
 }): Promise<Metadata> {
+  if (await noHostDeMercado()) {
+    const { slugId } = await params;
+    const a = await buscarAnuncioPublico(idDoSlug(slugId));
+    return metadataAnuncio(a, slugId);
+  }
   if (!(await noHostDeNoticias())) return {};
   const { slugId } = await params;
   const n = await buscar(idDoSlug(slugId));
@@ -144,8 +155,16 @@ export default async function PaginaNoticiaPublica({
 }: {
   params: Promise<{ slugId: string }>;
 }) {
-  // Fora do subdomínio de notícias este catch-all não serve nada (preserva o
-  // backoffice e os subdomínios de entidade).
+  // Mercado de acessórios: detalhe público do anúncio (host mercado.*).
+  if (await noHostDeMercado()) {
+    const { slugId } = await params;
+    const a = await buscarAnuncioPublico(idDoSlug(slugId));
+    if (!a) notFound();
+    return <MercadoDetalhe anuncio={a} />;
+  }
+
+  // Fora dos subdomínios de notícias/mercado este catch-all não serve nada
+  // (preserva o backoffice e os subdomínios de entidade).
   if (!(await noHostDeNoticias())) notFound();
 
   const { slugId } = await params;

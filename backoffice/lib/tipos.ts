@@ -623,6 +623,78 @@ export interface ListaServicosConfig {
   servicos: ServicoConfigAdmin[];
 }
 
+// ------------------------------------------------------------- marketplace
+export type StatusAnuncio = 'PENDENTE' | 'APROVADO' | 'PAUSADO' | 'VENDIDO' | 'REJEITADO';
+
+export const ROTULO_STATUS_ANUNCIO: Record<StatusAnuncio, string> = {
+  PENDENTE: 'Pendente',
+  APROVADO: 'Aprovado',
+  PAUSADO: 'Pausado',
+  VENDIDO: 'Vendido',
+  REJEITADO: 'Reprovado',
+};
+
+export interface AnuncioAdmin {
+  id: string;
+  categoria: string;
+  subcategoria: string | null;
+  estadoUso: string;
+  precoCentavos: number | null;
+  uf: string;
+  cidade: string;
+  titulo: string;
+  descricao: string;
+  status: StatusAnuncio;
+  motivoRejeicao: string | null;
+  destaqueAte: string | null;
+  criadoEm: string;
+  fotos: string[];
+  loja: { id: string; nome: string; verificada: boolean; ativo: boolean } | null;
+  /** Só o backoffice vê os dados do vendedor. */
+  vendedor: { id: string; nome: string; email: string; celular: string | null } | null;
+}
+
+export interface ListaAnunciosAdmin {
+  anuncios: AnuncioAdmin[];
+  total: number;
+  pagina: number;
+  limite: number;
+  totalPaginas: number;
+}
+
+export interface MetricasMarket {
+  total: number;
+  pendentes: number;
+  destacados: number;
+  porStatus: Record<string, number>;
+}
+
+export interface LojaAdmin {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  logoUploadId: string | null;
+  site: string | null;
+  whatsapp: string | null;
+  uf: string | null;
+  cidade: string | null;
+  verificada: boolean;
+  ativo: boolean;
+  criadoEm: string;
+  usuario: { id: string; nome: string; email: string };
+  _count: { anuncios: number };
+}
+
+export interface DenunciaAdmin {
+  id: string;
+  anuncioId: string | null;
+  conversaId: string | null;
+  motivo: string;
+  tratada: boolean;
+  criadoEm: string;
+  denunciante: { id: string; nome: string; email: string } | null;
+}
+
 export interface ConfigAsaasAdmin {
   ambiente: 'sandbox' | 'producao';
   apiKeyDefinida: boolean;

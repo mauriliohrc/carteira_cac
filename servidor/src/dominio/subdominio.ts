@@ -9,6 +9,7 @@
 export const SUBDOMINIOS_RESERVADOS = new Set([
   'www', 'api', 'app', 'admin', 'backoffice', 'painel', 'mail', 'email',
   'ftp', 'static', 'assets', 'cdn', 'ns1', 'ns2', 'carteiracac', 'download',
+  'noticias', 'mercado',
 ]);
 
 /** Base do slug (sem garantir unicidade). Vazio se o nome não gera nada válido. */

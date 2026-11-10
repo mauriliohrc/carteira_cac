@@ -256,6 +256,13 @@ function Raiz() {
       <Stack.Screen name="despachante/pedido" />
       <Stack.Screen name="despachante/checkout" />
       <Stack.Screen name="despachante/meus" />
+      <Stack.Screen name="mercado/index" />
+      <Stack.Screen name="mercado/[id]" />
+      <Stack.Screen name="mercado/meus" />
+      <Stack.Screen name="mercado/conversas" />
+      <Stack.Screen name="mercado/conversa/[id]" />
+      {/* criar/editar abre diálogos (avisar/escolher) — não-modal, como o despachante. */}
+      <Stack.Screen name="mercado/novo" />
     </Stack>
   );
 

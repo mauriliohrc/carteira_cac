@@ -10,6 +10,7 @@ import {
 } from './tipos.js';
 import { limparCPF, validarCPF } from './cpf.js';
 import { SUBDOMINIOS_RESERVADOS } from './subdominio.js';
+import { ESTADOS_USO } from './marketplace.js';
 
 const ufBR = z
   .string()
@@ -392,7 +393,71 @@ export const editarModeloMensagemSchema = z.object({
   ativo: z.boolean().optional(),
 });
 
-// ------------------------------------------------------- contato (site público)
+// ------------------------------------------------------------- marketplace
+/** Criação de anúncio pelo app (vendedor logado). Fotos = ids de Upload. */
+export const criarAnuncioSchema = z.object({
+  categoria: z.string().trim().min(1, 'Escolha a categoria'),
+  subcategoria: z.string().trim().min(1).optional().nullable(),
+  estadoUso: z.enum(ESTADOS_USO as unknown as [string, ...string[]]),
+  /** Centavos; ausente/nulo = "a combinar". */
+  precoCentavos: z.number().int().positive().max(100_000_000).optional().nullable(),
+  uf: ufBR,
+  cidade: z.string().trim().min(1, 'Informe a cidade').max(80),
+  titulo: z.string().trim().min(3, 'Título muito curto').max(120),
+  descricao: z.string().trim().min(5, 'Descreva o item').max(4000),
+  /** Ids de Upload (fotos já enviadas). */
+  fotos: z.array(z.string().min(1)).max(6, 'Máximo de 6 fotos').optional(),
+  /** Anunciar como loja parceira (o servidor valida a posse da loja). */
+  lojaId: z.string().min(1).optional().nullable(),
+});
+
+export const editarAnuncioSchema = criarAnuncioSchema.partial();
+
+export const mensagemMarketSchema = z.object({
+  texto: z.string().trim().min(1, 'Escreva a mensagem').max(2000),
+});
+export const denunciaSchema = z
+  .object({
+    anuncioId: z.string().min(1).optional(),
+    conversaId: z.string().min(1).optional(),
+    motivo: z.string().trim().min(3, 'Descreva o motivo').max(500),
+  })
+  .refine((d) => d.anuncioId || d.conversaId, { message: 'Informe o anúncio ou a conversa' });
+export const bloqueioSchema = z.object({ bloqueadoId: z.string().min(1) });
+export const destaqueSchema = z.object({
+  produtoId: z.string().min(1),
+  plataforma: z.enum(['IOS', 'ANDROID']),
+  transacaoId: z.string().min(1),
+});
+
+/** Loja parceira criada/curada no backoffice. O dono é um usuário do app (por e-mail). */
+export const criarLojaSchema = z.object({
+  usuarioEmail: z.string().trim().toLowerCase().email('E-mail do dono inválido'),
+  nome: z.string().trim().min(2, 'Nome muito curto').max(120),
+  descricao: z.string().trim().max(1000).optional().nullable(),
+  logoUploadId: z.string().min(1).optional().nullable(),
+  site: z.string().trim().url('URL inválida').optional().nullable(),
+  whatsapp: z.string().trim().max(20).optional().nullable(),
+  uf: ufBR.optional().nullable(),
+  cidade: z.string().trim().max(80).optional().nullable(),
+  verificada: z.boolean().optional(),
+  ativo: z.boolean().optional(),
+});
+export const editarLojaSchema = z
+  .object({
+    nome: z.string().trim().min(2).max(120),
+    descricao: z.string().trim().max(1000).nullable(),
+    logoUploadId: z.string().min(1).nullable(),
+    site: z.string().trim().url('URL inválida').nullable(),
+    whatsapp: z.string().trim().max(20).nullable(),
+    uf: ufBR.nullable(),
+    cidade: z.string().trim().max(80).nullable(),
+    verificada: z.boolean(),
+    ativo: z.boolean(),
+  })
+  .partial();
+
+// ------------------------------------------------------------- contato (site público)
 export const criarContatoSchema = z.object({
   nome: z.string().trim().min(2, 'Informe seu nome').max(120),
   telefone: z.string().trim().min(8, 'Informe um telefone válido').max(30),

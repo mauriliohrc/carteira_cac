@@ -32,6 +32,9 @@ import { rotasDocumentosAppV1 } from './rotas/v1/appDocumentos.js';
 import { rotasCupomAppV1 } from './rotas/v1/appCupom.js';
 import { rotasCompeticoesAppV1 } from './rotas/v1/appCompeticoes.js';
 import { rotasDespachanteAppV1 } from './rotas/v1/appDespachante.js';
+import { rotasMarketplaceAppV1 } from './rotas/v1/appMarketplace.js';
+import { rotasPublicoMarketplace } from './rotas/publicoMarketplace.js';
+import { rotasMarketplaceAdmin } from './rotas/marketplaceAdmin.js';
 import { rotasWebhookAsaas } from './rotas/webhookAsaas.js';
 
 export function construirApp() {
@@ -97,6 +100,8 @@ export function construirApp() {
   app.register(rotasAcervoAdmin);
   app.register(rotasCuponsAdmin);
   app.register(rotasDespachanteAdmin);
+  app.register(rotasMarketplaceAdmin);
+  app.register(rotasPublicoMarketplace);
 
   // API pública do aplicativo — versionada. Novas versões entram como /api/v2
   // sem mexer nas rotas abaixo, preservando apps já instalados.
@@ -111,6 +116,7 @@ export function construirApp() {
   app.register(rotasCupomAppV1, { prefix: '/api/v1' });
   app.register(rotasCompeticoesAppV1, { prefix: '/api/v1' });
   app.register(rotasDespachanteAppV1, { prefix: '/api/v1' });
+  app.register(rotasMarketplaceAppV1, { prefix: '/api/v1' });
 
   // Webhook do Asaas — público (autenticado por token no header), sem prefixo.
   app.register(rotasWebhookAsaas);

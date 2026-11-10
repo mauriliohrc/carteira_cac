@@ -231,30 +231,32 @@ model ResultadoCompeticao {
 /// offline sem ela. Não se confunde com UsuarioAdmin nem UsuarioEntidade.
 /// Futuramente poderá ser vinculado a uma ou mais entidades.
 model UsuarioApp {
-  id              String    @id @default(cuid())
+  id                       String    @id @default(cuid())
   /// CPF só com dígitos (11). Único.
-  cpf             String    @unique
-  email           String    @unique
-  nome            String
-  senhaHash       String
+  cpf                      String    @unique
+  email                    String    @unique
+  nome                     String
+  senhaHash                String
   /// Celular para contato/suporte (opcional). Só dígitos.
-  celular         String?
-  emailVerificado Boolean   @default(false)
-  ativo           Boolean   @default(true)
+  celular                  String?
+  emailVerificado          Boolean   @default(false)
+  ativo                    Boolean   @default(true)
   /// Última atividade do usuário (heartbeat do app). "Online" = recente.
-  ultimoAcessoEm  DateTime?
+  ultimoAcessoEm           DateTime?
   /// Última verificação automática de vínculos na Shooting House (throttle).
-  vinculosCheckEm DateTime?
+  vinculosCheckEm          DateTime?
   /// Premium reportado pelo app (assinatura/cupom ativos neste aparelho).
-  premium         Boolean   @default(false)
+  premium                  Boolean   @default(false)
   /// Origem do premium reportada pelo app: CUPOM | MENSAL | ANUAL | ANUAL_PARCEIRO.
   /// Nulo quando desconhecido (app antigo que só reporta o booleano) ou sem premium.
-  premiumTipo     String?
+  premiumTipo              String?
   /// Id do cliente no Asaas (criado sob demanda na 1ª cobrança do Despachante).
   /// Só servidor — nunca entra no JSON de sincronização.
-  asaasCustomerId String?
-  criadoEm        DateTime  @default(now())
-  atualizadoEm    DateTime  @updatedAt
+  asaasCustomerId          String?
+  /// Quando aceitou o EULA do marketplace (exigido antes de anunciar). Null = nunca.
+  aceitouEulaMarketplaceEm DateTime?
+  criadoEm                 DateTime  @default(now())
+  atualizadoEm             DateTime  @updatedAt
 
   tokensSenha     TokenSenha[]
   tokensEmail     TokenEmail[]
@@ -267,6 +269,17 @@ model UsuarioApp {
   logsNotificacao LogNotificacao[]
   leiturasNoticia LeituraNoticia[]
   processos       ProcessoDespachante[]
+
+  // Marketplace
+  lojas              Loja[]
+  anuncios           Anuncio[]
+  conversasComprador Conversa[]        @relation("conversaComprador")
+  conversasVendedor  Conversa[]        @relation("conversaVendedor")
+  mensagensMarket    Mensagem[]
+  denunciasMarket    Denuncia[]
+  bloqueiosFeitos    BloqueioUsuario[] @relation("bloqueioDono")
+  bloqueiosRecebidos BloqueioUsuario[] @relation("bloqueioAlvo")
+  destaquesCompra    DestaqueCompra[]
 
   @@index([ultimoAcessoEm])
   @@map("usuarios_app")
@@ -655,4 +668,180 @@ model Contato {
 
   @@index([tratado, criadoEm])
   @@map("contatos")
+}
+
+// ============================================================================
+// Marketplace de acessórios (classificados). Conteúdo público/compartilhado —
+// NÃO usa o RegistroSync por-usuário. Só acessórios (allow-list + moderação);
+// armas/munição são bloqueadas na aplicação. Tudo aditivo.
+// ============================================================================
+
+/// Loja parceira: vendedor curado e identificado, aprovado no backoffice.
+/// Enquanto `ativo`, os anúncios da loja entram APROVADOS sem passar pela fila
+/// de moderação (a curadoria é feita uma vez, ao aprovar o lojista).
+model Loja {
+  id           String   @id @default(cuid())
+  usuarioId    String
+  nome         String
+  descricao    String?  @db.Text
+  /// Logo pública (Upload.id, servida em /uploads/:id).
+  logoUploadId String?
+  site         String?
+  /// Telefone público da loja (negócio) — diferente do anonimato do P2P.
+  whatsapp     String?
+  uf           String?
+  cidade       String?
+  verificada   Boolean  @default(false)
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  usuario  UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  anuncios Anuncio[]
+
+  @@index([usuarioId])
+  @@map("lojas_marketplace")
+}
+
+/// Anúncio (classificado). P2P entra PENDENTE (aguarda moderação); de loja ativa
+/// entra APROVADO. Só fica público quando status = APROVADO. `destaqueAte` no
+/// futuro coloca o anúncio no topo (destaque pago via IAP).
+model Anuncio {
+  id             String    @id @default(cuid())
+  vendedorId     String
+  lojaId         String?
+  categoria      String
+  subcategoria   String?
+  /// NOVO | SEMINOVO | USADO
+  estadoUso      String
+  /// null = "a combinar"
+  precoCentavos  Int?
+  uf             String
+  cidade         String
+  titulo         String
+  descricao      String    @db.Text
+  /// PENDENTE | APROVADO | PAUSADO | VENDIDO | REJEITADO
+  status         String    @default("PENDENTE")
+  motivoRejeicao String?
+  /// Enquanto > agora, aparece no topo da lista (destaque pago).
+  destaqueAte    DateTime?
+  criadoEm       DateTime  @default(now())
+  atualizadoEm   DateTime  @updatedAt
+
+  vendedor  UsuarioApp       @relation(fields: [vendedorId], references: [id], onDelete: Cascade)
+  loja      Loja?            @relation(fields: [lojaId], references: [id], onDelete: SetNull)
+  fotos     AnuncioFoto[]
+  conversas Conversa[]
+  destaques DestaqueCompra[]
+
+  @@index([status])
+  @@index([categoria])
+  @@index([uf])
+  @@index([destaqueAte])
+  @@index([vendedorId])
+  @@map("anuncios_marketplace")
+}
+
+/// Foto de um anúncio (Upload.id), na ordem de exibição.
+model AnuncioFoto {
+  id        String @id @default(cuid())
+  anuncioId String
+  uploadId  String
+  ordem     Int    @default(0)
+
+  anuncio Anuncio @relation(fields: [anuncioId], references: [id], onDelete: Cascade)
+
+  @@index([anuncioId])
+  @@map("anuncio_fotos")
+}
+
+/// Conversa de um comprador interessado com o vendedor, única por anúncio+comprador.
+/// `contatoLiberado` = o vendedor liberou o próprio telefone para ESTE comprador
+/// (opt-in por conversa, reversível; LGPD).
+model Conversa {
+  id                String    @id @default(cuid())
+  anuncioId         String
+  compradorId       String
+  vendedorId        String
+  contatoLiberado   Boolean   @default(false)
+  contatoLiberadoEm DateTime?
+  criadoEm          DateTime  @default(now())
+  atualizadoEm      DateTime  @updatedAt
+
+  anuncio   Anuncio    @relation(fields: [anuncioId], references: [id], onDelete: Cascade)
+  comprador UsuarioApp @relation("conversaComprador", fields: [compradorId], references: [id], onDelete: Cascade)
+  vendedor  UsuarioApp @relation("conversaVendedor", fields: [vendedorId], references: [id], onDelete: Cascade)
+  mensagens Mensagem[]
+
+  @@unique([anuncioId, compradorId])
+  @@index([compradorId])
+  @@index([vendedorId])
+  @@map("conversas_marketplace")
+}
+
+/// Mensagem de chat dentro de uma conversa.
+model Mensagem {
+  id         String    @id @default(cuid())
+  conversaId String
+  autorId    String
+  texto      String    @db.Text
+  criadoEm   DateTime  @default(now())
+  lidaEm     DateTime?
+
+  conversa Conversa   @relation(fields: [conversaId], references: [id], onDelete: Cascade)
+  autor    UsuarioApp @relation(fields: [autorId], references: [id], onDelete: Cascade)
+
+  @@index([conversaId])
+  @@map("mensagens_marketplace")
+}
+
+/// Denúncia de anúncio ou conversa (fila de moderação no backoffice).
+model Denuncia {
+  id            String   @id @default(cuid())
+  anuncioId     String?
+  conversaId    String?
+  denuncianteId String?
+  motivo        String   @db.Text
+  tratada       Boolean  @default(false)
+  criadoEm      DateTime @default(now())
+
+  denunciante UsuarioApp? @relation(fields: [denuncianteId], references: [id], onDelete: SetNull)
+
+  @@index([tratada])
+  @@map("denuncias_marketplace")
+}
+
+/// Bloqueio de um usuário por outro (não vê anúncios/conversas do bloqueado).
+model BloqueioUsuario {
+  id          String   @id @default(cuid())
+  usuarioId   String
+  bloqueadoId String
+  criadoEm    DateTime @default(now())
+
+  usuario   UsuarioApp @relation("bloqueioDono", fields: [usuarioId], references: [id], onDelete: Cascade)
+  bloqueado UsuarioApp @relation("bloqueioAlvo", fields: [bloqueadoId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, bloqueadoId])
+  @@index([usuarioId])
+  @@map("bloqueios_usuario")
+}
+
+/// Compra de destaque (IAP consumível). Idempotente por `transacaoId`.
+model DestaqueCompra {
+  id          String    @id @default(cuid())
+  anuncioId   String
+  usuarioId   String
+  produtoId   String
+  /// IOS | ANDROID
+  plataforma  String
+  transacaoId String    @unique
+  dias        Int
+  validadoEm  DateTime?
+  criadoEm    DateTime  @default(now())
+
+  anuncio Anuncio    @relation(fields: [anuncioId], references: [id], onDelete: Cascade)
+  usuario UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([anuncioId])
+  @@map("destaques_compra")
 }
