@@ -18,14 +18,19 @@ export async function rotasCupomAppV1(app: FastifyInstance) {
     const cupom = await prisma.cupomPromocional.findUnique({ where: { codigo: codigoNorm } });
     if (!cupom || !cupom.ativo) return { ok: false, motivo: 'INVALIDO' };
     if (cupom.expiraEm && cupom.expiraEm < new Date()) return { ok: false, motivo: 'EXPIRADO' };
-    if (cupom.limiteUsos != null && cupom.usos >= cupom.limiteUsos) {
-      return { ok: false, motivo: 'ESGOTADO' };
-    }
 
-    // Já resgatado por este usuário: continua válido, sem computar de novo.
+    // Quem JÁ resgatou continua válido para sempre — mesmo que o cupom tenha
+    // esgotado depois (outros usuários preencheram o limite). A revalidação
+    // acontece quando o login/logout limpa o premium local e o app reconfirma
+    // o código; sem isso, atingir o limite removia o premium de quem já tinha.
+    // Precisa vir ANTES da checagem de limite (o limite só barra resgates NOVOS).
     if (usuarioId) {
       const jaUsou = await prisma.usoCupom.findFirst({ where: { cupomId: cupom.id, usuarioId } });
       if (jaUsou) return { ok: true, descricao: cupom.descricao, jaResgatado: true };
+    }
+
+    if (cupom.limiteUsos != null && cupom.usos >= cupom.limiteUsos) {
+      return { ok: false, motivo: 'ESGOTADO' };
     }
 
     await prisma.$transaction([
