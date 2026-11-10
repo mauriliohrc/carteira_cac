@@ -356,6 +356,12 @@ export const filtrosWhatsSchema = z.object({
   emailVerificado: z.boolean().optional(),
   /** Tri-estado de armas: true = com arma, false = sem arma. */
   comArma: z.boolean().optional(),
+  /** Tri-estado de documentos: true = com documento, false = sem. */
+  comDoc: z.boolean().optional(),
+  /** Tri-estado de vínculo de entidade: true = com vínculo, false = sem. */
+  comVinculo: z.boolean().optional(),
+  /** Faixas de plano aceitas (OR entre si). */
+  planos: z.array(z.enum(['GRATIS', 'ANUAL', 'MENSAL', 'CORTESIA'])).optional(),
   /** Conta criada há mais de N dias (uso). */
   diasDeUsoMin: z.number().int().min(1).max(3650).optional(),
   /** Exige CPF + nome preenchidos (cadastro completo). */

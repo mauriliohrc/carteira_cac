@@ -370,6 +370,12 @@ export interface FiltrosWhats {
   emailVerificado?: boolean;
   /** true = com arma; false = sem arma; ausente = tanto faz. */
   comArma?: boolean;
+  /** true = com documento; false = sem documento; ausente = tanto faz. */
+  comDoc?: boolean;
+  /** true = com vínculo de entidade; false = sem vínculo; ausente = tanto faz. */
+  comVinculo?: boolean;
+  /** Faixas de plano aceitas (OR entre si): GRATIS | ANUAL | MENSAL | CORTESIA. */
+  planos?: string[];
   /** Conta criada há mais de N dias. */
   diasDeUsoMin?: number;
   comCadastro?: boolean;

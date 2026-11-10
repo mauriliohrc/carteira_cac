@@ -17,36 +17,65 @@ export interface Destinatario {
  * app COM celular preenchido — WhatsApp exige número, e instalações anônimas não
  * têm telefone (por isso nem entram nesta busca, diferente do push).
  */
+/** Faixa de plano → condição Prisma (mesmas regras da lista de usuários). */
+const PLANO_COND: Record<string, Prisma.UsuarioAppWhereInput> = {
+  GRATIS: { premium: false },
+  ANUAL: { premium: true, premiumTipo: { in: ['ANUAL', 'ANUAL_PARCEIRO'] } },
+  MENSAL: { premium: true, premiumTipo: 'MENSAL' },
+  CORTESIA: { premium: true, premiumTipo: 'CUPOM' },
+};
+
 function montarWhere(f: FiltrosWhats): Prisma.UsuarioAppWhereInput {
-  const where: Prisma.UsuarioAppWhereInput = {
-    // Celular obrigatório: só dígitos, não nulo e não vazio.
-    celular: { not: null },
-    NOT: { celular: '' },
-  };
+  // Cada filtro vira uma condição; todas combinam em AND. Usar um array evita
+  // que armas e documentos (ambos em `registrosSync`) se sobrescrevam.
+  const cond: Prisma.UsuarioAppWhereInput[] = [];
 
-  if (f.ativos) where.ativo = true;
+  if (f.ativos) cond.push({ ativo: true });
 
-  if (typeof f.emailVerificado === 'boolean') where.emailVerificado = f.emailVerificado;
+  if (typeof f.emailVerificado === 'boolean') cond.push({ emailVerificado: f.emailVerificado });
 
   if (typeof f.comArma === 'boolean') {
     // Armas = registros de sync do tipo "armas" não removidos (mesmo critério do push).
-    where.registrosSync = f.comArma
-      ? { some: { tipo: 'armas', removido: false } }
-      : { none: { tipo: 'armas', removido: false } };
+    cond.push({
+      registrosSync: f.comArma
+        ? { some: { tipo: 'armas', removido: false } }
+        : { none: { tipo: 'armas', removido: false } },
+    });
   }
+
+  if (typeof f.comDoc === 'boolean') {
+    cond.push({
+      registrosSync: f.comDoc
+        ? { some: { tipo: 'documentos', removido: false } }
+        : { none: { tipo: 'documentos', removido: false } },
+    });
+  }
+
+  if (typeof f.comVinculo === 'boolean') {
+    cond.push({ vinculos: f.comVinculo ? { some: {} } : { none: {} } });
+  }
+
+  // Plano: faixas combinam em OR entre si (anual OU mensal, p.ex.).
+  const planos = (f.planos ?? []).filter((p) => p in PLANO_COND);
+  if (planos.length) cond.push({ OR: planos.map((p) => PLANO_COND[p]!) });
 
   if (typeof f.diasDeUsoMin === 'number') {
     const corte = new Date(Date.now() - f.diasDeUsoMin * 86_400_000);
-    where.criadoEm = { lt: corte };
+    cond.push({ criadoEm: { lt: corte } });
   }
 
   if (f.comCadastro) {
     // Cadastro completo: CPF e nome preenchidos (toda UsuarioApp tem conta, mas
     // deixa o filtro explícito e à prova de registros incompletos).
-    where.AND = [{ cpf: { not: '' } }, { nome: { not: '' } }];
+    cond.push({ cpf: { not: '' } }, { nome: { not: '' } });
   }
 
-  return where;
+  return {
+    // Celular obrigatório: só dígitos, não nulo e não vazio.
+    celular: { not: null },
+    NOT: { celular: '' },
+    ...(cond.length ? { AND: cond } : {}),
+  };
 }
 
 /** Resolve os destinatários (com celular) conforme os filtros combinados. */

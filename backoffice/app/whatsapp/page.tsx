@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ErroApi } from '@/lib/api';
 import { dataHora } from '@/lib/formato';
 import {
+  PLANO_META,
   ROTULO_STATUS_CAMPANHA,
   type CampanhaWhats,
   type FiltrosWhats,
@@ -226,17 +227,37 @@ function Disparo() {
     }
   }
 
-  const tri = (v: boolean | undefined) => (v === true ? 'sim' : v === false ? 'nao' : '');
-
-  function setTri(chave: 'emailVerificado' | 'comArma', valor: string) {
+  // Chip ternário: clicar no valor ativo limpa (tanto faz); senão define.
+  function toggleBool(chave: 'emailVerificado' | 'comArma' | 'comDoc' | 'comVinculo', alvo: boolean) {
     setFiltros((f) => {
       const n = { ...f };
-      if (valor === 'sim') n[chave] = true;
-      else if (valor === 'nao') n[chave] = false;
-      else delete n[chave];
+      if (n[chave] === alvo) delete n[chave];
+      else n[chave] = alvo;
       return n;
     });
   }
+  function togglePlano(cat: string) {
+    setFiltros((f) => {
+      const s = new Set(f.planos ?? []);
+      if (s.has(cat)) s.delete(cat);
+      else s.add(cat);
+      const arr = [...s];
+      return { ...f, planos: arr.length ? arr : undefined };
+    });
+  }
+  function limparFiltros() {
+    setFiltros({});
+    setDiasUso(false);
+  }
+  const algumFiltro =
+    !!filtros.ativos ||
+    !!filtros.comCadastro ||
+    filtros.emailVerificado !== undefined ||
+    filtros.comArma !== undefined ||
+    filtros.comDoc !== undefined ||
+    filtros.comVinculo !== undefined ||
+    (filtros.planos?.length ?? 0) > 0 ||
+    diasUso;
 
   const intervaloInvalido = Number(min) > Number(max) || Number(min) < 30;
 
@@ -246,63 +267,79 @@ function Disparo() {
       <div className="cartao">
         <div className="campo">
           <label>Filtros (combináveis)</label>
-          <div style={{ display: 'grid', gap: 10 }}>
-            <label className="radio-opcao" style={{ width: 'fit-content' }}>
-              <input
-                type="checkbox"
-                checked={!!filtros.ativos}
-                onChange={(e) => setFiltros((f) => ({ ...f, ativos: e.target.checked || undefined }))}
-                style={{ width: 'auto' }}
-              />
-              Somente usuários ativos
-            </label>
+          <div className="filtros">
+            <div className="filtro-grupo">
+              <span className="rotulo">Plano</span>
+              {(['GRATIS', 'ANUAL', 'MENSAL', 'CORTESIA'] as const).map((cat) => (
+                <button
+                  key={cat}
+                  className={`filtro-chip ${filtros.planos?.includes(cat) ? 'ativo' : ''}`}
+                  onClick={() => togglePlano(cat)}
+                >
+                  {PLANO_META[cat].rotulo}
+                </button>
+              ))}
+            </div>
 
-            <label className="radio-opcao" style={{ width: 'fit-content' }}>
-              <input
-                type="checkbox"
-                checked={!!filtros.comCadastro}
-                onChange={(e) => setFiltros((f) => ({ ...f, comCadastro: e.target.checked || undefined }))}
-                style={{ width: 'auto' }}
-              />
-              Cadastro completo (CPF + nome)
-            </label>
+            <div className="filtro-grupo">
+              <span className="rotulo">Armas</span>
+              <button className={`filtro-chip ${filtros.comArma === true ? 'ativo' : ''}`} onClick={() => toggleBool('comArma', true)}>Com</button>
+              <button className={`filtro-chip ${filtros.comArma === false ? 'ativo' : ''}`} onClick={() => toggleBool('comArma', false)}>Sem</button>
+            </div>
 
-            <SeletorTri
-              rotulo="Conta validada (e-mail)"
-              valor={tri(filtros.emailVerificado)}
-              onChange={(v) => setTri('emailVerificado', v)}
-              simLabel="Validadas"
-              naoLabel="Sem validar"
-            />
+            <div className="filtro-grupo">
+              <span className="rotulo">Documentos</span>
+              <button className={`filtro-chip ${filtros.comDoc === true ? 'ativo' : ''}`} onClick={() => toggleBool('comDoc', true)}>Com</button>
+              <button className={`filtro-chip ${filtros.comDoc === false ? 'ativo' : ''}`} onClick={() => toggleBool('comDoc', false)}>Sem</button>
+            </div>
 
-            <SeletorTri
-              rotulo="Armas cadastradas"
-              valor={tri(filtros.comArma)}
-              onChange={(v) => setTri('comArma', v)}
-              simLabel="Com arma"
-              naoLabel="Sem arma"
-            />
+            <div className="filtro-grupo">
+              <span className="rotulo">Vínculo</span>
+              <button className={`filtro-chip ${filtros.comVinculo === true ? 'ativo' : ''}`} onClick={() => toggleBool('comVinculo', true)}>Com</button>
+              <button className={`filtro-chip ${filtros.comVinculo === false ? 'ativo' : ''}`} onClick={() => toggleBool('comVinculo', false)}>Sem</button>
+            </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <label className="radio-opcao" style={{ width: 'fit-content' }}>
-                <input
-                  type="checkbox"
-                  checked={diasUso}
-                  onChange={(e) => setDiasUso(e.target.checked)}
-                  style={{ width: 'auto' }}
-                />
-                Usando o app há mais de
-              </label>
+            <div className="filtro-grupo">
+              <span className="rotulo">E-mail</span>
+              <button className={`filtro-chip ${filtros.emailVerificado === true ? 'ativo' : ''}`} onClick={() => toggleBool('emailVerificado', true)}>Validado</button>
+              <button className={`filtro-chip ${filtros.emailVerificado === false ? 'ativo' : ''}`} onClick={() => toggleBool('emailVerificado', false)}>Sem validar</button>
+            </div>
+
+            <div className="filtro-grupo">
+              <span className="rotulo">Conta</span>
+              <button
+                className={`filtro-chip ${filtros.ativos ? 'ativo' : ''}`}
+                onClick={() => setFiltros((f) => ({ ...f, ativos: f.ativos ? undefined : true }))}
+              >
+                Ativos
+              </button>
+              <button
+                className={`filtro-chip ${filtros.comCadastro ? 'ativo' : ''}`}
+                onClick={() => setFiltros((f) => ({ ...f, comCadastro: f.comCadastro ? undefined : true }))}
+              >
+                Cadastro completo
+              </button>
+            </div>
+
+            <div className="filtro-grupo">
+              <span className="rotulo">Uso</span>
+              <button className={`filtro-chip ${diasUso ? 'ativo' : ''}`} onClick={() => setDiasUso((v) => !v)}>
+                Há mais de
+              </button>
               <input
                 type="number"
                 min={1}
                 value={dias}
                 disabled={!diasUso}
                 onChange={(e) => setDias(Number(e.target.value))}
-                style={{ width: 90 }}
+                style={{ width: 72 }}
               />
               <span className="subtitulo" style={{ margin: 0 }}>dias</span>
             </div>
+
+            {algumFiltro && (
+              <button className="filtro-limpar" onClick={limparFiltros}>Limpar filtros</button>
+            )}
           </div>
 
           <div className="ajuda-previa" style={{ marginTop: 10 }}>
@@ -372,43 +409,6 @@ function Disparo() {
         </button>
       </div>
     </>
-  );
-}
-
-function SeletorTri({
-  rotulo,
-  valor,
-  onChange,
-  simLabel,
-  naoLabel,
-}: {
-  rotulo: string;
-  valor: string;
-  onChange: (v: string) => void;
-  simLabel: string;
-  naoLabel: string;
-}) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-      <span style={{ minWidth: 190 }}>{rotulo}</span>
-      <div className="radio-linha">
-        {[
-          { v: '', l: 'Tanto faz' },
-          { v: 'sim', l: simLabel },
-          { v: 'nao', l: naoLabel },
-        ].map((o) => (
-          <label key={o.v} className={`radio-opcao ${valor === o.v ? 'sel' : ''}`}>
-            <input
-              type="radio"
-              checked={valor === o.v}
-              onChange={() => onChange(o.v)}
-              style={{ width: 'auto' }}
-            />
-            {o.l}
-          </label>
-        ))}
-      </div>
-    </div>
   );
 }
 
