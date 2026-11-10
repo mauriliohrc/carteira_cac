@@ -13,10 +13,14 @@ import {
   ESPECIES,
   FUNCIONAMENTOS,
   GRUPOS,
+  TIPO_DOC_POR_VALOR,
 } from '@/domain/catalogos';
 import { atualizarArma, criarArma, type EntradaArma } from '@/db/armas';
+import { criarDocumento } from '@/db/documentos';
+import { guardarArquivo, type ArquivoEscolhido } from '@/arquivos/cofre';
 import { pedirAvaliacaoUmaVez } from '@/avaliacao';
 import { podeCadastrarArma } from '@/billing';
+import type { CamposExtraidos } from '@/integracoes/extracao';
 import type { Acervo, Grupo } from '@/domain/tipos';
 
 const VAZIO: EntradaArma = {
@@ -40,7 +44,15 @@ const VAZIO: EntradaArma = {
 };
 
 export default function EditorArma() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const params = useLocalSearchParams<{
+    id?: string;
+    campos?: string;
+    crafUri?: string;
+    crafNome?: string;
+    crafMime?: string;
+    crafTamanho?: string;
+  }>();
+  const { id } = params;
   const c = useCores();
   const s = useEstilos(folha);
   const { armas, premium, recarregar } = useApp();
@@ -49,9 +61,27 @@ export default function EditorArma() {
   const editando = !!existente;
 
   const [form, setForm] = useState<EntradaArma>(VAZIO);
-  const [erros, setErros] = useState<Record<string, string>>({});
   const [salvando, setSalvando] = useState(false);
 
+  // Campos que a IA leu do CRAF e o arquivo pendente a anexar ao salvar.
+  const camposIa = useMemo<CamposExtraidos>(() => {
+    if (!params.campos) return {};
+    try {
+      return JSON.parse(params.campos) as CamposExtraidos;
+    } catch {
+      return {};
+    }
+  }, [params.campos]);
+  const crafPendente: ArquivoEscolhido | null = params.crafUri
+    ? {
+        uri: params.crafUri,
+        nome: params.crafNome ?? 'CRAF',
+        mime: params.crafMime ?? null,
+        tamanho: params.crafTamanho ? Number(params.crafTamanho) : null,
+      }
+    : null;
+
+  // Edição: carrega a arma existente no formulário.
   useEffect(() => {
     if (!existente) return;
     const { id: _id, criadoEm, atualizadoEm, ...resto } = existente;
@@ -60,6 +90,24 @@ export default function EditorArma() {
     void atualizadoEm;
     setForm(resto);
   }, [existente]);
+
+  // Cadastro novo via CRAF: pré-preenche com o que a IA leu (o usuário revisa).
+  useEffect(() => {
+    if (existente || !params.campos) return;
+    setForm((f) => ({
+      ...f,
+      modelo: camposIa.modelo ?? f.modelo,
+      marca: camposIa.marca ?? f.marca,
+      numeroSerie: camposIa.numeroSerie ?? f.numeroSerie,
+      calibre: camposIa.calibre ?? f.calibre,
+      especie: camposIa.especie ?? f.especie,
+      fabricante: camposIa.fabricante ?? f.fabricante,
+      paisOrigem: camposIa.paisOrigem ?? f.paisOrigem,
+      anoFabricacao: camposIa.anoFabricacao ?? f.anoFabricacao,
+      registroNumero: camposIa.numero ?? f.registroNumero,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existente, params.campos]);
 
   // Trava do plano grátis: só bloqueia cadastro NOVO, nunca edição do que já existe.
   useEffect(() => {
@@ -70,33 +118,11 @@ export default function EditorArma() {
 
   const alterar = <K extends keyof EntradaArma>(campo: K, valor: EntradaArma[K]) => {
     setForm((atual) => ({ ...atual, [campo]: valor }));
-    setErros((atual) => {
-      if (!atual[campo as string]) return atual;
-      const copia = { ...atual };
-      delete copia[campo as string];
-      return copia;
-    });
   };
 
-  const validar = (): boolean => {
-    const novos: Record<string, string> = {};
-    if (!form.modelo.trim()) novos.modelo = 'Informe o modelo da arma.';
-    if (!form.numeroSerie.trim()) novos.numeroSerie = 'Informe o número de série.';
-    if (!form.calibre.trim()) novos.calibre = 'Informe o calibre.';
-
-    const duplicada = armas.find(
-      (a) =>
-        a.id !== existente?.id &&
-        a.numeroSerie.trim().toLowerCase() === form.numeroSerie.trim().toLowerCase()
-    );
-    if (duplicada) novos.numeroSerie = 'Já existe uma arma com este número de série.';
-
-    setErros(novos);
-    return Object.keys(novos).length === 0;
-  };
-
+  // Sem campos obrigatórios nem únicos: vale o que o usuário informar; o resto
+  // fica em branco e pode ser completado depois.
   const salvar = async () => {
-    if (!validar()) return;
     setSalvando(true);
     try {
       if (existente) {
@@ -107,6 +133,27 @@ export default function EditorArma() {
         // `armas` é a lista de ANTES desta criação: vazia = esta é a primeira.
         const primeiraArma = armas.length === 0;
         const novoIdArma = await criarArma(form);
+        // Fluxo "CRAF primeiro": anexa o CRAF lido à arma recém-criada.
+        if (crafPendente) {
+          try {
+            const docId = await criarDocumento({
+              tipo: 'CRAF',
+              armaId: novoIdArma,
+              titulo: null,
+              numero: camposIa.numero ?? null,
+              orgao: TIPO_DOC_POR_VALOR.CRAF.orgaoPadrao,
+              dataEmissao: camposIa.dataEmissao ?? null,
+              dataValidade: camposIa.dataValidade ?? '',
+              origem: null,
+              destino: null,
+              localManejo: null,
+              observacoes: null,
+            });
+            await guardarArquivo(docId, crafPendente);
+          } catch {
+            /* anexo é best-effort; a arma já foi salva */
+          }
+        }
         await recarregar();
         router.replace({ pathname: '/arma/[id]', params: { id: novoIdArma, recemCriada: '1' } });
         // Só na primeira arma, e depois de a tela da arma assentar: aí pedimos a
@@ -115,10 +162,7 @@ export default function EditorArma() {
       }
     } catch (e) {
       console.error('[CAC Brasil] falha ao salvar arma', e);
-      avisar(
-        'Não foi possível salvar',
-        e instanceof Error ? e.message : String(e)
-      );
+      avisar('Não foi possível salvar', e instanceof Error ? e.message : String(e));
     } finally {
       setSalvando(false);
     }
@@ -126,14 +170,20 @@ export default function EditorArma() {
 
   return (
     <Tela teclado voltar tituloCabecalho={editando ? 'Editar arma' : 'Nova arma'}>
+        {params.campos ? (
+          <View style={s.avisoIa}>
+            <Text style={s.avisoIaTxt}>
+              ✨ Preenchemos com o que a IA leu do CRAF. Confira e ajuste o que precisar antes de salvar.
+            </Text>
+          </View>
+        ) : null}
+
         <BlocoFormulario titulo="Identificação">
           <Campo
             rotulo="Modelo"
             valor={form.modelo}
             aoMudar={(v) => alterar('modelo', v)}
             placeholder="Ex.: G25 Gen4"
-            obrigatorio
-            erro={erros.modelo}
           />
           <Campo
             rotulo="Marca / fabricante"
@@ -146,9 +196,7 @@ export default function EditorArma() {
             valor={form.numeroSerie}
             aoMudar={(v) => alterar('numeroSerie', v)}
             placeholder="Como consta no CRAF"
-            obrigatorio
             autoCapitalize="characters"
-            erro={erros.numeroSerie}
           />
           <Campo
             rotulo="Apelido (opcional)"
@@ -162,7 +210,6 @@ export default function EditorArma() {
         <BlocoFormulario titulo="Enquadramento legal">
           <SeletorChips
             rotulo="Acervo"
-            obrigatorio
             itens={ACERVOS.map((a) => ({ valor: a.valor, rotulo: a.curto }))}
             selecionado={form.acervo}
             aoSelecionar={(v) => alterar('acervo', v as Acervo)}
@@ -170,7 +217,6 @@ export default function EditorArma() {
           />
           <SeletorLista
             rotulo="Grupo"
-            obrigatorio
             tituloFolha="Grupo da arma"
             itens={GRUPOS.map((g) => ({ valor: g.valor, rotulo: g.rotulo, detalhe: g.detalhe }))}
             selecionado={form.grupo}
@@ -178,14 +224,12 @@ export default function EditorArma() {
           />
           <SeletorLista
             rotulo="Calibre"
-            obrigatorio
             permiteLivre
             tituloFolha="Calibre"
             placeholder="Selecionar ou digitar"
             itens={CALIBRES.map((c) => ({ valor: c, rotulo: c }))}
             selecionado={form.calibre || null}
             aoSelecionar={(v) => alterar('calibre', v)}
-            erro={erros.calibre}
             dica="Não achou? Digite na busca e toque em “Usar”."
           />
           <Campo
@@ -268,7 +312,9 @@ export default function EditorArma() {
         </BlocoFormulario>
 
         <Text style={s.rodape}>
-          Depois de salvar você anexa o CRAF, as guias de tráfego e os demais documentos desta arma.
+          {crafPendente
+            ? 'O CRAF que você enviou será anexado a esta arma ao salvar. As guias de tráfego você adiciona em seguida.'
+            : 'Nenhum campo é obrigatório. Depois de salvar você anexa o CRAF, as guias de tráfego e os demais documentos.'}
         </Text>
 
         <Botao
@@ -286,4 +332,11 @@ const folha = (c: Paleta) =>
   StyleSheet.create({
     duasColunas: { flexDirection: 'row', gap: espaco.md },
     rodape: { ...tipo.legenda, color: c.textoFraco, marginTop: espaco.md, textAlign: 'center' },
+    avisoIa: {
+      backgroundColor: c.primarioFraco,
+      borderRadius: 10,
+      padding: espaco.md,
+      marginBottom: espaco.md,
+    },
+    avisoIaTxt: { ...tipo.corpoPequeno, color: c.primario },
   });

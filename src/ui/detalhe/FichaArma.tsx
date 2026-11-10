@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 
 import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { useApp } from '@/estado/AppContext';
@@ -101,6 +101,26 @@ export function FichaArma({ id, embutido }: { id: string; embutido?: boolean }) 
   );
 
   const { iniciar, analisando } = useNovoDocumento();
+
+  // Fluxo de cadastro novo: ao chegar aqui recém-criada (com o CRAF já anexado),
+  // oferece enviar as guias de trânsito — mesma lógica (arquivo → IA → revisar).
+  const params = useLocalSearchParams<{ recemCriada?: string }>();
+  const guiaPerguntada = useRef(false);
+  useEffect(() => {
+    if (embutido || params.recemCriada !== '1' || !arma || guiaPerguntada.current) return;
+    guiaPerguntada.current = true;
+    const t = setTimeout(() => {
+      void confirmar({
+        titulo: 'Cadastrar guia de trânsito?',
+        mensagem: 'Envie a guia (PDF ou foto) e a IA preenche sozinha. Dá para adicionar mais de uma — ou pular e fazer depois.',
+        rotuloConfirmar: 'Enviar guia',
+        rotuloCancelar: 'Agora não',
+      }).then((ok) => {
+        if (ok) void iniciar({ escopo: 'ARMA', armaId: arma.id, tipo: 'GUIA_TRAFEGO' });
+      });
+    }, 500);
+    return () => clearTimeout(t);
+  }, [embutido, params.recemCriada, arma, iniciar]);
 
   if (!arma) {
     const aviso = <Text style={f.aviso}>Arma não encontrada.</Text>;

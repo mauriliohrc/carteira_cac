@@ -6,7 +6,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { useApp } from '@/estado/AppContext';
-import { Tela, TituloTela } from '@/ui/base';
+import { Sobreposicao, Tela, TituloTela } from '@/ui/base';
+import { escolher } from '@/ui/dialogo';
+import { escolherDocumento } from '@/arquivos/cofre';
+import { extrairCamposDoArquivo } from '@/integracoes/extracao';
 import { BotaoSino } from '@/ui/BotaoSino';
 import { ConteudoAcervo } from '@/ui/ConteudoAcervo';
 import { ConteudoHabitualidade } from '@/ui/ConteudoHabitualidade';
@@ -54,11 +57,51 @@ export default function TelaAcervo() {
   // seletor nem aparece e a aba cai sempre no acervo.
   const ehHabitualidade = gerenciarHabitualidade && aba === 'HABITUALIDADE';
   const podeAdicionar = podeCadastrarArma(armas.length, premium);
+  const [analisando, setAnalisando] = useState(false);
+
+  // Fluxo "CRAF primeiro": escolhe o arquivo, a IA lê e abre o formulário já
+  // preenchido para revisão (que anexa o CRAF ao salvar). Pular = manual.
+  const cadastrarComCraf = async () => {
+    const escolhido = await escolherDocumento();
+    if (!escolhido) return;
+    setAnalisando(true);
+    let campos = {};
+    try {
+      campos = await extrairCamposDoArquivo(escolhido.uri, escolhido.mime ?? '', 'CRAF');
+    } catch {
+      /* IA é best-effort: sem campos, o usuário preenche na mão */
+    } finally {
+      setAnalisando(false);
+    }
+    router.push({
+      pathname: '/arma/editar',
+      params: {
+        campos: JSON.stringify(campos),
+        crafUri: escolhido.uri,
+        crafNome: escolhido.nome,
+        crafMime: escolhido.mime ?? '',
+        crafTamanho: escolhido.tamanho != null ? String(escolhido.tamanho) : '',
+      },
+    });
+  };
 
   const adicionar = () => {
-    if (ehHabitualidade) router.push('/habitualidade/editar');
-    else if (podeAdicionar) router.push('/arma/editar');
-    else router.push('/premium');
+    if (ehHabitualidade) {
+      router.push('/habitualidade/editar');
+      return;
+    }
+    if (!podeAdicionar) {
+      router.push('/premium');
+      return;
+    }
+    void escolher(
+      'Cadastrar armamento',
+      'Envie o CRAF (PDF ou foto) e a IA preenche a arma sozinha — ou prefira preencher manualmente.',
+      [
+        { rotulo: 'Enviar CRAF (preenche sozinho)', icone: 'sparkles-outline', acao: cadastrarComCraf },
+        { rotulo: 'Preencher manualmente', icone: 'create-outline', acao: () => router.push('/arma/editar') },
+      ]
+    );
   };
 
   // No seletor, o que importa é o que exige ação: quantos grupos estão
@@ -163,6 +206,7 @@ export default function TelaAcervo() {
           }
           detalhe={<FichaArma id={selId} embutido />}
         />
+        <Sobreposicao visivel={analisando} texto="Analisando o CRAF…" />
       </Tela>
     );
   }
@@ -175,6 +219,7 @@ export default function TelaAcervo() {
       ) : (
         <ConteudoAcervo aoAdicionar={adicionar} />
       )}
+      <Sobreposicao visivel={analisando} texto="Analisando o CRAF…" />
     </Tela>
   );
 }
