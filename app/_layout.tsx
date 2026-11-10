@@ -256,7 +256,6 @@ function Raiz() {
       <Stack.Screen name="despachante/pedido" />
       <Stack.Screen name="despachante/checkout" />
       <Stack.Screen name="despachante/meus" />
-      <Stack.Screen name="mercado/index" />
       <Stack.Screen name="mercado/[id]" />
       <Stack.Screen name="mercado/meus" />
       <Stack.Screen name="mercado/conversas" />

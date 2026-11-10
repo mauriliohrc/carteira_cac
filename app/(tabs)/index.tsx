@@ -8,7 +8,7 @@ import { useApp } from '@/estado/AppContext';
 import { Botao, Secao, Tela, Vazio } from '@/ui/base';
 import { CartaoDocumento } from '@/ui/cartoes';
 import { CartaoConta } from '@/conta/CartaoConta';
-import { BotaoSino } from '@/ui/BotaoSino';
+import { AcoesCabecalho } from '@/ui/AcoesCabecalho';
 import { SecaoNoticiasPainel } from '@/noticias/SecaoNoticiasPainel';
 import { SecaoCompeticoesPainel } from '@/competicoes/SecaoCompeticoesPainel';
 import { ResumoHabitualidade } from '@/ui/habitualidade';
@@ -33,7 +33,7 @@ export default function Painel() {
               <Text style={p.seloTexto}>PREMIUM</Text>
             </Pressable>
           ) : null}
-          <BotaoSino />
+          <AcoesCabecalho />
         </View>
       }
     >

@@ -6,7 +6,7 @@ import { router } from 'expo-router';
 import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { useApp } from '@/estado/AppContext';
 import { Secao, Tela, TituloTela } from '@/ui/base';
-import { BotaoSino } from '@/ui/BotaoSino';
+import { AcoesCabecalho } from '@/ui/AcoesCabecalho';
 import type { TipoServicoDespachante } from '@/domain/tipos';
 
 /** Serviços oferecidos — rótulos de vitrine. Preço/nota de GRU vêm do servidor
@@ -39,7 +39,7 @@ export default function Despachante() {
   const emAberto = processos.filter((p) => p.status !== 'concluido' && p.status !== 'cancelado');
 
   return (
-    <Tela sobBarra acao={<BotaoSino />}>
+    <Tela sobBarra acao={<AcoesCabecalho />}>
       <TituloTela
         titulo="Serviços"
         sub="Deixe a burocracia com a gente. Você contrata, paga pelo app e acompanha por aqui."

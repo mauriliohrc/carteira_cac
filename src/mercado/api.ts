@@ -67,7 +67,8 @@ export async function aceitarEula(): Promise<void> {
 /** Envia uma foto (base64) e devolve o id do Upload para anexar ao anúncio. */
 export async function enviarFoto(mime: string, dadosBase64: string): Promise<string> {
   const token = await lerToken();
-  const r = await apiApp<{ id: string }>('/app/uploads', {
+  // apiApp já prefixa `/api/v1/app`; a rota é `/api/v1/app/uploads`.
+  const r = await apiApp<{ id: string }>('/uploads', {
     metodo: 'POST',
     token,
     corpo: { mime, dadosBase64 },

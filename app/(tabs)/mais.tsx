@@ -178,15 +178,6 @@ export default function Mais() {
         )}
       </Secao>
 
-      <Secao titulo="Mercado">
-        <ItemMenu
-          icone="pricetags-outline"
-          titulo="Mercado de acessórios"
-          subtitulo="Compre e venda acessórios de tiro entre CACs — sem armas nem munição"
-          aoTocar={() => router.push('/mercado')}
-        />
-      </Secao>
-
       <Secao titulo="Segurança">
         <ItemMenu
           icone="lock-closed-outline"

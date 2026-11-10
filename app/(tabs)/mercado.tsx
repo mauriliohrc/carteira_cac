@@ -15,13 +15,9 @@ import { router } from 'expo-router';
 
 import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { Botao, Tela, Vazio } from '@/ui/base';
+import { AcoesCabecalho } from '@/ui/AcoesCabecalho';
 import { ErroConta } from '@/conta/api';
-import {
-  formatarPreco,
-  listarAnuncios,
-  obterCatalogo,
-  type FiltrosMercado,
-} from '@/mercado/api';
+import { formatarPreco, listarAnuncios, obterCatalogo } from '@/mercado/api';
 import type { Anuncio, CategoriaMarket } from '@/mercado/tipos';
 
 export default function Mercado() {
@@ -44,8 +40,6 @@ export default function Mercado() {
       .then((cat) => setCategorias(cat.categorias))
       .catch(() => setCategorias([]));
   }, []);
-
-  const filtros: FiltrosMercado = catSel ? { categoria: catSel } : {};
 
   const carregarInicial = useCallback(async () => {
     setErro(null);
@@ -101,6 +95,9 @@ export default function Mercado() {
         compacto
         aoTocar={() => router.push('/mercado/meus')}
       />
+      <Pressable style={p.chat} onPress={() => router.push('/mercado/conversas')} hitSlop={6}>
+        <Ionicons name="chatbubbles-outline" size={20} color={c.texto} />
+      </Pressable>
     </View>
   );
 
@@ -120,7 +117,7 @@ export default function Mercado() {
 
   if (carregando) {
     return (
-      <Tela voltar rolavel={false} tituloCabecalho="Mercado">
+      <Tela sobBarra rolavel={false} acao={<AcoesCabecalho />}>
         {barraTopo}
         {filtroCategorias}
         <View style={p.centro}>
@@ -131,16 +128,7 @@ export default function Mercado() {
   }
 
   return (
-    <Tela
-      voltar
-      rolavel={false}
-      tituloCabecalho="Mercado"
-      acao={
-        <Pressable onPress={() => router.push('/mercado/conversas')} hitSlop={10}>
-          <Ionicons name="chatbubbles-outline" size={22} color={c.texto} />
-        </Pressable>
-      }
-    >
+    <Tela sobBarra rolavel={false} acao={<AcoesCabecalho />}>
       {barraTopo}
       {filtroCategorias}
       <FlatList
@@ -228,7 +216,17 @@ function CartaoAnuncio({ anuncio: a }: { anuncio: Anuncio }) {
 const folha = (c: Paleta) =>
   StyleSheet.create({
     centro: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    topo: { flexDirection: 'row', gap: espaco.sm, paddingHorizontal: espaco.lg, paddingBottom: espaco.md },
+    topo: { flexDirection: 'row', alignItems: 'center', gap: espaco.sm, paddingHorizontal: espaco.lg, paddingBottom: espaco.md },
+    chat: {
+      width: 40,
+      height: 40,
+      borderRadius: raio.sm,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.borda,
+      backgroundColor: c.superficie,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     chips: { gap: espaco.sm, paddingHorizontal: espaco.lg, paddingBottom: espaco.md },
     chip: {
       paddingHorizontal: espaco.md,

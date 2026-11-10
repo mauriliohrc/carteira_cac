@@ -10,7 +10,7 @@ const ICONES: Record<string, string> = {
   acervo: 'albums-outline',
   despachante: 'briefcase-outline',
   pessoais: 'person-outline',
-  mais: 'ellipsis-horizontal-circle-outline',
+  mercado: 'pricetags-outline',
 };
 
 export default function LayoutAbas() {
@@ -34,7 +34,10 @@ export default function LayoutAbas() {
           os destinos para /(tabs)/avisos (Painel, notificação tocada, push). */}
       <Tabs.Screen name="avisos" options={{ href: null }} />
       <Tabs.Screen name="pessoais" options={{ title: 'Meus docs' }} />
-      <Tabs.Screen name="mais" options={{ title: 'Mais' }} />
+      <Tabs.Screen name="mercado" options={{ title: 'Mercado' }} />
+      {/* "Mais" saiu da barra e virou a engrenagem do cabeçalho (AcoesCabecalho).
+          A rota continua existindo — href:null só a tira da barra. */}
+      <Tabs.Screen name="mais" options={{ href: null }} />
     </Tabs>
   );
 }

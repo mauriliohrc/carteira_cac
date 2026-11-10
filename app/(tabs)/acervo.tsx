@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { useApp } from '@/estado/AppContext';
 import { Tela, TituloTela } from '@/ui/base';
-import { BotaoSino } from '@/ui/BotaoSino';
+import { AcoesCabecalho } from '@/ui/AcoesCabecalho';
 import { ConteudoAcervo } from '@/ui/ConteudoAcervo';
 import { ConteudoHabitualidade } from '@/ui/ConteudoHabitualidade';
 import { DuasColunas } from '@/ui/layout/DuasColunas';
@@ -138,7 +138,7 @@ export default function TelaAcervo() {
       <Tela
         sobBarra
         rolavel={false}
-        acao={<BotaoSino />}
+        acao={<AcoesCabecalho />}
         estilo={{ paddingLeft: insets.left, paddingRight: insets.right }}
       >
         <View style={{ paddingHorizontal: espaco.lg }}>{cabecalho}</View>
@@ -168,7 +168,7 @@ export default function TelaAcervo() {
   }
 
   return (
-    <Tela sobBarra aoAtualizar={sincronizarAgora} acao={<BotaoSino />}>
+    <Tela sobBarra aoAtualizar={sincronizarAgora} acao={<AcoesCabecalho />}>
       {cabecalho}
       {ehHabitualidade ? (
         <ConteudoHabitualidade aoRegistrar={() => router.push('/habitualidade/editar')} />
