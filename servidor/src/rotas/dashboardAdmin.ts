@@ -105,7 +105,8 @@ async function idsPorVersao(metrica: string): Promise<string[] | null> {
     if (metrica === 'semVersao') {
       if (!v) ids.push(uid);
     } else if (metrica === 'desatualizados') {
-      if (v && latest && compararVersao(v, latest) < 0) ids.push(uid);
+      // "Sem versão" (app antigo que não reporta) também conta como desatualizado.
+      if (!v || (latest && compararVersao(v, latest) < 0)) ids.push(uid);
     } else if (alvo) {
       if (v === alvo) ids.push(uid);
     }

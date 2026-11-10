@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { tempoRelativo } from '@/lib/formato';
-import { rotuloPlano } from '@/lib/tipos';
+import { categoriaPlano, PLANO_META } from '@/lib/tipos';
 import type { ListaUsuariosApp } from '@/lib/tipos';
 import { Protegido } from '../componentes/Protegido';
 
@@ -40,6 +40,13 @@ function IconePlataforma({ plataforma }: { plataforma: string }) {
 }
 
 type Dir = 'asc' | 'desc';
+type Ternario = 'com' | 'sem' | null;
+
+/** Formata uma data ISO como dd/mm/aaaa (ou — quando ausente). */
+function formatarData(iso?: string | null): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('pt-BR');
+}
 
 /** Formata celular só-dígitos como (DD) 9XXXX-XXXX. */
 function formatarCelular(c?: string | null): string | null {
@@ -58,6 +65,14 @@ function ListaUsuarios() {
   const [direcao, setDirecao] = useState<Dir>('desc');
   const [carregando, setCarregando] = useState(true);
 
+  // Filtros combináveis (AND entre grupos). `planos` acumula faixas (OR interno).
+  const [planos, setPlanos] = useState<Set<string>>(new Set());
+  const [fArmas, setFArmas] = useState<Ternario>(null);
+  const [fDocs, setFDocs] = useState<Ternario>(null);
+  const [fVinculo, setFVinculo] = useState<Ternario>(null);
+  const [fEmail, setFEmail] = useState<'sim' | 'nao' | null>(null);
+  const planosKey = [...planos].sort().join(',');
+
   // Contagem de armas na Shooting House — carregada sob demanda e cacheada por id.
   const [armasSH, setArmasSH] = useState<Record<string, number | null>>({});
   const cacheArmas = useRef<Record<string, number | null>>({});
@@ -73,10 +88,15 @@ function ListaUsuarios() {
     // 'armasSH' é ordenação client-side (valor externo) — não vai ao servidor.
     params.set('ordenar', ordenar === 'armasSH' ? 'criadoEm' : ordenar);
     if (busca.trim()) params.set('busca', busca.trim());
+    if (planosKey) params.set('planos', planosKey);
+    if (fArmas) params.set('armas', fArmas);
+    if (fDocs) params.set('docs', fDocs);
+    if (fVinculo) params.set('vinculo', fVinculo);
+    if (fEmail) params.set('email', fEmail);
     const r = await api<ListaUsuariosApp>(`/api/admin/usuarios-app?${params}`);
     setDados(r);
     setCarregando(false);
-  }, [pagina, busca, ordenar, direcao]);
+  }, [pagina, busca, ordenar, direcao, planosKey, fArmas, fDocs, fVinculo, fEmail]);
 
   useEffect(() => {
     const t = setTimeout(carregar, 250); // debounce da busca
@@ -108,6 +128,30 @@ function ListaUsuarios() {
       vivo = false;
     };
   }, [dados]);
+
+  // Grupo binário (com/sem): clicar no ativo limpa; senão seleciona.
+  function toggleTernario(valor: Ternario, set: (v: Ternario) => void, alvo: 'com' | 'sem') {
+    set(valor === alvo ? null : alvo);
+    setPagina(1);
+  }
+  function togglePlano(cat: string) {
+    setPlanos((s) => {
+      const n = new Set(s);
+      if (n.has(cat)) n.delete(cat);
+      else n.add(cat);
+      return n;
+    });
+    setPagina(1);
+  }
+  const algumFiltro = planos.size > 0 || fArmas || fDocs || fVinculo || fEmail;
+  function limparFiltros() {
+    setPlanos(new Set());
+    setFArmas(null);
+    setFDocs(null);
+    setFVinculo(null);
+    setFEmail(null);
+    setPagina(1);
+  }
 
   function ordenarPor(coluna: string) {
     if (ordenar === coluna) setDirecao((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -167,6 +211,49 @@ function ListaUsuarios() {
         }}
       />
 
+      <div className="filtros">
+        <div className="filtro-grupo">
+          <span className="rotulo">Plano</span>
+          {(['GRATIS', 'ANUAL', 'MENSAL', 'CORTESIA'] as const).map((cat) => (
+            <button
+              key={cat}
+              className={`filtro-chip ${planos.has(cat) ? 'ativo' : ''}`}
+              onClick={() => togglePlano(cat)}
+            >
+              {PLANO_META[cat].rotulo}
+            </button>
+          ))}
+        </div>
+
+        <div className="filtro-grupo">
+          <span className="rotulo">Armas</span>
+          <button className={`filtro-chip ${fArmas === 'com' ? 'ativo' : ''}`} onClick={() => toggleTernario(fArmas, setFArmas, 'com')}>Com</button>
+          <button className={`filtro-chip ${fArmas === 'sem' ? 'ativo' : ''}`} onClick={() => toggleTernario(fArmas, setFArmas, 'sem')}>Sem</button>
+        </div>
+
+        <div className="filtro-grupo">
+          <span className="rotulo">Documentos</span>
+          <button className={`filtro-chip ${fDocs === 'com' ? 'ativo' : ''}`} onClick={() => toggleTernario(fDocs, setFDocs, 'com')}>Com</button>
+          <button className={`filtro-chip ${fDocs === 'sem' ? 'ativo' : ''}`} onClick={() => toggleTernario(fDocs, setFDocs, 'sem')}>Sem</button>
+        </div>
+
+        <div className="filtro-grupo">
+          <span className="rotulo">Vínculo</span>
+          <button className={`filtro-chip ${fVinculo === 'com' ? 'ativo' : ''}`} onClick={() => toggleTernario(fVinculo, setFVinculo, 'com')}>Com</button>
+          <button className={`filtro-chip ${fVinculo === 'sem' ? 'ativo' : ''}`} onClick={() => toggleTernario(fVinculo, setFVinculo, 'sem')}>Sem</button>
+        </div>
+
+        <div className="filtro-grupo">
+          <span className="rotulo">E-mail</span>
+          <button className={`filtro-chip ${fEmail === 'sim' ? 'ativo' : ''}`} onClick={() => { setFEmail((v) => (v === 'sim' ? null : 'sim')); setPagina(1); }}>Verificado</button>
+          <button className={`filtro-chip ${fEmail === 'nao' ? 'ativo' : ''}`} onClick={() => { setFEmail((v) => (v === 'nao' ? null : 'nao')); setPagina(1); }}>Sem verificar</button>
+        </div>
+
+        {algumFiltro && (
+          <button className="filtro-limpar" onClick={limparFiltros}>Limpar filtros</button>
+        )}
+      </div>
+
       <div className="cartao" style={{ padding: 0 }}>
         {carregando ? (
           <div className="vazio">Carregando…</div>
@@ -180,12 +267,13 @@ function ListaUsuarios() {
                 <Th coluna="emailVerificado">E-mail</Th>
                 <Th coluna="celular">Telefone</Th>
                 <Th coluna="premium">Plano</Th>
+                <Th coluna="criadoEm">Criado</Th>
                 <Th coluna="ultimoAcesso">Último acesso</Th>
                 <Th coluna="entidades">Entidades</Th>
                 <Th coluna="armas">Armas</Th>
                 <Th coluna="armasSH">Armas SH</Th>
                 <Th coluna="dispositivos">Disp.</Th>
-                <Th>Versão</Th>
+                <Th coluna="appVersao">Versão</Th>
                 <Th></Th>
               </tr>
             </thead>
@@ -211,9 +299,16 @@ function ListaUsuarios() {
                     {formatarCelular(u.celular) ?? <span style={{ color: 'var(--texto-suave)' }}>—</span>}
                   </td>
                   <td>
-                    <span className={`etiqueta ${u.premium ? 'publicada' : 'rascunho'}`}>
-                      {rotuloPlano(u.premium, u.premiumTipo)}
-                    </span>
+                    {(() => {
+                      const meta = PLANO_META[categoriaPlano(u.premium, u.premiumTipo)];
+                      return <span className={`etiqueta ${meta.classe}`}>{meta.rotulo}</span>;
+                    })()}
+                  </td>
+                  <td
+                    style={{ whiteSpace: 'nowrap', color: 'var(--texto-suave)', fontSize: 13 }}
+                    title={u.criadoEm ? new Date(u.criadoEm).toLocaleString('pt-BR') : undefined}
+                  >
+                    {formatarData(u.criadoEm)}
                   </td>
                   <td>
                     <span className={`ponto ${u.online ? 'online' : 'offline'}`} />

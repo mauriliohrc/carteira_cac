@@ -224,6 +224,38 @@ export function rotuloPlano(premium: boolean, premiumTipo?: string | null): stri
   return tipo ? `Premium · ${tipo}` : 'Premium';
 }
 
+/**
+ * Categoria visual do plano, agrupando os tipos de premium em 4 faixas usadas
+ * no backoffice (cor + rótulo + filtro). `PREMIUM` é só fallback para premium
+ * sem tipo conhecido (raro). Deve casar com os valores aceitos no filtro
+ * `planos` da rota /api/admin/usuarios-app.
+ */
+export type CategoriaPlano = 'GRATIS' | 'ANUAL' | 'MENSAL' | 'CORTESIA' | 'PREMIUM';
+
+export function categoriaPlano(premium: boolean, premiumTipo?: string | null): CategoriaPlano {
+  if (!premium) return 'GRATIS';
+  switch (premiumTipo) {
+    case 'ANUAL':
+    case 'ANUAL_PARCEIRO':
+      return 'ANUAL';
+    case 'MENSAL':
+      return 'MENSAL';
+    case 'CUPOM':
+      return 'CORTESIA';
+    default:
+      return 'PREMIUM';
+  }
+}
+
+/** Rótulo curto + classe CSS de cor para cada categoria de plano. */
+export const PLANO_META: Record<CategoriaPlano, { rotulo: string; classe: string }> = {
+  GRATIS: { rotulo: 'Grátis', classe: 'plano-gratis' },
+  ANUAL: { rotulo: 'Anual', classe: 'plano-anual' },
+  MENSAL: { rotulo: 'Mensal', classe: 'plano-mensal' },
+  CORTESIA: { rotulo: 'Cortesia', classe: 'plano-cortesia' },
+  PREMIUM: { rotulo: 'Premium', classe: 'plano-premium' },
+};
+
 export const ROTULO_DOC: Record<string, string> = {
   CRAF: 'CRAF',
   GUIA_TRAFEGO: 'Guia de Tráfego',

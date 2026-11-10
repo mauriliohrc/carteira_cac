@@ -147,6 +147,27 @@ tr:hover td { background: var(--superficie-2); }
 .etiqueta.rascunho { color: var(--texto-suave); }
 .etiqueta.publicada { color: var(--ok); border-color: rgba(48,164,108,.4); }
 
+/* Faixas de plano — chips preenchidos para diferenciar claramente no escuro.
+   Grátis cinza · Anual verde claro · Mensal verde escuro · Cortesia laranja. */
+.etiqueta.plano-gratis   { color: var(--texto-suave); background: var(--superficie-2); border-color: var(--borda); }
+.etiqueta.plano-anual    { color: #0E1209; background: #9FE0B0; border-color: #9FE0B0; }
+.etiqueta.plano-mensal   { color: #DFF3E4; background: #1F7A46; border-color: #256E44; }
+.etiqueta.plano-cortesia { color: #2A1A05; background: #E8A33D; border-color: #E8A33D; }
+.etiqueta.plano-premium  { color: var(--latao); border-color: rgba(201,162,39,.4); }
+
+/* Barra de filtros combináveis (lista de usuários). */
+.filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin: 0 0 14px; }
+.filtro-grupo { display: flex; align-items: center; gap: 6px; }
+.filtro-grupo > .rotulo { color: var(--texto-suave); font-size: 12.5px; font-weight: 600; margin-right: 2px; }
+.filtro-chip {
+  padding: 4px 11px; border: 1px solid var(--borda); border-radius: 999px;
+  background: transparent; color: var(--texto-suave); font-size: 12.5px; font-weight: 600;
+  cursor: pointer; user-select: none; line-height: 1.4;
+}
+.filtro-chip:hover { border-color: var(--borda-forte); color: var(--texto); }
+.filtro-chip.ativo { background: var(--acento); color: var(--sobre-acento); border-color: var(--acento); }
+.filtro-limpar { background: transparent; border: none; color: var(--perigo); font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 4px 2px; }
+
 .ponto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; vertical-align: middle; }
 .ponto.online { background: var(--ok); box-shadow: 0 0 0 3px rgba(48,164,108,.18); }
 .ponto.offline { background: var(--borda); }

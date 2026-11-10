@@ -101,19 +101,14 @@ function Conteudo() {
         titulo: `Na última${versoes.latest ? ` · ${versoes.latest}` : ''}`,
         valor: versoes.versoes.find((v) => v.versao === versoes.latest)?.usuarios ?? 0,
         dica: 'Na versão mais nova',
-        href: versoes.latest ? `/dashboard/versao:${versoes.latest}` : undefined,
+        href: versoes.latest ? `/dashboard/${encodeURIComponent(`versao:${versoes.latest}`)}` : undefined,
       },
       {
         titulo: 'Desatualizados',
-        valor: versoes.desatualizados,
-        dica: 'Abaixo da última versão',
+        // Quem não reporta versão (app antigo) também conta como desatualizado.
+        valor: versoes.desatualizados + versoes.desconhecidos,
+        dica: 'Abaixo da última ou sem versão',
         href: '/dashboard/desatualizados',
-      },
-      {
-        titulo: 'Sem versão',
-        valor: versoes.desconhecidos,
-        dica: 'App antigo, não reporta',
-        href: '/dashboard/semVersao',
       }
     );
   }
@@ -167,7 +162,7 @@ function Conteudo() {
             {versoes.versoes.map((v) => (
               <Link
                 key={v.versao ?? 'desc'}
-                href={v.versao ? `/dashboard/versao:${v.versao}` : '/dashboard/semVersao'}
+                href={v.versao ? `/dashboard/${encodeURIComponent(`versao:${v.versao}`)}` : '/dashboard/semVersao'}
                 className={`etiqueta${v.versao === versoes.latest ? ' ok' : !v.versao ? ' inativo' : ''}`}
                 style={{
                   textDecoration: 'none',

@@ -73,3 +73,6 @@ store/publicacoes/
 *.ipa
 ios/exportOptions.plist
 amostras/
+
+# Saída de VSL (mídia gerada — fora do versionamento)
+vsl_out/

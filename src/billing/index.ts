@@ -247,8 +247,17 @@ export async function resgatarCodigo(codigo: string): Promise<ResultadoResgate> 
 
 // --------------------------------------------------------------- consultas
 
+/**
+ * Override SÓ DE TESTE: com EXPO_PUBLIC_FORCE_FREE=1, o app se comporta como
+ * plano gratuito independentemente de cupom ou assinatura ativa na loja. Não
+ * altera nada no aparelho nem na conta — é só uma lente para testar o paywall e
+ * o acervo bloqueado. REMOVER antes de publicar.
+ */
+const FORCAR_GRATUITO = process.env.EXPO_PUBLIC_FORCE_FREE === '1';
+
 /** Estado do cache local, sem tocar na loja — rápido, para o carregamento. */
 export async function consultarPremiumCache(): Promise<boolean> {
+  if (FORCAR_GRATUITO) return false;
   if (await temCodigoPromocional()) return true;
   return (await lerConfig(CHAVES.premium)) === '1';
 }
@@ -259,6 +268,7 @@ export async function consultarPremiumCache(): Promise<boolean> {
  * desconhecida (ex.: assinatura ativa mas loja ainda não consultada).
  */
 export async function consultarTipoPremiumCache(): Promise<TipoPremium | null> {
+  if (FORCAR_GRATUITO) return null;
   if (await temCodigoPromocional()) return 'CUPOM';
   const t = await lerConfig(CHAVES.premiumTipo);
   return t === 'MENSAL' || t === 'ANUAL' || t === 'ANUAL_PARCEIRO' ? t : null;
@@ -270,6 +280,7 @@ export async function consultarTipoPremiumCache(): Promise<TipoPremium | null> {
  * nunca trava: se a loja não responde, mantém o cache.
  */
 export async function consultarPremium(): Promise<boolean> {
+  if (FORCAR_GRATUITO) return false;
   // Código promocional vence tudo e nunca é rebaixado pela loja.
   if (await temCodigoPromocional()) return true;
   try {

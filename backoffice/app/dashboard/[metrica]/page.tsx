@@ -30,9 +30,22 @@ const TITULOS: Record<string, string> = {
   planoAnual: 'Assinantes do plano anual',
   planoMensal: 'Assinantes do plano mensal',
   premiumGratis: 'Premium grátis (cupom)',
-  desatualizados: 'Usuários com versão desatualizada',
+  desatualizados: 'Usuários desatualizados (abaixo da última ou sem versão)',
   semVersao: 'Usuários sem versão reportada',
 };
+
+/**
+ * Decodifica o parâmetro de rota. O Next 15 NÃO decodifica os params: um
+ * segmento como `versao:1.8.1` chega aqui como `versao%3A1.8.1`, e sem decodar
+ * ele não casa com a métrica esperada no servidor (lista viria vazia).
+ */
+function decodificarMetrica(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
 
 /** Título da métrica (trata `versao:<x>` dinamicamente). */
 function tituloMetrica(metrica: string): string {
@@ -49,7 +62,8 @@ export default function PaginaMetrica() {
 }
 
 function Lista() {
-  const { metrica } = useParams<{ metrica: string }>();
+  const { metrica: metricaParam } = useParams<{ metrica: string }>();
+  const metrica = decodificarMetrica(metricaParam);
   const [usuarios, setUsuarios] = useState<UsuarioLinha[] | null>(null);
 
   const carregar = useCallback(async () => {

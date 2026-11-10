@@ -186,6 +186,12 @@ export async function rotasPushAdmin(app: FastifyInstance) {
       busca?: string;
       ordenar?: string;
       direcao?: string;
+      // Filtros combináveis (AND entre grupos).
+      planos?: string; // CSV: GRATIS,ANUAL,MENSAL,CORTESIA
+      armas?: string; // 'com' | 'sem'
+      docs?: string; // 'com' | 'sem'
+      vinculo?: string; // 'com' | 'sem'
+      email?: string; // 'sim' (verificado) | 'nao'
     };
     const pagina = Math.max(1, Number(q.pagina) || 1);
     const limite = Math.min(100, Math.max(1, Number(q.limite) || 20));
@@ -219,16 +225,47 @@ export async function rotasPushAdmin(app: FastifyInstance) {
     })();
 
     const where: Prisma.UsuarioAppWhereInput = (() => {
-      if (!busca) return {};
-      const OR: Prisma.UsuarioAppWhereInput[] = [
-        { nome: { contains: busca } },
-        { email: { contains: busca } },
-      ];
-      // Só filtra por CPF quando o termo tem dígitos — senão `contains('')`
-      // casaria com todo mundo.
-      const digitos = busca.replace(/\D/g, '');
-      if (digitos) OR.push({ cpf: { contains: digitos } });
-      return { OR };
+      // Cada grupo de filtro vira uma condição; todas combinam em AND.
+      const cond: Prisma.UsuarioAppWhereInput[] = [];
+
+      if (busca) {
+        const OR: Prisma.UsuarioAppWhereInput[] = [
+          { nome: { contains: busca } },
+          { email: { contains: busca } },
+        ];
+        // Só filtra por CPF quando o termo tem dígitos — senão `contains('')`
+        // casaria com todo mundo.
+        const digitos = busca.replace(/\D/g, '');
+        if (digitos) OR.push({ cpf: { contains: digitos } });
+        cond.push({ OR });
+      }
+
+      // Plano: faixas combinam em OR entre si (quem é anual OU mensal, p.ex.).
+      const planoCond: Record<string, Prisma.UsuarioAppWhereInput> = {
+        GRATIS: { premium: false },
+        ANUAL: { premium: true, premiumTipo: { in: ['ANUAL', 'ANUAL_PARCEIRO'] } },
+        MENSAL: { premium: true, premiumTipo: 'MENSAL' },
+        CORTESIA: { premium: true, premiumTipo: 'CUPOM' },
+      };
+      const planos = (q.planos ?? '')
+        .split(',')
+        .map((p) => p.trim().toUpperCase())
+        .filter((p) => p in planoCond);
+      if (planos.length) cond.push({ OR: planos.map((p) => planoCond[p]!) });
+
+      // Armas / documentos: presença (some) ou ausência (none) de registros sync.
+      if (q.armas === 'com') cond.push({ registrosSync: { some: { tipo: 'armas', removido: false } } });
+      if (q.armas === 'sem') cond.push({ registrosSync: { none: { tipo: 'armas', removido: false } } });
+      if (q.docs === 'com') cond.push({ registrosSync: { some: { tipo: 'documentos', removido: false } } });
+      if (q.docs === 'sem') cond.push({ registrosSync: { none: { tipo: 'documentos', removido: false } } });
+
+      // Vínculo com entidade e verificação de e-mail.
+      if (q.vinculo === 'com') cond.push({ vinculos: { some: {} } });
+      if (q.vinculo === 'sem') cond.push({ vinculos: { none: {} } });
+      if (q.email === 'sim') cond.push({ emailVerificado: true });
+      if (q.email === 'nao') cond.push({ emailVerificado: false });
+
+      return cond.length ? { AND: cond } : {};
     })();
 
     const include = {
@@ -240,16 +277,30 @@ export async function rotasPushAdmin(app: FastifyInstance) {
     let total: number;
     let lista: Prisma.UsuarioAppGetPayload<{ include: typeof include }>[];
 
-    if (q.ordenar === 'armas') {
-      // "Armas" é uma contagem FILTRADA (registrosSync tipo=armas), que o Prisma
-      // não ordena no banco. Como a base de usuários é pequena (admin), carrega
-      // os que casam com a busca, ordena pela contagem e pagina em memória.
+    if (q.ordenar === 'armas' || q.ordenar === 'appVersao') {
+      // Valores DERIVADOS que o Prisma não ordena no banco: "Armas" é uma
+      // contagem FILTRADA (registrosSync tipo=armas) e "Versão" é a mais nova
+      // entre os aparelhos ativos. Como a base de usuários é pequena (admin),
+      // carrega os que casam com a busca, ordena em memória e pagina.
       const todos = await prisma.usuarioApp.findMany({ where, include });
-      todos.sort((a, b) =>
-        dir === 'asc'
-          ? a._count.registrosSync - b._count.registrosSync
-          : b._count.registrosSync - a._count.registrosSync
-      );
+      if (q.ordenar === 'appVersao') {
+        const versaoDe = (u: (typeof todos)[number]) =>
+          u.dispositivos
+            .map((d) => d.appVersao)
+            .filter((v): v is string => !!v)
+            .sort(compararVersao)
+            .at(-1) ?? '';
+        todos.sort((a, b) => {
+          const c = compararVersao(versaoDe(a), versaoDe(b));
+          return dir === 'asc' ? c : -c;
+        });
+      } else {
+        todos.sort((a, b) =>
+          dir === 'asc'
+            ? a._count.registrosSync - b._count.registrosSync
+            : b._count.registrosSync - a._count.registrosSync
+        );
+      }
       total = todos.length;
       lista = todos.slice((pagina - 1) * limite, (pagina - 1) * limite + limite);
     } else {
