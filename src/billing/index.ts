@@ -122,13 +122,6 @@ let conectado = false;
 let iniciando: Promise<void> | null = null;
 /** Resolve a compra em andamento quando o evento correspondente chega. */
 let pendente: ((sucesso: boolean) => void) | null = null;
-/** Resolve a compra de um DESTAQUE (consumível) — separado do premium. */
-let pendenteDestaque: ((compra: Purchase | null) => void) | null = null;
-
-/** Produtos consumíveis de destaque de anúncio (iguais aos da loja). */
-export const PRODUTOS_DESTAQUE = ['destaque_7d', 'destaque_15d', 'destaque_30d'] as const;
-export type IdDestaque = (typeof PRODUTOS_DESTAQUE)[number];
-const DESTAQUE_SET = new Set<string>(PRODUTOS_DESTAQUE);
 /** AppContext registra aqui para reagir a compras/renovações fora do paywall. */
 let aoMudarPremium: ((ativo: boolean) => void) | null = null;
 
@@ -171,17 +164,12 @@ export async function iniciarBilling(): Promise<void> {
       }
 
       purchaseUpdatedListener(async (compra: Purchase) => {
-        // Destaque de anúncio é CONSUMÍVEL e não vale Premium — trata à parte.
-        const ehDestaque = DESTAQUE_SET.has(compra.productId);
+        // Pagamento aprovado pela loja: entrega o Premium e encerra a
+        // transação (senão o iOS a repõe a cada abertura).
         try {
-          await finishTransaction({ purchase: compra, isConsumable: ehDestaque });
+          await finishTransaction({ purchase: compra, isConsumable: false });
         } catch {
           // Já finalizada ou indisponível — segue mesmo assim.
-        }
-        if (ehDestaque) {
-          pendenteDestaque?.(compra);
-          pendenteDestaque = null;
-          return;
         }
         await marcarPremium(true);
         pendente?.(true);
@@ -191,8 +179,6 @@ export async function iniciarBilling(): Promise<void> {
       purchaseErrorListener(() => {
         pendente?.(false);
         pendente = null;
-        pendenteDestaque?.(null);
-        pendenteDestaque = null;
       });
 
       conectado = true;
@@ -397,38 +383,6 @@ export async function comprarPlano(id: IdPlano | typeof PRODUTO_PARCEIRO): Promi
       }
     });
   });
-}
-
-/**
- * Compra um DESTAQUE (produto consumível) para um anúncio. Devolve o id da
- * transação da loja e a plataforma, que o app envia ao servidor para validar e
- * aplicar o destaque. `null` se o usuário cancelar ou a loja estiver indisponível.
- */
-export async function comprarDestaque(
-  id: IdDestaque
-): Promise<{ transacaoId: string; plataforma: 'IOS' | 'ANDROID' } | null> {
-  await iniciarBilling();
-  if (!conectado) throw new Error('A loja está indisponível no momento. Tente de novo mais tarde.');
-
-  const compra = await new Promise<Purchase | null>((resolve) => {
-    pendenteDestaque = resolve;
-    requestPurchase({
-      request: { apple: { sku: id }, google: { skus: [id] } },
-      type: 'in-app',
-    }).catch(() => {
-      if (pendenteDestaque) {
-        pendenteDestaque = null;
-        resolve(null);
-      }
-    });
-  });
-  if (!compra) return null;
-  const transacaoId =
-    (compra as { transactionId?: string; id?: string }).transactionId ??
-    (compra as { id?: string }).id ??
-    '';
-  if (!transacaoId) return null;
-  return { transacaoId, plataforma: Platform.OS === 'ios' ? 'IOS' : 'ANDROID' };
 }
 
 export async function restaurarCompras(): Promise<boolean> {
