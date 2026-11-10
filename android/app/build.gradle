@@ -92,8 +92,8 @@ android {
         applicationId 'br.com.cacbrasil.carteira'
         minSdk = rootProject.ext.minSdkVersion
         targetSdk = rootProject.ext.targetSdkVersion
-        versionCode 21
-        versionName "1.8.1"
+        versionCode 22
+        versionName "1.8.2"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
