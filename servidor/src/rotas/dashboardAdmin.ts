@@ -4,6 +4,7 @@ import { prisma } from '../db/cliente.js';
 import { exigirAdmin } from '../http/guardas.js';
 import { buscarArmas } from '../integracoes/shootinghouse.js';
 import { INCLUDE_USUARIO_LISTA, mapUsuarioLista } from '../dominio/usuarioLista.js';
+import { listarStatus } from '../dominio/despachanteCatalogo.js';
 
 const DIAS_ATIVO = 30;
 const MIN_ONLINE = 5;
@@ -166,6 +167,12 @@ export async function rotasDashboardAdmin(app: FastifyInstance) {
       prisma.filiacaoLiga.count({ where: { status: 'vencida' } }),
     ]);
 
+    // Processos aguardando documentação (status dinâmicos com papel AGUARDANDO_DOC).
+    const codigosAgDoc = (await listarStatus()).filter((s) => s.papel === 'AGUARDANDO_DOC').map((s) => s.codigo);
+    const processosAguardandoDoc = codigosAgDoc.length
+      ? await prisma.processoDespachante.count({ where: { status: { in: codigosAgDoc } } })
+      : 0;
+
     // Churn de assinatura: cancelaram a renovação (ainda com acesso) e perdidos
     // nos últimos 30 dias (expirados/reembolsados/revogados).
     const corteChurn = new Date(Date.now() - DIAS_ATIVO * 86_400_000);
@@ -208,6 +215,7 @@ export async function rotasDashboardAdmin(app: FastifyInstance) {
         processosTotal,
         processosAguardando,
         processosPagos,
+        processosAguardandoDoc,
         // Liga (filiações).
         totalFiliados,
         filiadosPendenteDoc,

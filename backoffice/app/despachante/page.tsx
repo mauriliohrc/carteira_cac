@@ -1,9 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
-import { ROTULO_SERVICO_DESPACHANTE, type StatusDespachante } from '@/lib/tipos';
+import {
+  ROTULO_PAPEL_STATUS,
+  ROTULO_SERVICO_DESPACHANTE,
+  type PapelStatusDespachante,
+  type StatusDespachante,
+} from '@/lib/tipos';
 import { Protegido } from '../componentes/Protegido';
 
 interface ProcessoFila {
@@ -35,7 +41,6 @@ function reais(c: number) {
 function dataHora(iso: string) {
   return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
-
 function nomeServico(tipo: string) {
   return ROTULO_SERVICO_DESPACHANTE[tipo as keyof typeof ROTULO_SERVICO_DESPACHANTE] ?? tipo;
 }
@@ -43,35 +48,46 @@ function nomeServico(tipo: string) {
 export default function PaginaDespachante() {
   return (
     <Protegido>
-      <FilaDespachante />
+      <Suspense fallback={<div className="vazio">Carregando…</div>}>
+        <FilaDespachante />
+      </Suspense>
     </Protegido>
   );
 }
 
 function FilaDespachante() {
+  const router = useRouter();
+  const sp = useSearchParams();
+  const papel = (sp.get('papel') ?? '') as PapelStatusDespachante | '';
+  const status = sp.get('status') ?? '';
   const [dados, setDados] = useState<Resposta | null>(null);
-  const [filtro, setFiltro] = useState('');
   const [carregando, setCarregando] = useState(true);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
-    const q = filtro ? `?status=${encodeURIComponent(filtro)}` : '';
-    const r = await api<Resposta>(`/api/admin/despachante/processos${q}`);
+    const qs = status ? `?status=${encodeURIComponent(status)}` : papel ? `?papel=${encodeURIComponent(papel)}` : '';
+    const r = await api<Resposta>(`/api/admin/despachante/processos${qs}`);
     setDados(r);
     setCarregando(false);
-  }, [filtro]);
+  }, [papel, status]);
 
   useEffect(() => {
     carregar();
   }, [carregar]);
 
+  function irPara(novoStatus: string) {
+    router.push(novoStatus ? `/despachante?status=${encodeURIComponent(novoStatus)}` : '/despachante');
+  }
+
+  const titulo = papel ? ROTULO_PAPEL_STATUS[papel] ?? 'Processos' : 'Fila de processos';
+
   return (
     <>
       <div className="cabeca-secao">
         <div>
-          <h1>Serviços — fila de processos</h1>
+          <h1>{titulo}</h1>
           <p className="subtitulo">
-            Processos contratados pelos usuários.{dados ? ` ${dados.total} no total.` : ''}
+            Processos contratados pelos usuários.{dados ? ` ${dados.total} no filtro.` : ''}
           </p>
         </div>
         <Link href="/despachante/catalogo" className="secundario pequeno" style={{ textDecoration: 'none' }}>
@@ -82,8 +98,8 @@ function FilaDespachante() {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
         <button
           className="secundario pequeno"
-          style={filtro === '' ? { borderColor: 'var(--acento)', fontWeight: 700 } : { opacity: 0.7 }}
-          onClick={() => setFiltro('')}
+          style={status === '' && papel === '' ? { borderColor: 'var(--acento)', fontWeight: 700 } : { opacity: 0.7 }}
+          onClick={() => irPara('')}
         >
           Todos
         </button>
@@ -91,8 +107,8 @@ function FilaDespachante() {
           <button
             key={s.codigo}
             className="secundario pequeno"
-            style={filtro === s.codigo ? { borderColor: s.cor, color: s.cor, fontWeight: 700 } : { opacity: 0.7 }}
-            onClick={() => setFiltro(s.codigo)}
+            style={status === s.codigo ? { borderColor: s.cor, color: s.cor, fontWeight: 700 } : { opacity: 0.7 }}
+            onClick={() => irPara(s.codigo)}
           >
             {s.label}
           </button>

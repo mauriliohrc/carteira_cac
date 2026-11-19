@@ -25,6 +25,7 @@ interface Dashboard {
     processosTotal: number;
     processosAguardando: number;
     processosPagos: number;
+    processosAguardandoDoc: number;
     totalFiliados: number;
     filiadosPendenteDoc: number;
     filiacoesVencidas: number;
@@ -116,26 +117,21 @@ function Conteudo() {
       ],
     },
     {
-      titulo: 'Premium',
+      titulo: 'Premium & Churn',
       cards: [
         { titulo: 'Plano anual ativo', valor: d.cards.planoAnual, dica: 'Assinantes anuais', href: '/dashboard/planoAnual' },
         { titulo: 'Plano mensal ativo', valor: d.cards.planoMensal, dica: 'Assinantes mensais', href: '/dashboard/planoMensal' },
         { titulo: 'Premium grátis', valor: d.cards.premiumGratis, dica: 'Premium via cupom', href: '/dashboard/premiumGratis' },
-      ],
-    },
-    {
-      titulo: 'Churn',
-      cards: [
         {
           titulo: 'Cancelaram renovação',
           valor: d.cards.churnCancelouRenovacao,
-          dica: 'Desligaram a renovação — ainda com acesso',
+          dica: 'Churn — ainda com acesso',
           href: '/churn?grupo=risco',
         },
         {
-          titulo: 'Perdidos (30d)',
+          titulo: 'Churn — perdidos (30d)',
           valor: d.cards.churnPerdidos30,
-          dica: 'Expiraram/reembolsaram nos últimos 30 dias',
+          dica: 'Expiraram/reembolsaram em 30 dias',
           href: '/churn?grupo=perdidos',
         },
       ],
@@ -144,8 +140,9 @@ function Conteudo() {
       titulo: 'Despachante',
       cards: [
         { titulo: 'Processos', valor: d.cards.processosTotal, dica: 'Serviços contratados (total)', href: '/despachante' },
-        { titulo: 'Aguardando pagamento', valor: d.cards.processosAguardando, dica: 'Processos não pagos', href: '/despachante' },
-        { titulo: 'Pagos', valor: d.cards.processosPagos, dica: 'Pagos — a executar/concluir', href: '/despachante' },
+        { titulo: 'Aguardando pagamento', valor: d.cards.processosAguardando, dica: 'Processos não pagos', href: '/despachante?status=aguardando_pagamento' },
+        { titulo: 'Aguardando início', valor: d.cards.processosPagos, dica: 'Pagos — a iniciar', href: '/despachante?papel=PAGO' },
+        { titulo: 'Aguardando documentação', valor: d.cards.processosAguardandoDoc, dica: 'Falta documento do cliente', href: '/despachante?papel=AGUARDANDO_DOC' },
       ],
     },
     { titulo: 'Demais', cards: demais },

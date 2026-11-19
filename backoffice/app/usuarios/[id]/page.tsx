@@ -317,14 +317,17 @@ function Perfil({ id }: { id: string }) {
             key={k}
             onClick={() => setAba(k)}
             style={{
-              background: 'none',
+              background: aba === k ? 'var(--superficie-2)' : 'none',
               border: 'none',
-              borderBottom: aba === k ? '2px solid var(--acento)' : '2px solid transparent',
+              borderBottom: aba === k ? '2px solid var(--acento-forte)' : '2px solid transparent',
+              borderRadius: '8px 8px 0 0',
               color: aba === k ? 'var(--texto)' : 'var(--texto-suave)',
               fontWeight: aba === k ? 700 : 500,
-              padding: '8px 12px',
+              padding: '9px 14px',
+              marginBottom: -1,
               cursor: 'pointer',
               font: 'inherit',
+              transition: 'background .15s, color .15s',
             }}
           >
             {rot}

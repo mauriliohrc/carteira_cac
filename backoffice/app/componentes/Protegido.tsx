@@ -11,14 +11,25 @@ const NAV = [
   { href: '/noticias', rotulo: 'Notícias' },
   { href: '/usuarios', rotulo: 'Usuários' },
   { href: '/filiacoes', rotulo: 'Liga' },
-  { href: '/despachante', rotulo: 'Processos' },
   { href: '/notificacoes', rotulo: 'Auditoria' },
 ];
 
+type ItemMenu = { href: string; rotulo: string } | { sep: true };
+
+// Submenu "Despachante" — a fila por etapa do processo + a gestão de status.
+const DESPACHANTE_MENU: ItemMenu[] = [
+  { href: '/despachante', rotulo: 'Todos os processos' },
+  { href: '/despachante?papel=AGUARDANDO_DOC', rotulo: 'Aguardando documentação' },
+  { href: '/despachante?papel=NORMAL', rotulo: 'Andamento interno' },
+  { href: '/despachante?papel=EM_ANALISE', rotulo: 'Aguardando análise' },
+  { sep: true },
+  { href: '/despachante/catalogo', rotulo: 'Status' },
+];
+
 // Submenu "Recursos" — menus menos frequentes, agrupados para enxugar a barra.
-const OUTROS = [
+const OUTROS: ItemMenu[] = [
   { href: '/entidades', rotulo: 'Entidades' },
-  { href: '/despachante/catalogo', rotulo: 'Catálogo' },
+  { href: '/despachante/catalogo', rotulo: 'Catálogo de serviços' },
   { href: '/marketplace', rotulo: 'Marketplace' },
   { href: '/push', rotulo: 'Push' },
   { href: '/churn', rotulo: 'Churn' },
@@ -35,8 +46,6 @@ export function Protegido({ children }: { children: React.ReactNode }) {
   const { admin, carregando, sair } = useSessao();
   const router = useRouter();
   const pathname = usePathname();
-  const [outroAberto, setOutroAberto] = useState(false);
-  const outroRef = useRef<HTMLDivElement>(null);
   const [buscaUsuario, setBuscaUsuario] = useState('');
 
   // Busca global de usuários: leva para /usuarios já filtrado (nome/e-mail/CPF).
@@ -50,22 +59,10 @@ export function Protegido({ children }: { children: React.ReactNode }) {
     if (!carregando && !admin) router.replace('/login');
   }, [carregando, admin, router]);
 
-  // Fecha o submenu ao clicar fora ou ao trocar de rota.
-  useEffect(() => setOutroAberto(false), [pathname]);
-  useEffect(() => {
-    if (!outroAberto) return;
-    function fora(e: MouseEvent) {
-      if (outroRef.current && !outroRef.current.contains(e.target as Node)) setOutroAberto(false);
-    }
-    document.addEventListener('mousedown', fora);
-    return () => document.removeEventListener('mousedown', fora);
-  }, [outroAberto]);
-
   if (carregando) return <div className="centro-tela">Carregando…</div>;
   if (!admin) return null;
 
   const ehAtivo = (href: string) => pathname === href || pathname.startsWith(href + '/');
-  const outroAtivo = OUTROS.some((o) => ehAtivo(o.href));
 
   return (
     <>
@@ -83,58 +80,8 @@ export function Protegido({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
 
-            {/* Submenu "Outro" */}
-            <div ref={outroRef} style={{ position: 'relative', display: 'inline-block' }}>
-              <button
-                type="button"
-                className={`nav-outro ${outroAtivo ? 'nav-ativo' : ''}`}
-                aria-haspopup="menu"
-                aria-expanded={outroAberto}
-                onClick={() => setOutroAberto((v) => !v)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  font: 'inherit',
-                  color: 'inherit',
-                  cursor: 'pointer',
-                }}
-              >
-                Recursos ▾
-              </button>
-              {outroAberto && (
-                <div
-                  role="menu"
-                  style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 8px)',
-                    left: 0,
-                    minWidth: 180,
-                    background: 'var(--superficie, #fff)',
-                    border: '1px solid var(--borda)',
-                    borderRadius: 8,
-                    boxShadow: '0 8px 24px rgba(0,0,0,.18)',
-                    padding: 6,
-                    zIndex: 50,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 2,
-                  }}
-                >
-                  {OUTROS.map((o) => (
-                    <Link
-                      key={o.href}
-                      href={o.href}
-                      role="menuitem"
-                      className={ehAtivo(o.href) ? 'nav-ativo' : ''}
-                      style={{ padding: '7px 10px', borderRadius: 6, whiteSpace: 'nowrap' }}
-                    >
-                      {o.rotulo}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
+            <NavDropdown rotulo="Despachante" itens={DESPACHANTE_MENU} ativo={ehAtivo('/despachante')} />
+            <NavDropdown rotulo="Recursos" itens={OUTROS} ativo={OUTROS.some((o) => 'href' in o && ehAtivo(o.href))} />
           </nav>
         </div>
         <div className="linha-acoes">
@@ -166,5 +113,72 @@ export function Protegido({ children }: { children: React.ReactNode }) {
       </header>
       <main className="conteudo">{children}</main>
     </>
+  );
+}
+
+/** Dropdown de navegação (fecha ao clicar fora ou trocar de rota). */
+function NavDropdown({ rotulo, itens, ativo }: { rotulo: string; itens: ItemMenu[]; ativo: boolean }) {
+  const pathname = usePathname();
+  const [aberto, setAberto] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => setAberto(false), [pathname]);
+  useEffect(() => {
+    if (!aberto) return;
+    function fora(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setAberto(false);
+    }
+    document.addEventListener('mousedown', fora);
+    return () => document.removeEventListener('mousedown', fora);
+  }, [aberto]);
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        type="button"
+        className={`nav-outro ${ativo ? 'nav-ativo' : ''}`}
+        aria-haspopup="menu"
+        aria-expanded={aberto}
+        onClick={() => setAberto((v) => !v)}
+        style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer' }}
+      >
+        {rotulo} ▾
+      </button>
+      {aberto && (
+        <div
+          role="menu"
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 8px)',
+            left: 0,
+            minWidth: 200,
+            background: 'var(--superficie, #fff)',
+            border: '1px solid var(--borda)',
+            borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(0,0,0,.18)',
+            padding: 6,
+            zIndex: 50,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+          }}
+        >
+          {itens.map((o, i) =>
+            'sep' in o ? (
+              <div key={`sep-${i}`} style={{ height: 1, background: 'var(--borda)', margin: '4px 6px' }} />
+            ) : (
+              <Link
+                key={o.href}
+                href={o.href}
+                role="menuitem"
+                style={{ padding: '7px 10px', borderRadius: 6, whiteSpace: 'nowrap' }}
+              >
+                {o.rotulo}
+              </Link>
+            )
+          )}
+        </div>
+      )}
+    </div>
   );
 }

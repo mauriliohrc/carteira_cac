@@ -344,9 +344,16 @@ export async function rotasDespachanteAdmin(app: FastifyInstance) {
 
   // ----------------------------------------------------------- processos
   app.get('/api/admin/despachante/processos', async (req) => {
-    const q = req.query as { status?: string; pagina?: string };
+    const q = req.query as { status?: string; papel?: string; pagina?: string };
     const pagina = Math.max(1, Number(q.pagina ?? 1) || 1);
-    const where = q.status ? { status: q.status } : {};
+    let where: { status?: string | { in: string[] } } = {};
+    if (q.status) {
+      where = { status: q.status };
+    } else if (q.papel) {
+      // Filtro por categoria (papel): todos os status com aquele papel.
+      const codigos = (await listarStatus()).filter((s) => s.papel === q.papel).map((s) => s.codigo);
+      where = { status: { in: codigos.length ? codigos : ['__none__'] } };
+    }
     const [processos, total, status] = await Promise.all([
       prisma.processoDespachante.findMany({
         where,
