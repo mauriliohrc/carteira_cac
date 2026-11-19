@@ -74,7 +74,15 @@ export async function rotasDispositivosAppV1(app: FastifyInstance) {
     const dados: Record<string, unknown> = { ultimoAcessoEm: new Date() };
     if (typeof corpo.premium === 'boolean') {
       dados.premium = corpo.premium;
-      if (!corpo.premium) dados.premiumTipo = null;
+      if (!corpo.premium) {
+        // Perder o premium zera o tipo — MENOS o rótulo manual "Churn" definido
+        // no backoffice, que deve persistir mesmo com o app reportando sem premium.
+        const atual = await prisma.usuarioApp.findUnique({
+          where: { id },
+          select: { premiumTipo: true },
+        });
+        dados.premiumTipo = atual?.premiumTipo === 'CHURN' ? 'CHURN' : null;
+      }
     }
     if (typeof corpo.premiumTipo === 'string' && tiposValidos.includes(corpo.premiumTipo)) {
       dados.premiumTipo = corpo.premiumTipo;

@@ -154,6 +154,8 @@ tr:hover td { background: var(--superficie-2); }
 .etiqueta.plano-mensal   { color: #DFF3E4; background: #1F7A46; border-color: #256E44; }
 .etiqueta.plano-cortesia { color: #2A1A05; background: #E8A33D; border-color: #E8A33D; }
 .etiqueta.plano-premium  { color: var(--latao); border-color: rgba(201,162,39,.4); }
+.etiqueta.plano-federado { color: #0A1A2E; background: #7FB2E8; border-color: #7FB2E8; }
+.etiqueta.plano-churn    { color: #fff; background: var(--perigo, #d0585a); border-color: var(--perigo, #d0585a); }
 
 /* Barra de filtros combináveis (lista de usuários). */
 .filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin: 0 0 14px; }

@@ -444,6 +444,11 @@ export async function rotasPushAdmin(app: FastifyInstance) {
       MENSAL: { premium: true, premiumTipo: 'MENSAL' },
       CORTESIA: { premium: true, premiumTipo: 'CUPOM' },
       ANUAL_PARCEIRO: { premium: true, premiumTipo: 'ANUAL_PARCEIRO' },
+      // Federado: vínculo ativo com a liga (filiação/anuidade).
+      FEDERADO: { premium: true, premiumTipo: 'FILIACAO' },
+      // Churn: rótulo manual, sem premium. O heartbeat de presença preserva
+      // este tipo (não vira "Grátis") enquanto o app continuar sem premium.
+      CHURN: { premium: false, premiumTipo: 'CHURN' },
     };
     const alvo = categoria ? mapa[categoria] : undefined;
     if (!alvo) throw conflito('Categoria inválida');

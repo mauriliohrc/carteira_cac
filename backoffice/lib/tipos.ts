@@ -226,6 +226,7 @@ export const ROTULO_PREMIUM: Record<string, string> = {
   MENSAL: 'Mensal',
   ANUAL: 'Anual',
   ANUAL_PARCEIRO: 'Anual parceiro',
+  FILIACAO: 'Federado',
 };
 
 /** Texto do plano para exibir: "Grátis", "Premium" ou "Premium · <tipo>". */
@@ -241,9 +242,18 @@ export function rotuloPlano(premium: boolean, premiumTipo?: string | null): stri
  * sem tipo conhecido (raro). Deve casar com os valores aceitos no filtro
  * `planos` da rota /api/admin/usuarios-app.
  */
-export type CategoriaPlano = 'GRATIS' | 'ANUAL' | 'MENSAL' | 'CORTESIA' | 'PREMIUM';
+export type CategoriaPlano =
+  | 'GRATIS'
+  | 'ANUAL'
+  | 'MENSAL'
+  | 'CORTESIA'
+  | 'FEDERADO'
+  | 'PREMIUM'
+  | 'CHURN';
 
 export function categoriaPlano(premium: boolean, premiumTipo?: string | null): CategoriaPlano {
+  // "Churn" é um rótulo manual (sem premium): marca quem cancelou/perdeu o acesso.
+  if (premiumTipo === 'CHURN') return 'CHURN';
   if (!premium) return 'GRATIS';
   switch (premiumTipo) {
     case 'ANUAL':
@@ -253,6 +263,9 @@ export function categoriaPlano(premium: boolean, premiumTipo?: string | null): C
       return 'MENSAL';
     case 'CUPOM':
       return 'CORTESIA';
+    case 'FILIACAO':
+      // Vínculo ativo com a liga (filiação/anuidade).
+      return 'FEDERADO';
     default:
       return 'PREMIUM';
   }
@@ -264,7 +277,9 @@ export const PLANO_META: Record<CategoriaPlano, { rotulo: string; classe: string
   ANUAL: { rotulo: 'Anual', classe: 'plano-anual' },
   MENSAL: { rotulo: 'Mensal', classe: 'plano-mensal' },
   CORTESIA: { rotulo: 'Cortesia', classe: 'plano-cortesia' },
+  FEDERADO: { rotulo: 'Federado', classe: 'plano-federado' },
   PREMIUM: { rotulo: 'Premium', classe: 'plano-premium' },
+  CHURN: { rotulo: 'Churn', classe: 'plano-churn' },
 };
 
 export const ROTULO_DOC: Record<string, string> = {

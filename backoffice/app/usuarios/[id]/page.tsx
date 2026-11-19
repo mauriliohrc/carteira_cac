@@ -126,8 +126,12 @@ function Perfil({ id }: { id: string }) {
   if (!perfil) return <div className="vazio">Usuário não encontrado.</div>;
 
   const u = perfil.usuario;
-  const categoriaPlanoAtual = !u.premium
+  const categoriaPlanoAtual = u.premiumTipo === 'CHURN'
+    ? 'CHURN'
+    : !u.premium
     ? 'GRATIS'
+    : u.premiumTipo === 'FILIACAO'
+    ? 'FEDERADO'
     : u.premiumTipo === 'MENSAL'
       ? 'MENSAL'
       : u.premiumTipo === 'ANUAL_PARCEIRO'
@@ -243,6 +247,8 @@ function Perfil({ id }: { id: string }) {
                 <option value="ANUAL">Premium · Anual</option>
                 <option value="ANUAL_PARCEIRO">Premium · Anual (Parceiro)</option>
                 <option value="CORTESIA">Cortesia (cupom)</option>
+                <option value="FEDERADO">Federado (liga ativa)</option>
+                <option value="CHURN">Churn (cancelou / perdeu acesso)</option>
               </select>
             </div>
             <Campo rotulo="Status" valor={u.ativo ? 'Ativa' : 'Inativa'} />
