@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/cliente.js';
-import { refletirProcessoNoSync } from '../dominio/despachanteSync.js';
+import { aoPagarProcesso, mudarStatusProcesso } from '../dominio/despachanteNotificacoes.js';
+import { statusPorPapel } from '../dominio/despachanteCatalogo.js';
 import { ativarFiliacao, encerrarFiliacao } from '../dominio/filiacao.js';
 import { resolverConfigAsaas } from '../dominio/asaasConfig.js';
 
@@ -59,23 +60,27 @@ export async function rotasWebhookAsaas(app: FastifyInstance) {
     // Eventos que não mexem no andamento (ex.: PAYMENT_UPDATED): só confirmamos.
     if (!ehPago && !ehCancelado) return { ok: true };
 
-    // --- Despachante: cobrança avulsa (sem assinatura). Mantido intacto. ------
+    // --- Despachante: cobrança avulsa (sem assinatura). ----------------------
     if (!assinaturaId) {
-      const novoStatus = ehPago ? 'pago' : 'cancelado';
       const processo = await prisma.processoDespachante.findFirst({
         where: pagamentoId ? { asaasPaymentId: pagamentoId } : { id: referencia ?? '__none__' },
       });
       if (processo) {
-        // Idempotência + não "rebaixa" um processo já avançado.
-        if (processo.status === novoStatus) return { ok: true };
-        if (novoStatus === 'pago' && ['em_andamento', 'concluido'].includes(processo.status)) {
-          return { ok: true };
-        }
-        const atualizado = await prisma.processoDespachante.update({
-          where: { id: processo.id },
-          data: { status: novoStatus },
+        const stAtual = await prisma.statusProcessoDespachante.findUnique({
+          where: { codigo: processo.status },
         });
-        await refletirProcessoNoSync(atualizado);
+        if (ehPago) {
+          // Idempotência: não reprocessa um processo já pago/avançado.
+          const jaAvancou = ['PAGO', 'AGUARDANDO_DOC', 'EM_ANALISE', 'NORMAL', 'FINAL'].includes(
+            stAtual?.papel ?? ''
+          );
+          if (!jaAvancou) await aoPagarProcesso(processo);
+        } else {
+          if (stAtual?.papel !== 'CANCELADO') {
+            const canc = await statusPorPapel('CANCELADO');
+            await mudarStatusProcesso(processo, canc?.codigo ?? 'cancelado');
+          }
+        }
         return { ok: true };
       }
       // Pode ser uma cobrança de filiação cujo payment ainda não casou por

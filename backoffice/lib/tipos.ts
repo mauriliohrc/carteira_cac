@@ -218,6 +218,20 @@ export interface PerfilUsuarioApp {
   fotos?: FotoApp[];
   /** Filiação à liga deste usuário (gerida no próprio perfil). Null = não filiado. */
   filiacao: (FiliacaoAdmin & { docArquivoId: string | null }) | null;
+  /** Processos de despachante contratados pelo usuário. */
+  processos?: ProcessoUsuarioResumo[];
+}
+
+export interface ProcessoUsuarioResumo {
+  id: string;
+  tipoServico: string;
+  status: string;
+  statusLabel: string;
+  statusCor: string;
+  valorCentavos: number;
+  armaNome: string | null;
+  invoiceUrl: string | null;
+  criadoEm: string;
 }
 
 /** Rótulo do tipo de premium reportado pelo app. */
@@ -657,6 +671,126 @@ export interface ServicoConfigAdmin {
 
 export interface ListaServicosConfig {
   servicos: ServicoConfigAdmin[];
+}
+
+// ------------------------------------------------- despachante dinâmico (CRUD)
+
+export type TipoCampoDespachante = 'ARQUIVO' | 'TEXTO' | 'CHECKBOX' | 'SENHA_GOV';
+
+export const ROTULO_TIPO_CAMPO: Record<TipoCampoDespachante, string> = {
+  ARQUIVO: 'Documento (upload)',
+  TEXTO: 'Texto',
+  CHECKBOX: 'Confirmação (checkbox)',
+  SENHA_GOV: 'CPF + senha gov.br',
+};
+
+export interface CampoDespachante {
+  id: string;
+  servicoId: string;
+  tipo: TipoCampoDespachante;
+  nome: string;
+  descricao: string | null;
+  obrigatorio: boolean;
+  ordem: number;
+  ativo: boolean;
+}
+
+export interface ServicoDespachanteAdmin {
+  id: string;
+  codigo: string;
+  nome: string;
+  subtitulo: string | null;
+  descricao: string;
+  comoFunciona: string | null;
+  icone: string;
+  gruCentavos: number;
+  servicoCentavos: number;
+  precoCentavos: number;
+  unidade: string;
+  ativo: boolean;
+  ordem: number;
+  mensagemWhatsappInicio: string | null;
+  campos: CampoDespachante[];
+}
+
+export type PapelStatusDespachante =
+  | 'INICIAL'
+  | 'PAGO'
+  | 'AGUARDANDO_DOC'
+  | 'EM_ANALISE'
+  | 'NORMAL'
+  | 'FINAL'
+  | 'CANCELADO';
+
+export const ROTULO_PAPEL_STATUS: Record<PapelStatusDespachante, string> = {
+  INICIAL: 'Inicial (aguardando pagamento)',
+  PAGO: 'Pago',
+  AGUARDANDO_DOC: 'Aguardando documentação',
+  EM_ANALISE: 'Em análise',
+  NORMAL: 'Andamento (normal)',
+  FINAL: 'Final (encerra)',
+  CANCELADO: 'Cancelado',
+};
+
+export interface StatusDespachante {
+  id: string;
+  codigo: string;
+  label: string;
+  cor: string;
+  icone: string | null;
+  papel: PapelStatusDespachante;
+  ordem: number;
+  ativo: boolean;
+}
+
+export interface CatalogoDespachante {
+  servicos: ServicoDespachanteAdmin[];
+  status: StatusDespachante[];
+}
+
+export interface ValorCampoDespachante {
+  id: string;
+  campoId: string | null;
+  tipo: string;
+  nome: string | null;
+  mime: string | null;
+  tamanho: number | null;
+  valorTexto: string | null;
+  valorCpf: string | null;
+  temArquivo: boolean;
+  preenchido: boolean;
+  origem: string;
+  final: boolean;
+  status: string;
+  motivo: string | null;
+  criadoEm: string;
+}
+
+export interface ProgressoDespachante {
+  totalObrigatorios: number;
+  preenchidosObrigatorios: number;
+  completo: boolean;
+  faltantes: { id: string; nome: string; tipo: string }[];
+}
+
+export interface ProcessoDespachanteDetalhe {
+  id: string;
+  tipoServico: string;
+  servicoNome: string;
+  status: string;
+  statusLabel: string;
+  statusCor: string;
+  valorCentavos: number;
+  armaNome: string | null;
+  invoiceUrl: string | null;
+  observacao: string | null;
+  criadoEm: string;
+  atualizadoEm: string;
+  usuario: { id: string; nome: string; email: string; cpf: string; celular: string | null };
+  campos: CampoDespachante[];
+  valores: ValorCampoDespachante[];
+  progresso: ProgressoDespachante | null;
+  statusDisponiveis: StatusDespachante[];
 }
 
 // --------------------------------------------------------------- filiações

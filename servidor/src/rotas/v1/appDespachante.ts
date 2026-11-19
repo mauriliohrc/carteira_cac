@@ -1,41 +1,100 @@
 import type { FastifyInstance } from 'fastify';
-import type { ProcessoDespachante } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../db/cliente.js';
 import { exigirApp } from '../../http/guardas.js';
-import { invalido, naoAutorizado } from '../../http/erros.js';
+import { invalido, naoAutorizado, naoEncontrado } from '../../http/erros.js';
 import { cancelarCobranca, criarCliente, criarCobranca } from '../../integracoes/asaas.js';
 import { refletirProcessoNoSync, removerProcessoDoSync } from '../../dominio/despachanteSync.js';
 import { GRU_NOTA } from '../../dominio/despachante.js';
-import { resolverServico, resolverServicos } from '../../dominio/despachanteConfig.js';
+import {
+  type ServicoComCampos,
+  calcularProgresso,
+  campoPreenchido,
+  listarStatus,
+  resolverServicoDinamico,
+  resolverServicosDinamicos,
+} from '../../dominio/despachanteCatalogo.js';
+import { aoCriarProcesso, aoEnviarDocumento } from '../../dominio/despachanteNotificacoes.js';
+import { registrarEventoUsuario } from '../../dominio/eventoUsuario.js';
 import { lerTexto, CHAVE_WHATSAPP_JURIDICO } from '../../config/configStore.js';
 
+/** Teto de um documento enviado pelo usuário. */
+const LIMITE_ARQUIVO = 10 * 1024 * 1024; // 10 MB
+
 const pedidoSchema = z.object({
-  // Validação real contra o catálogo (resolverServico) — aceita qualquer tipo
-  // do catálogo sem precisar listar literais aqui.
   tipoServico: z.string().trim().min(1).max(60),
   armaId: z.string().optional().nullable(),
   armaNome: z.string().trim().max(120).optional().nullable(),
 });
 
-/** Prisma → formato camelCase que o app consome (igual ao tipo Processo). */
-function apresentar(p: ProcessoDespachante) {
+type ValorRow = {
+  id: string;
+  campoId: string | null;
+  tipo: string;
+  nome: string | null;
+  mime: string | null;
+  tamanho: number | null;
+  valorTexto: string | null;
+  valorCpf: string | null;
+  conteudo: Uint8Array | null;
+  origem: string;
+  final: boolean;
+  status: string;
+  motivo: string | null;
+  criadoEm: Date;
+};
+
+/** Serviço para o app: mantém os campos LEGADOS (apps antigos) + aditivos novos. */
+function apresentarServico(s: ServicoComCampos) {
   return {
-    id: p.id,
-    tipoServico: p.tipoServico,
-    status: p.status,
-    armaId: p.armaId,
-    armaNome: p.armaNome,
-    valorCentavos: p.valorCentavos,
-    quantidade: p.quantidade,
-    asaasPaymentId: p.asaasPaymentId,
-    invoiceUrl: p.invoiceUrl,
-    criadoEm: p.criadoEm.toISOString(),
-    atualizadoEm: p.atualizadoEm.toISOString(),
+    // Legados — apps antigos dependem destes nomes.
+    tipo: s.codigo,
+    nome: s.nome,
+    descricao: s.descricao,
+    gruCentavos: s.gruCentavos,
+    servicoCentavos: s.servicoCentavos,
+    precoCentavos: s.precoCentavos,
+    unidade: s.unidade,
+    ativo: s.ativo,
+    // Aditivos — app novo.
+    codigo: s.codigo,
+    subtitulo: s.subtitulo,
+    comoFunciona: s.comoFunciona,
+    icone: s.icone,
+    ordem: s.ordem,
+    campos: s.campos.map((c) => ({
+      id: c.id,
+      tipo: c.tipo,
+      nome: c.nome,
+      descricao: c.descricao,
+      obrigatorio: c.obrigatorio,
+      ordem: c.ordem,
+    })),
   };
 }
 
-/** Data de vencimento da cobrança: hoje + N dias, no formato YYYY-MM-DD. */
+/** Valor de um campo para o app. NUNCA devolve a senha do gov.br de volta. */
+function apresentarValor(v: ValorRow) {
+  return {
+    id: v.id,
+    campoId: v.campoId,
+    tipo: v.tipo,
+    nome: v.nome,
+    mime: v.mime,
+    tamanho: v.tamanho,
+    temArquivo: v.tipo === 'ARQUIVO' && (v.tamanho ?? 0) > 0,
+    // Devolve o texto/checkbox para o usuário rever — exceto SENHA_GOV (sensível).
+    valorTexto: v.tipo === 'SENHA_GOV' ? null : v.valorTexto,
+    valorCpf: v.tipo === 'SENHA_GOV' ? v.valorCpf : null,
+    preenchido: campoPreenchido(v.tipo, v),
+    origem: v.origem,
+    final: v.final,
+    status: v.status,
+    motivo: v.motivo,
+    criadoEm: v.criadoEm.toISOString(),
+  };
+}
+
 function vencimentoEmDias(dias: number): string {
   const d = new Date();
   d.setDate(d.getDate() + dias);
@@ -45,34 +104,73 @@ function vencimentoEmDias(dias: number): string {
 export async function rotasDespachanteAppV1(app: FastifyInstance) {
   app.addHook('preHandler', exigirApp());
 
-  // Catálogo de serviços (preços resolvidos: defaults + override do backoffice).
-  // `whatsappJuridico` = número configurável para o botão "Auxílio Jurídico".
+  // Catálogo dinâmico (preços resolvidos + campos de formulário + status).
   app.get('/app/despachante/servicos', async () => {
-    const servicos = (await resolverServicos()).filter((s) => s.ativo);
-    const whatsappJuridico = (await lerTexto(CHAVE_WHATSAPP_JURIDICO)) ?? '';
-    return { servicos, gruNota: GRU_NOTA, whatsappJuridico };
+    const [servicos, status, whatsappJuridico] = await Promise.all([
+      resolverServicosDinamicos(true),
+      listarStatus(),
+      lerTexto(CHAVE_WHATSAPP_JURIDICO),
+    ]);
+    return {
+      servicos: servicos.map(apresentarServico),
+      status: status.filter((s) => s.ativo),
+      gruNota: GRU_NOTA,
+      whatsappJuridico: whatsappJuridico ?? '',
+    };
   });
 
-  // Processos do usuário (fonte da verdade; o app também os recebe via sync).
+  // Processos do usuário — com status dinâmico, progresso e documentos.
   app.get('/app/despachante/pedidos', async (req) => {
     const processos = await prisma.processoDespachante.findMany({
       where: { usuarioId: req.usuario!.id },
       orderBy: { criadoEm: 'desc' },
+      include: { valores: { orderBy: { criadoEm: 'asc' } } },
     });
-    return { processos: processos.map(apresentar) };
+    const status = await listarStatus();
+    const metaStatus = new Map(status.map((s) => [s.codigo, s]));
+    const servicosCache = new Map<string, ServicoComCampos | undefined>();
+
+    const itens = [];
+    for (const p of processos) {
+      if (!servicosCache.has(p.tipoServico)) {
+        servicosCache.set(p.tipoServico, await resolverServicoDinamico(p.tipoServico));
+      }
+      const servico = servicosCache.get(p.tipoServico);
+      const st = metaStatus.get(p.status);
+      itens.push({
+        id: p.id,
+        tipoServico: p.tipoServico,
+        servicoNome: servico?.nome ?? p.tipoServico,
+        status: p.status,
+        statusLabel: st?.label ?? p.status,
+        statusCor: st?.cor ?? '#8a8f98',
+        statusIcone: st?.icone ?? null,
+        armaId: p.armaId,
+        armaNome: p.armaNome,
+        valorCentavos: p.valorCentavos,
+        quantidade: p.quantidade,
+        asaasPaymentId: p.asaasPaymentId,
+        invoiceUrl: p.invoiceUrl,
+        criadoEm: p.criadoEm.toISOString(),
+        atualizadoEm: p.atualizadoEm.toISOString(),
+        progresso: servico ? calcularProgresso(servico.campos, p.valores) : null,
+        campos: servico ? apresentarServico(servico).campos : [],
+        valores: (p.valores as ValorRow[]).map(apresentarValor),
+      });
+    }
+    return { processos: itens };
   });
 
-  // Cria um pedido (1 processo por item) e abre a cobrança no Asaas.
+  // Cria um pedido e abre a cobrança no Asaas.
   app.post('/app/despachante/pedidos', async (req) => {
     const { tipoServico, armaId, armaNome } = pedidoSchema.parse(req.body);
-    const servico = await resolverServico(tipoServico);
+    const servico = await resolverServicoDinamico(tipoServico);
     if (!servico || !servico.ativo) throw invalido('Serviço indisponível');
 
     const usuario = await prisma.usuarioApp.findUnique({ where: { id: req.usuario!.id } });
     if (!usuario || !usuario.ativo) throw naoAutorizado();
     if (!usuario.celular) throw invalido('celular_requerido');
 
-    // Garante o cliente no Asaas (criado sob demanda na 1ª cobrança).
     let asaasCustomerId = usuario.asaasCustomerId;
     if (!asaasCustomerId) {
       const cliente = await criarCliente({
@@ -82,23 +180,18 @@ export async function rotasDespachanteAppV1(app: FastifyInstance) {
         mobilePhone: usuario.celular,
       });
       asaasCustomerId = cliente.id;
-      await prisma.usuarioApp.update({
-        where: { id: usuario.id },
-        data: { asaasCustomerId },
-      });
+      await prisma.usuarioApp.update({ where: { id: usuario.id }, data: { asaasCustomerId } });
     }
 
-    // Cria o processo (aguardando pagamento) e depois a cobrança, para ter o id
-    // como externalReference e reconciliar no webhook.
     let processo = await prisma.processoDespachante.create({
       data: {
         usuarioId: usuario.id,
         tipoServico,
+        status: 'aguardando_pagamento',
         valorCentavos: servico.precoCentavos,
         armaId: armaId ?? null,
         armaNome: armaNome ?? null,
       },
-      // precoCentavos = GRU + serviço, já resolvido com overrides do backoffice.
     });
 
     const cobranca = await criarCobranca({
@@ -115,12 +208,12 @@ export async function rotasDespachanteAppV1(app: FastifyInstance) {
     });
 
     await refletirProcessoNoSync(processo);
+    void aoCriarProcesso(processo, servico.nome).catch(() => {});
 
-    return { processo: apresentar(processo), invoiceUrl: cobranca.invoiceUrl };
+    return { processo: { id: processo.id, status: processo.status, invoiceUrl: cobranca.invoiceUrl }, invoiceUrl: cobranca.invoiceUrl };
   });
 
-  // Exclui um processo ainda NÃO pago (cancela a cobrança no Asaas e tombstone
-  // no sync). Pago/em andamento não pode ser excluído por aqui.
+  // Exclui um processo ainda NÃO pago.
   app.delete('/app/despachante/pedidos/:id', async (req) => {
     const { id } = req.params as { id: string };
     const processo = await prisma.processoDespachante.findFirst({
@@ -134,5 +227,113 @@ export async function rotasDespachanteAppV1(app: FastifyInstance) {
     await prisma.processoDespachante.delete({ where: { id: processo.id } });
     await removerProcessoDoSync(processo.usuarioId, processo.id);
     return { ok: true };
+  });
+
+  // Processo do usuário + guard (precisa estar pago para receber documentos).
+  async function processoDoUsuario(req: { usuario?: { id: string } }, id: string) {
+    const processo = await prisma.processoDespachante.findFirst({
+      where: { id, usuarioId: req.usuario!.id },
+    });
+    if (!processo) throw naoAutorizado();
+    return processo;
+  }
+
+  // Preenche/atualiza um campo de TEXTO / CHECKBOX / SENHA_GOV.
+  app.post('/app/despachante/pedidos/:id/campos/:campoId', async (req) => {
+    const { id, campoId } = req.params as { id: string; campoId: string };
+    const body = z
+      .object({
+        valorTexto: z.string().max(4000).nullish(),
+        valorCpf: z.string().max(20).nullish(),
+        checkbox: z.boolean().optional(),
+      })
+      .parse(req.body);
+    const processo = await processoDoUsuario(req, id);
+
+    const campo = await prisma.campoServicoDespachante.findUnique({ where: { id: campoId } });
+    const servico = await resolverServicoDinamico(processo.tipoServico);
+    if (!campo || !servico || campo.servicoId !== servico.id) throw naoEncontrado('Campo não encontrado');
+    if (campo.tipo === 'ARQUIVO') throw invalido('Use o upload de arquivo para este campo');
+
+    let valorTexto: string | null = null;
+    let valorCpf: string | null = null;
+    if (campo.tipo === 'CHECKBOX') {
+      valorTexto = body.checkbox ? 'true' : 'false';
+    } else if (campo.tipo === 'SENHA_GOV') {
+      valorCpf = (body.valorCpf ?? '').replace(/\D/g, '') || null;
+      valorTexto = body.valorTexto ?? null; // a senha
+    } else {
+      valorTexto = body.valorTexto ?? null;
+    }
+
+    await prisma.valorCampoProcessoDespachante.upsert({
+      where: { processoId_campoId: { processoId: id, campoId } },
+      create: { processoId: id, campoId, tipo: campo.tipo, valorTexto, valorCpf, origem: 'USUARIO', status: 'ENVIADO' },
+      update: { valorTexto, valorCpf, status: 'ENVIADO', motivo: null },
+    });
+    void registrarEventoUsuario(processo.usuarioId, 'PROCESSO_DOC_ENVIADO', { descricao: campo.nome, origem: 'APP' });
+    void aoEnviarDocumento(id).catch(() => {});
+    return { ok: true };
+  });
+
+  // Upload de um documento (campo ARQUIVO).
+  app.post('/app/despachante/pedidos/:id/campos/:campoId/arquivo', async (req) => {
+    const { id, campoId } = req.params as { id: string; campoId: string };
+    const { nome, mime, dadosBase64 } = z
+      .object({
+        nome: z.string().trim().max(200).optional(),
+        mime: z.string().trim().max(120).optional(),
+        dadosBase64: z.string().min(1),
+      })
+      .parse(req.body);
+    const processo = await processoDoUsuario(req, id);
+    const campo = await prisma.campoServicoDespachante.findUnique({ where: { id: campoId } });
+    const servico = await resolverServicoDinamico(processo.tipoServico);
+    if (!campo || !servico || campo.servicoId !== servico.id) throw naoEncontrado('Campo não encontrado');
+    if (campo.tipo !== 'ARQUIVO') throw invalido('Este campo não é de arquivo');
+
+    const conteudo = Buffer.from(dadosBase64, 'base64');
+    if (conteudo.length === 0) throw invalido('Arquivo vazio');
+    if (conteudo.length > LIMITE_ARQUIVO) throw invalido('Arquivo muito grande (máx. 10 MB)');
+
+    await prisma.valorCampoProcessoDespachante.upsert({
+      where: { processoId_campoId: { processoId: id, campoId } },
+      create: {
+        processoId: id,
+        campoId,
+        tipo: 'ARQUIVO',
+        nome: nome ?? campo.nome,
+        mime: mime ?? 'application/octet-stream',
+        tamanho: conteudo.length,
+        conteudo,
+        origem: 'USUARIO',
+        status: 'ENVIADO',
+      },
+      update: {
+        nome: nome ?? campo.nome,
+        mime: mime ?? 'application/octet-stream',
+        tamanho: conteudo.length,
+        conteudo,
+        status: 'ENVIADO',
+        motivo: null,
+      },
+    });
+    void registrarEventoUsuario(processo.usuarioId, 'PROCESSO_DOC_ENVIADO', { descricao: campo.nome, origem: 'APP' });
+    void aoEnviarDocumento(id).catch(() => {});
+    return { ok: true };
+  });
+
+  // Baixar um arquivo do próprio processo (documento enviado ou anexo final).
+  app.get('/app/despachante/pedidos/:id/arquivo/:valorId', async (req, reply) => {
+    const { id, valorId } = req.params as { id: string; valorId: string };
+    await processoDoUsuario(req, id);
+    const valor = await prisma.valorCampoProcessoDespachante.findFirst({
+      where: { id: valorId, processoId: id },
+    });
+    if (!valor || !valor.conteudo) throw naoEncontrado('Arquivo não encontrado');
+    reply
+      .header('Content-Type', valor.mime ?? 'application/octet-stream')
+      .header('Content-Disposition', `inline; filename="${(valor.nome ?? 'arquivo').replace(/"/g, '')}"`);
+    return reply.send(Buffer.from(valor.conteudo));
   });
 }

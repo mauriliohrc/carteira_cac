@@ -12,11 +12,13 @@ import {
   ROTULO_ACERVO,
   ROTULO_GRUPO,
   ROTULO_STATUS_FILIACAO,
+  ROTULO_SERVICO_DESPACHANTE,
   type ArmaApp,
   type DocumentoApp,
   type Entidade,
   type FiliacaoAdmin,
   type PerfilUsuarioApp,
+  type ProcessoUsuarioResumo,
   type StatusFiliacao,
 } from '@/lib/tipos';
 
@@ -34,7 +36,7 @@ export default function PaginaPerfil({ params }: { params: Promise<{ id: string 
   );
 }
 
-const ABAS_VALIDAS = ['historico', 'acervo', 'docs', 'habitualidades', 'notificacoes', 'filiacao'] as const;
+const ABAS_VALIDAS = ['historico', 'acervo', 'docs', 'habitualidades', 'notificacoes', 'filiacao', 'processos'] as const;
 type Aba = (typeof ABAS_VALIDAS)[number];
 
 function dataBR(iso: string | null | undefined) {
@@ -308,6 +310,7 @@ function Perfil({ id }: { id: string }) {
           ['acervo', `Acervo (${perfil.armas.length})`],
           ['docs', `Docs (${docsPessoais.length})`],
           ['habitualidades', `Habitualidades (${perfil.habitualidades.length})`],
+          ['processos', `Processos (${perfil.processos?.length ?? 0})`],
           ['notificacoes', 'Notificações'],
         ] as const).map(([k, rot]) => (
           <button
@@ -342,6 +345,8 @@ function Perfil({ id }: { id: string }) {
       )}
 
       {aba === 'historico' && <HistoricoAcoes usuarioId={id} />}
+
+      {aba === 'processos' && <SecaoProcessos processos={perfil.processos ?? []} />}
 
       {aba === 'filiacao' && (
         <SecaoFiliacao usuarioId={id} usuario={perfil.usuario} filiacao={perfil.filiacao} aoMudar={carregar} />
@@ -716,6 +721,16 @@ const EVENTO_META: Record<string, { rotulo: string; icone: string; cor: string }
   ARMA_CRIADA: { rotulo: 'Cadastrou arma', icone: '🔫', cor: 'var(--texto)' },
   ARMA_EDITADA: { rotulo: 'Editou arma', icone: '✏️', cor: 'var(--texto-suave)' },
   ARMA_REMOVIDA: { rotulo: 'Removeu arma', icone: '🗑️', cor: 'var(--texto-suave)' },
+  FILIACAO_SOLICITADA: { rotulo: 'Solicitou filiação', icone: '📝', cor: '#c99a2e' },
+  FILIACAO_ATIVA: { rotulo: 'Filiação ativada', icone: '🎖️', cor: 'var(--ok)' },
+  FILIACAO_ENCERRADA: { rotulo: 'Filiação encerrada', icone: '⌛', cor: 'var(--perigo, #c0392b)' },
+  FILIACAO_DOC_ENVIADO: { rotulo: 'Enviou documento (filiação)', icone: '📎', cor: 'var(--texto-suave)' },
+  PROCESSO_CRIADO: { rotulo: 'Contratou um serviço', icone: '🧾', cor: 'var(--texto)' },
+  PROCESSO_PAGO: { rotulo: 'Pagou o processo', icone: '💳', cor: 'var(--ok)' },
+  PROCESSO_STATUS: { rotulo: 'Processo avançou', icone: '🔄', cor: '#5b8def' },
+  PROCESSO_DOC_ENVIADO: { rotulo: 'Enviou documento (processo)', icone: '📎', cor: 'var(--texto-suave)' },
+  PROCESSO_FINALIZADO: { rotulo: 'Processo finalizado', icone: '✅', cor: 'var(--ok)' },
+  PROCESSO_CANCELADO: { rotulo: 'Processo cancelado', icone: '🚫', cor: 'var(--perigo, #c0392b)' },
 };
 
 interface EventoTimeline {
@@ -725,6 +740,47 @@ interface EventoTimeline {
   origem: string | null;
   meta: unknown;
   criadoEm: string;
+}
+
+function SecaoProcessos({ processos }: { processos: ProcessoUsuarioResumo[] }) {
+  if (processos.length === 0)
+    return <div className="vazio">Este usuário não contratou nenhum serviço do despachante.</div>;
+  return (
+    <div className="cartao" style={{ padding: 0, overflowX: 'auto' }}>
+      <table>
+        <thead>
+          <tr>
+            <th>Contratado</th>
+            <th>Serviço</th>
+            <th>Arma</th>
+            <th>Valor</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {processos.map((p) => (
+            <tr key={p.id}>
+              <td style={{ whiteSpace: 'nowrap' }}>{new Date(p.criadoEm).toLocaleDateString('pt-BR')}</td>
+              <td>{ROTULO_SERVICO_DESPACHANTE[p.tipoServico as keyof typeof ROTULO_SERVICO_DESPACHANTE] ?? p.tipoServico}</td>
+              <td>{p.armaNome ?? '—'}</td>
+              <td style={{ whiteSpace: 'nowrap' }}>R$ {(p.valorCentavos / 100).toFixed(2).replace('.', ',')}</td>
+              <td style={{ whiteSpace: 'nowrap' }}>
+                <span className="etiqueta" style={{ borderColor: p.statusCor, color: p.statusCor }}>
+                  ● {p.statusLabel}
+                </span>
+              </td>
+              <td>
+                <Link href={`/despachante/${p.id}`} className="secundario pequeno" style={{ textDecoration: 'none' }}>
+                  Abrir
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function HistoricoAcoes({ usuarioId }: { usuarioId: string }) {

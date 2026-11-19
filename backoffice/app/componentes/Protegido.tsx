@@ -11,13 +11,14 @@ const NAV = [
   { href: '/noticias', rotulo: 'Notícias' },
   { href: '/usuarios', rotulo: 'Usuários' },
   { href: '/filiacoes', rotulo: 'Liga' },
+  { href: '/despachante', rotulo: 'Processos' },
   { href: '/notificacoes', rotulo: 'Auditoria' },
 ];
 
 // Submenu "Recursos" — menus menos frequentes, agrupados para enxugar a barra.
 const OUTROS = [
   { href: '/entidades', rotulo: 'Entidades' },
-  { href: '/despachante', rotulo: 'Serviços' },
+  { href: '/despachante/catalogo', rotulo: 'Catálogo' },
   { href: '/marketplace', rotulo: 'Marketplace' },
   { href: '/push', rotulo: 'Push' },
   { href: '/churn', rotulo: 'Churn' },

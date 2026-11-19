@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { api, ErroApi } from '@/lib/api';
 import type { ConfigAsaasAdmin } from '@/lib/tipos';
 import { Protegido } from '../componentes/Protegido';
-import { SecaoDespachanteValores } from '../componentes/SecaoDespachanteValores';
 import { SecaoLiga } from '../componentes/SecaoLiga';
 
 export default function PaginaConfig() {
@@ -21,7 +21,16 @@ export default function PaginaConfig() {
       </div>
       <AuxilioJuridico />
       <IntegracaoAsaas />
-      <SecaoDespachanteValores />
+      <div className="cartao" style={{ marginBottom: 16 }}>
+        <strong>Serviços do despachante</strong>
+        <p className="subtitulo" style={{ marginTop: 4, marginBottom: 10 }}>
+          Serviços, preços, formulários de documentos e status do processo agora são gerenciados no
+          catálogo dinâmico.
+        </p>
+        <Link href="/despachante/catalogo" className="secundario pequeno" style={{ textDecoration: 'none' }}>
+          Abrir catálogo do despachante →
+        </Link>
+      </div>
       <SecaoLiga />
     </Protegido>
   );

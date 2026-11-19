@@ -24,7 +24,13 @@ export type TipoEventoUsuario =
   | 'FILIACAO_SOLICITADA'
   | 'FILIACAO_ATIVA'
   | 'FILIACAO_ENCERRADA'
-  | 'FILIACAO_DOC_ENVIADO';
+  | 'FILIACAO_DOC_ENVIADO'
+  | 'PROCESSO_CRIADO'
+  | 'PROCESSO_PAGO'
+  | 'PROCESSO_STATUS'
+  | 'PROCESSO_DOC_ENVIADO'
+  | 'PROCESSO_FINALIZADO'
+  | 'PROCESSO_CANCELADO';
 
 interface OpcoesEvento {
   descricao?: string | null;

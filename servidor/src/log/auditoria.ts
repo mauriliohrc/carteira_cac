@@ -1,7 +1,7 @@
 import { prisma } from '../db/cliente.js';
 
 export type CanalLog = 'WHATSAPP' | 'PUSH';
-export type TipoLog = 'BOAS_VINDAS' | 'SEM_ARMA_7D' | 'INATIVO_30D' | 'WINBACK' | 'NOTICIA';
+export type TipoLog = 'BOAS_VINDAS' | 'SEM_ARMA_7D' | 'INATIVO_30D' | 'WINBACK' | 'NOTICIA' | 'DESPACHANTE';
 export type StatusLog = 'OK' | 'FALHOU' | 'PULADO';
 
 /**

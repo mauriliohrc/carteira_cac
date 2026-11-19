@@ -403,9 +403,9 @@ model EventoAssinatura {
 model ProcessoDespachante {
   id             String   @id @default(cuid())
   usuarioId      String
-  /// RENOVACAO_CRAF | EMISSAO_GUIA
+  /// Código do serviço (ServicoDespachante.codigo). Serviços legados mantidos.
   tipoServico    String
-  /// aguardando_pagamento | pago | em_andamento | concluido | cancelado
+  /// Código do status atual (StatusProcessoDespachante.codigo). Dinâmico/CRUD.
   status         String   @default("aguardando_pagamento")
   valorCentavos  Int
   quantidade     Int      @default(1)
@@ -415,10 +415,13 @@ model ProcessoDespachante {
   /// Id do pagamento no Asaas e link do checkout hospedado (PIX/cartão).
   asaasPaymentId String?  @unique
   invoiceUrl     String?
+  /// Anotação interna do despachante (não vai para o app).
+  observacao     String?  @db.Text
   criadoEm       DateTime @default(now())
   atualizadoEm   DateTime @updatedAt
 
   usuario UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  valores ValorCampoProcessoDespachante[]
 
   @@index([usuarioId])
   @@index([status])
@@ -437,6 +440,114 @@ model ServicoDespachanteConfig {
   atualizadoEm    DateTime @updatedAt
 
   @@map("servicos_despachante_config")
+}
+
+/// Catálogo DINÂMICO de serviços do despachante (CRUD no backoffice). Substitui
+/// a lista antes hardcoded. `codigo` é estável e é o que vai no processo
+/// (tipoServico) e no sync — serviços legados mantêm o mesmo código, então apps
+/// antigos continuam funcionando. `icone` = nome de ícone (Ionicons) que o app
+/// renderiza. Preço = gruCentavos + servicoCentavos.
+model ServicoDespachante {
+  id                     String   @id @default(cuid())
+  codigo                 String   @unique
+  nome                   String
+  subtitulo              String?
+  descricao              String   @db.Text
+  /// Texto "como funciona" (passos), editável — antes hardcoded no app.
+  comoFunciona           String?  @db.Text
+  /// Nome do ícone (Ionicons) exibido no card do app.
+  icone                  String   @default("briefcase-outline")
+  gruCentavos            Int      @default(0)
+  servicoCentavos        Int      @default(0)
+  unidade                String   @default("por processo")
+  ativo                  Boolean  @default(true)
+  ordem                  Int      @default(0)
+  /// Mensagem de WhatsApp enviada ao INICIAR o processo (pago), por serviço.
+  mensagemWhatsappInicio String?  @db.Text
+  criadoEm               DateTime @default(now())
+  atualizadoEm           DateTime @updatedAt
+
+  campos CampoServicoDespachante[]
+
+  @@map("servicos_despachante")
+}
+
+/// Status DINÂMICO do processo (CRUD no backoffice): label, cor e ícone/bolinha.
+/// `papel` dá a semântica de automação e MAPEIA para um dos 5 códigos legados no
+/// sync (`status` que apps antigos entendem) — status novos nunca quebram apps
+/// antigos, que recebem o código-base equivalente + os campos ricos aditivos.
+/// papel: INICIAL | PAGO | AGUARDANDO_DOC | EM_ANALISE | NORMAL | FINAL | CANCELADO
+model StatusProcessoDespachante {
+  id           String   @id @default(cuid())
+  codigo       String   @unique
+  label        String
+  cor          String   @default("#8a8f98")
+  /// Nome do ícone (Ionicons). Vazio = bolinha com a cor.
+  icone        String?
+  papel        String   @default("NORMAL")
+  ordem        Int      @default(0)
+  ativo        Boolean  @default(true)
+  atualizadoEm DateTime @updatedAt
+
+  @@map("status_processo_despachante")
+}
+
+/// Campo do FORMULÁRIO por serviço (CRUD no backoffice). Tipos:
+///   ARQUIVO   — upload de documento
+///   TEXTO     — texto livre
+///   CHECKBOX  — confirmação (sim/não)
+///   SENHA_GOV — CPF + senha do gov.br (credencial sensível; só o despachante vê)
+/// `descricao` explica o que é / onde conseguir, para guiar o usuário.
+model CampoServicoDespachante {
+  id          String   @id @default(cuid())
+  servicoId   String
+  tipo        String   @default("ARQUIVO")
+  nome        String
+  descricao   String?  @db.Text
+  obrigatorio Boolean  @default(true)
+  ordem       Int      @default(0)
+  ativo       Boolean  @default(true)
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  servico ServicoDespachante @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+
+  @@index([servicoId])
+  @@map("campos_servico_despachante")
+}
+
+/// Valor preenchido de um campo em um processo (resposta do usuário) OU anexo
+/// final entregue pelo despachante. Um registro por (processo, campo) para
+/// respostas do usuário; anexos finais têm campoId nulo (vários permitidos).
+/// origem: USUARIO | DESPACHANTE · status (revisão do doc do usuário): ENVIADO |
+/// APROVADO | REJEITADO. Arquivos guardados como bytes (igual a ArquivoSync).
+/// SENHA_GOV guarda `valorCpf` + `valorTexto` (a senha); NUNCA vai para o app.
+model ValorCampoProcessoDespachante {
+  id           String   @id @default(cuid())
+  processoId   String
+  campoId      String?
+  tipo         String
+  /// ARQUIVO:
+  nome         String?
+  mime         String?
+  tamanho      Int?
+  conteudo     Bytes?
+  /// TEXTO / CHECKBOX ("true"/"false") / SENHA_GOV (senha):
+  valorTexto   String?  @db.Text
+  /// SENHA_GOV: CPF informado.
+  valorCpf     String?
+  origem       String   @default("USUARIO")
+  final        Boolean  @default(false)
+  status       String   @default("ENVIADO")
+  motivo       String?  @db.Text
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  processo ProcessoDespachante @relation(fields: [processoId], references: [id], onDelete: Cascade)
+
+  @@unique([processoId, campoId])
+  @@index([processoId])
+  @@map("valores_campo_processo_despachante")
 }
 
 /// Configuração da integração com o Asaas, editável pelo backoffice (singleton,

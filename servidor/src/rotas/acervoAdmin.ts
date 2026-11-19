@@ -5,6 +5,7 @@ import { prisma } from '../db/cliente.js';
 import { exigirAdmin } from '../http/guardas.js';
 import { naoEncontrado } from '../http/erros.js';
 import { apresentarFiliacao } from '../dominio/filiacao.js';
+import { listarStatus } from '../dominio/despachanteCatalogo.js';
 
 const TIPOS = new Set(['armas', 'documentos', 'habitualidades', 'locais_tiro', 'arquivos', 'fotos', 'processos']);
 
@@ -85,6 +86,24 @@ export async function rotasAcervoAdmin(app: FastifyInstance) {
       orderBy: { criadoEm: 'desc' },
     });
 
+    // Processos do despachante contratados pelo usuário (status rico).
+    const processosRaw = await prisma.processoDespachante.findMany({
+      where: { usuarioId: id },
+      orderBy: { criadoEm: 'desc' },
+    });
+    const metaStatus = new Map((processosRaw.length ? await listarStatus() : []).map((s) => [s.codigo, s]));
+    const processos = processosRaw.map((p) => ({
+      id: p.id,
+      tipoServico: p.tipoServico,
+      status: p.status,
+      statusLabel: metaStatus.get(p.status)?.label ?? p.status,
+      statusCor: metaStatus.get(p.status)?.cor ?? '#8a8f98',
+      valorCentavos: p.valorCentavos,
+      armaNome: p.armaNome,
+      invoiceUrl: p.invoiceUrl,
+      criadoEm: p.criadoEm.toISOString(),
+    }));
+
     // Versão do app (a mais nova entre os aparelhos ativos) + plataformas.
     const dispositivos = await prisma.dispositivoPush.findMany({
       where: { usuarioId: id, ativo: true },
@@ -132,6 +151,7 @@ export async function rotasAcervoAdmin(app: FastifyInstance) {
       filiacao: filiacaoRaw
         ? { ...apresentarFiliacao(filiacaoRaw), docArquivoId: filiacaoRaw.docArquivoId }
         : null,
+      processos,
     };
   });
 
