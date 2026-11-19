@@ -23,6 +23,7 @@ import {
   enviarEmail,
 } from '../../integracoes/email.js';
 import { dispararBoasVindas } from '../../whatsapp/automacoes.js';
+import { registrarEventoUsuario } from '../../dominio/eventoUsuario.js';
 
 const VALIDADE_RESET_MS = 60 * 60 * 1000; // 1 hora
 const VALIDADE_EMAIL_MS = 15 * 60 * 1000; // 15 minutos
@@ -46,13 +47,40 @@ export async function rotasAppV1(app: FastifyInstance) {
   // ------------------------------------------------------------- cadastro
   app.post('/app/auth/cadastro', async (req, reply) => {
     const { nome, cpf, email, senha, celular } = cadastroAppSchema.parse(req.body);
+    const senhaHash = await gerarHash(senha);
     try {
-      const usuario = await prisma.usuarioApp.create({
-        data: { nome, cpf, email, celular, senhaHash: await gerarHash(senha) },
+      const usuario = await prisma.$transaction(async (tx) => {
+        // Contas sem e-mail validado NÃO reservam o CPF nem o e-mail: um e-mail
+        // digitado errado não pode travar o CPF para sempre. Só contas já
+        // verificadas bloqueiam um novo cadastro (dono real). As pendentes que
+        // colidem são cadastros abandonados — removemos (a cascata limpa tokens,
+        // eventos e o que tiverem sincronizado) para liberar o CPF/e-mail a este
+        // novo cadastro, que ao validar o e-mail assume definitivamente.
+        const conflitantes = await tx.usuarioApp.findMany({
+          where: { OR: [{ cpf }, { email }] },
+          select: { id: true, cpf: true, email: true, emailVerificado: true },
+        });
+        if (conflitantes.some((u) => u.emailVerificado && u.cpf === cpf)) {
+          throw conflito('Este CPF já está cadastrado');
+        }
+        if (conflitantes.some((u) => u.emailVerificado && u.email === email)) {
+          throw conflito('Este e-mail já está cadastrado');
+        }
+        if (conflitantes.length) {
+          await tx.usuarioApp.deleteMany({ where: { id: { in: conflitantes.map((u) => u.id) } } });
+        }
+        return tx.usuarioApp.create({
+          data: { nome, cpf, email, celular, senhaHash },
+        });
       });
       // Abre o canal de relacionamento: mensagem automática de boas-vindas
       // (WhatsApp/push conforme modelos ativos). Best-effort, não bloqueia.
       dispararBoasVindas({ id: usuario.id, nome: usuario.nome, celular: usuario.celular });
+      // Timeline: conta criada. Best-effort, em segundo plano.
+      void registrarEventoUsuario(usuario.id, 'CONTA_CRIADA', {
+        origem: 'APP',
+        descricao: usuario.email,
+      });
       const token = assinarTokenApp(usuario.id);
       reply.code(201);
       return { token, usuario: apresentarUsuarioApp(usuario) };

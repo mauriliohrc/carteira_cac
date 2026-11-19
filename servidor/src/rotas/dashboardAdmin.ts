@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../db/cliente.js';
 import { exigirAdmin } from '../http/guardas.js';
 import { buscarArmas } from '../integracoes/shootinghouse.js';
+import { INCLUDE_USUARIO_LISTA, mapUsuarioLista } from '../dominio/usuarioLista.js';
 
 const DIAS_ATIVO = 30;
 const MIN_ONLINE = 5;
@@ -139,6 +140,9 @@ export async function rotasDashboardAdmin(app: FastifyInstance) {
       processosTotal,
       processosAguardando,
       processosPagos,
+      totalFiliados,
+      filiadosPendenteDoc,
+      filiacoesVencidas,
     ] = await Promise.all([
       prisma.usuarioApp.count(),
       prisma.usuarioApp.count({ where: { ativo: true } }),
@@ -157,6 +161,22 @@ export async function rotasDashboardAdmin(app: FastifyInstance) {
       prisma.processoDespachante.count(),
       prisma.processoDespachante.count({ where: { status: 'aguardando_pagamento' } }),
       prisma.processoDespachante.count({ where: { status: 'pago' } }),
+      prisma.filiacaoLiga.count({ where: { status: 'ativa' } }),
+      prisma.filiacaoLiga.count({ where: { status: 'ativa', documentacaoCompleta: false } }),
+      prisma.filiacaoLiga.count({ where: { status: 'vencida' } }),
+    ]);
+
+    // Churn de assinatura: cancelaram a renovação (ainda com acesso) e perdidos
+    // nos últimos 30 dias (expirados/reembolsados/revogados).
+    const corteChurn = new Date(Date.now() - DIAS_ATIVO * 86_400_000);
+    const [churnCancelouRenovacao, churnPerdidos30] = await Promise.all([
+      prisma.assinaturaApp.count({ where: { status: 'CANCELADA_RENOVACAO' } }),
+      prisma.assinaturaApp.count({
+        where: {
+          status: { in: ['EXPIRADA', 'REEMBOLSADA', 'REVOGADA'] },
+          expirouEm: { gte: corteChurn },
+        },
+      }),
     ]);
 
     // Distribuição de plataformas (aparelhos ativos).
@@ -188,6 +208,13 @@ export async function rotasDashboardAdmin(app: FastifyInstance) {
         processosTotal,
         processosAguardando,
         processosPagos,
+        // Liga (filiações).
+        totalFiliados,
+        filiadosPendenteDoc,
+        filiacoesVencidas,
+        // Churn de assinatura.
+        churnCancelouRenovacao,
+        churnPerdidos30,
         // Mantidos para compatibilidade com telas/drilldowns existentes.
         total,
         ativos,
@@ -406,17 +433,8 @@ export async function rotasDashboardAdmin(app: FastifyInstance) {
       where,
       orderBy: { criadoEm: 'desc' },
       take: 5000,
-      select: {
-        id: true,
-        nome: true,
-        email: true,
-        cpf: true,
-        celular: true,
-        emailVerificado: true,
-        ultimoAcessoEm: true,
-        criadoEm: true,
-      },
+      include: INCLUDE_USUARIO_LISTA,
     });
-    return { metrica, total: usuarios.length, usuarios };
+    return { metrica, total: usuarios.length, usuarios: usuarios.map(mapUsuarioLista) };
   });
 }

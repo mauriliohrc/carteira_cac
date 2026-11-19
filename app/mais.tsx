@@ -18,7 +18,6 @@ import {
 import { useApp } from '@/estado/AppContext';
 import { useTranca } from '@/seguranca/TrancaProvider';
 import { Cartao, Secao, Tela, TituloTela } from '@/ui/base';
-import { BotaoSino } from '@/ui/BotaoSino';
 import { avisar } from '@/ui/dialogo';
 
 // Versão e build lidos do app embutido (app.json → nativo), diferenciando
@@ -32,6 +31,10 @@ const RODAPE_VERSAO = `CARTEIRA CAC · VERSÃO ${VERSAO_APP}${BUILD_APP ? ` (${B
 import { LIMITE_GRATUITO_ARMAS, restaurarCompras } from '@/billing';
 import { contarAgendadas, permissaoConcedida } from '@/notificacoes';
 
+/**
+ * Ajustes do app (ex-aba "Mais"). Agora é uma tela empilhada aberta pelo botão
+ * "Mais" do cabeçalho — a aba deu lugar à aba Caça no tab bar.
+ */
 export default function Mais() {
   const c = useCores();
   const m = useEstilos(folha);
@@ -72,7 +75,7 @@ export default function Mais() {
   const totalAnexos = documentos.reduce((n, d) => n + d.arquivos.length, 0);
 
   return (
-    <Tela sobBarra acao={<BotaoSino />}>
+    <Tela voltar>
       <TituloTela titulo="Mais" />
 
       <Secao titulo="Aparência">
@@ -160,6 +163,13 @@ export default function Mais() {
           </View>
           <Ionicons name="chevron-forward" size={17} color={c.textoFraco} />
         </Pressable>
+
+        <ItemMenu
+          icone="ribbon-outline"
+          titulo="Filiação à liga"
+          subtitulo="Carteirinha, certificado e vínculo anual com a liga"
+          aoTocar={() => router.push('/filiacao')}
+        />
 
         <ItemMenu
           icone="refresh-outline"
@@ -309,9 +319,6 @@ const folha = (c: Paleta) =>
     temaAtivo: { borderColor: c.primario, backgroundColor: c.primarioFraco },
     temaTexto: { fontSize: 12, fontWeight: '600', color: c.textoFraco },
     temaTextoAtivo: { color: c.primario },
-
-
-
 
     numeros: { flexDirection: 'row' },
     numeroValor: { ...tipo.numero, fontSize: 22, color: c.texto },

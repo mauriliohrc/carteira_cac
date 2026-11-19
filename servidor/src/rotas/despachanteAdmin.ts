@@ -5,7 +5,9 @@ import { exigirAdmin } from '../http/guardas.js';
 import { invalido, naoEncontrado } from '../http/erros.js';
 import { refletirProcessoNoSync } from '../dominio/despachanteSync.js';
 import { resolverServicos } from '../dominio/despachanteConfig.js';
+import { servicoPorTipo } from '../dominio/despachante.js';
 import { resolverConfigAsaas, urlWebhookAsaas } from '../dominio/asaasConfig.js';
+import { lerTexto, gravarTexto, CHAVE_WHATSAPP_JURIDICO } from '../config/configStore.js';
 
 const STATUS_VALIDOS = ['aguardando_pagamento', 'pago', 'em_andamento', 'concluido', 'cancelado'] as const;
 
@@ -50,7 +52,7 @@ export async function rotasDespachanteAdmin(app: FastifyInstance) {
 
   app.put('/api/admin/despachante/servicos/:tipo', async (req) => {
     const { tipo } = req.params as { tipo: string };
-    if (tipo !== 'RENOVACAO_CRAF' && tipo !== 'EMISSAO_GUIA') {
+    if (!servicoPorTipo(tipo)) {
       throw invalido('Serviço desconhecido');
     }
     const { gruCentavos, servicoCentavos, ativo } = configPrecoSchema.parse(req.body);
@@ -88,6 +90,21 @@ export async function rotasDespachanteAdmin(app: FastifyInstance) {
       create: { id: 'unico', ambiente, apiKey: novaApiKey, webhookToken: novoToken },
       update: { ambiente, apiKey: novaApiKey, webhookToken: novoToken },
     });
+    return { ok: true };
+  });
+
+  // --------------------------------------------------- Auxílio Jurídico (WhatsApp)
+  // Número do Carteira CAC que o botão "Auxílio Jurídico" do app abre no WhatsApp.
+  app.get('/api/admin/config/juridico', async () => ({
+    whatsappJuridico: (await lerTexto(CHAVE_WHATSAPP_JURIDICO)) ?? '',
+  }));
+
+  app.put('/api/admin/config/juridico', async (req) => {
+    const { whatsappJuridico } = z
+      .object({ whatsappJuridico: z.string().trim().max(30) })
+      .parse(req.body);
+    // Guarda só dígitos (DDI+DDD+número), formato aceito pelo wa.me.
+    await gravarTexto(CHAVE_WHATSAPP_JURIDICO, whatsappJuridico.replace(/\D/g, ''));
     return { ok: true };
   });
 

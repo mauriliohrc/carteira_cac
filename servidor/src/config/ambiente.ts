@@ -65,4 +65,58 @@ export const ambiente = {
       return Boolean(this.apiKey);
     },
   },
+  /**
+   * Apple — App Store Server Notifications V2 (webhook de assinaturas) e App
+   * Store Server API (consulta de status / backfill de churn).
+   *
+   * - `bundleId`: identificador do app (ex.: com.carteiracac.app).
+   * - `appAppleId`: o "Apple ID" numérico do app no App Store Connect (necessário
+   *   só para o cliente da App Store Server API em produção).
+   * - Credenciais da API (chave privada .p8 gerada em Users and Access › Keys ›
+   *   In-App Purchase): `keyId`, `issuerId` e `privateKey` (conteúdo do .p8, com
+   *   as quebras de linha — aceitamos `\n` escapado no .env).
+   * - `ambiente`: Production | Sandbox — decide a URL da API e o root esperado.
+   *
+   * Sem as credenciais da API, o webhook ainda funciona (verifica a assinatura e
+   * registra churn); só o backfill/consulta sob demanda ficam desligados.
+   */
+  apple: {
+    bundleId: process.env.APPLE_BUNDLE_ID ?? '',
+    appAppleId: process.env.APPLE_APP_APPLE_ID ?? '',
+    keyId: process.env.APPLE_ASC_KEY_ID ?? '',
+    issuerId: process.env.APPLE_ASC_ISSUER_ID ?? '',
+    privateKey: (process.env.APPLE_ASC_PRIVATE_KEY ?? '').replace(/\\n/g, '\n'),
+    ambiente: (process.env.APPLE_AMBIENTE ?? 'Production') as 'Production' | 'Sandbox',
+    /** Webhook ligado quando o bundleId está configurado. */
+    get webhookAtivo(): boolean {
+      return Boolean(this.bundleId);
+    },
+    /** Cliente da App Store Server API disponível (consulta/backfill). */
+    get apiAtiva(): boolean {
+      return Boolean(this.bundleId && this.keyId && this.issuerId && this.privateKey);
+    },
+  },
+
+  /**
+   * Google Play — Real-time Developer Notifications (RTDN, via Pub/Sub) e Android
+   * Publisher API (consulta de assinaturas) para o churn Android, espelhando a
+   * Apple. A RTDN só traz o `purchaseToken`; o estado atual vem da API, lida com
+   * a Service Account (JSON de chave → clientEmail + privateKey).
+   *
+   * - `packageName`: applicationId do app Android (ex.: br.com.cacbrasil.carteira).
+   * - `clientEmail` / `privateKey`: da Service Account com acesso ao app na Play
+   *   Console (papel "Ver dados financeiros / Gerenciar pedidos").
+   * - `pubsubToken`: segredo compartilhado exigido na query do webhook
+   *   (`/webhooks/google?token=…`), já que o push do Pub/Sub não é assinado.
+   */
+  google: {
+    packageName: process.env.GOOGLE_PACKAGE_NAME ?? '',
+    clientEmail: process.env.GOOGLE_SA_CLIENT_EMAIL ?? '',
+    privateKey: (process.env.GOOGLE_SA_PRIVATE_KEY ?? '').replace(/\\n/g, '\n'),
+    pubsubToken: process.env.GOOGLE_PUBSUB_TOKEN ?? '',
+    /** Webhook/consulta ligados quando há pacote + credenciais da Service Account. */
+    get apiAtiva(): boolean {
+      return Boolean(this.packageName && this.clientEmail && this.privateKey);
+    },
+  },
 } as const;

@@ -20,6 +20,8 @@ export interface CatalogoDespachante {
   servicos: ServicoDespachante[];
   /** Nota explicando a composição do valor (GRU + serviço). */
   gruNota: string;
+  /** Número do Carteira CAC para o botão "Auxílio Jurídico" (só dígitos). */
+  whatsappJuridico?: string;
 }
 
 /**
@@ -29,6 +31,42 @@ export interface CatalogoDespachante {
  */
 const CATALOGO_PADRAO: CatalogoDespachante = {
   servicos: [
+    {
+      tipo: 'CADASTRO_RENOVACAO_IBAMA',
+      nome: 'Cadastro / Renovação IBAMA',
+      descricao: 'Fazemos o seu cadastro ou a renovação no IBAMA (CTF), do protocolo ao acompanhamento.',
+      gruCentavos: 0,
+      servicoCentavos: 15000,
+      precoCentavos: 15000,
+      unidade: 'por processo',
+    },
+    {
+      tipo: 'AQUISICAO_TRANSFERENCIA',
+      nome: 'Aquisição / Transferência de Equipamento (CAC)',
+      descricao: 'Cuidamos do processo de aquisição ou transferência de armamento do CAC.',
+      gruCentavos: 0,
+      servicoCentavos: 20000,
+      precoCentavos: 20000,
+      unidade: 'por processo',
+    },
+    {
+      tipo: 'POSSE_PF',
+      nome: 'Posse - Polícia Federal',
+      descricao: 'Conduzimos o seu processo de posse de arma de fogo junto à Polícia Federal.',
+      gruCentavos: 0,
+      servicoCentavos: 25000,
+      precoCentavos: 25000,
+      unidade: 'por processo',
+    },
+    {
+      tipo: 'PORTE_PF',
+      nome: 'Porte - Polícia Federal',
+      descricao: 'Conduzimos o seu processo de porte de arma de fogo junto à Polícia Federal.',
+      gruCentavos: 0,
+      servicoCentavos: 30000,
+      precoCentavos: 30000,
+      unidade: 'por processo',
+    },
     {
       tipo: 'RENOVACAO_CRAF',
       nome: 'Renovação de CRAF',

@@ -184,6 +184,14 @@ export interface ArquivoApp {
   tamanho: number | null;
 }
 
+/** Foto de uma arma (dados crus do sync). O blob vem de /arquivo/<id>. */
+export interface FotoApp {
+  id: string;
+  arma_id: string;
+  ordem?: number;
+  legenda?: string | null;
+}
+
 export interface PerfilUsuarioApp {
   usuario: {
     id: string;
@@ -207,6 +215,9 @@ export interface PerfilUsuarioApp {
   habitualidades: HabitualidadeApp[];
   locais: Record<string, unknown>[];
   arquivos: ArquivoApp[];
+  fotos?: FotoApp[];
+  /** Filiação à liga deste usuário (gerida no próprio perfil). Null = não filiado. */
+  filiacao: (FiliacaoAdmin & { docArquivoId: string | null }) | null;
 }
 
 /** Rótulo do tipo de premium reportado pelo app. */
@@ -568,7 +579,13 @@ export interface ListaContatos {
 
 // ------------------------------------------------------------- despachante
 
-export type TipoServicoDespachante = 'RENOVACAO_CRAF' | 'EMISSAO_GUIA';
+export type TipoServicoDespachante =
+  | 'CADASTRO_RENOVACAO_IBAMA'
+  | 'AQUISICAO_TRANSFERENCIA'
+  | 'POSSE_PF'
+  | 'PORTE_PF'
+  | 'RENOVACAO_CRAF'
+  | 'EMISSAO_GUIA';
 export type StatusProcesso =
   | 'aguardando_pagamento'
   | 'pago'
@@ -596,6 +613,10 @@ export interface ListaProcessosDespachante {
 }
 
 export const ROTULO_SERVICO_DESPACHANTE: Record<TipoServicoDespachante, string> = {
+  CADASTRO_RENOVACAO_IBAMA: 'Cadastro / Renovação IBAMA',
+  AQUISICAO_TRANSFERENCIA: 'Aquisição / Transferência (CAC)',
+  POSSE_PF: 'Posse - Polícia Federal',
+  PORTE_PF: 'Porte - Polícia Federal',
   RENOVACAO_CRAF: 'Renovação de CRAF',
   EMISSAO_GUIA: 'Emissão de Guia',
 };
@@ -621,6 +642,91 @@ export interface ServicoConfigAdmin {
 
 export interface ListaServicosConfig {
   servicos: ServicoConfigAdmin[];
+}
+
+// --------------------------------------------------------------- filiações
+
+export type StatusFiliacao =
+  | 'pendente_pagamento'
+  | 'ativa'
+  | 'suspensa'
+  | 'vencida'
+  | 'cancelada';
+
+export const ROTULO_STATUS_FILIACAO: Record<StatusFiliacao, string> = {
+  pendente_pagamento: 'Aguardando pagamento',
+  ativa: 'Ativa',
+  suspensa: 'Suspensa',
+  vencida: 'Vencida',
+  cancelada: 'Cancelada',
+};
+
+export interface FiliacaoAdmin {
+  id: string;
+  numeroFiliacao: string | null;
+  status: StatusFiliacao;
+  origem: string;
+  nomeCompleto: string;
+  cpf: string;
+  endereco: {
+    cep: string | null;
+    logradouro: string | null;
+    numero: string | null;
+    complemento: string | null;
+    bairro: string | null;
+    cidade: string | null;
+    uf: string | null;
+  };
+  docTipo: string | null;
+  documentacaoCompleta: boolean;
+  valorCentavos: number;
+  invoiceUrl: string | null;
+  vigenteAte: string;
+  criadoEm: string;
+  atualizadoEm: string;
+  usuario: { id: string; nome: string; email: string; cpf: string; celular: string | null };
+}
+
+export interface ListaFiliacoes {
+  itens: FiliacaoAdmin[];
+  total: number;
+  pagina: number;
+  tamanhoPagina: number;
+}
+
+/** Detalhe = FiliacaoAdmin + referências de documento/certificado. */
+export interface FiliacaoDetalhe extends FiliacaoAdmin {
+  docArquivoId: string | null;
+  certificadoUrl: string | null;
+  verificacaoUrl: string | null;
+}
+
+export interface ConteudoLiga {
+  titulo: string;
+  subtitulo: string;
+  vantagens: string[];
+  credibilidade: string;
+  termos: string;
+}
+
+export interface ConfigFiliacaoAdmin {
+  valorCentavos: number;
+  ativo: boolean;
+  nomeLiga: string;
+  logoUrl: string | null;
+  conteudo: ConteudoLiga;
+  mesesVinculo: number;
+}
+
+/** Resposta pública da verificação de uma filiação (destino do QR). */
+export interface VerificacaoFiliacao {
+  valido: boolean;
+  numeroFiliacao?: string | null;
+  nome?: string;
+  cpf?: string;
+  status?: StatusFiliacao;
+  vigenteAte?: string;
+  nomeLiga: string;
 }
 
 // ------------------------------------------------------------- marketplace

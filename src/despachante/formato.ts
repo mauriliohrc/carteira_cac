@@ -15,6 +15,10 @@ export function mascaraCelular(v: string): string {
 }
 
 export const ROTULO_SERVICO: Record<TipoServicoDespachante, string> = {
+  CADASTRO_RENOVACAO_IBAMA: 'Cadastro / Renovação IBAMA',
+  AQUISICAO_TRANSFERENCIA: 'Aquisição / Transferência (CAC)',
+  POSSE_PF: 'Posse - Polícia Federal',
+  PORTE_PF: 'Porte - Polícia Federal',
   RENOVACAO_CRAF: 'Renovação de CRAF',
   EMISSAO_GUIA: 'Emissão de Guia',
 };

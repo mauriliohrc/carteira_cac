@@ -253,6 +253,14 @@ model UsuarioApp {
   /// Id do cliente no Asaas (criado sob demanda na 1ª cobrança do Despachante).
   /// Só servidor — nunca entra no JSON de sincronização.
   asaasCustomerId          String?
+  /// UUID estável desta conta usado como `appAccountToken` nas compras da App
+  /// Store: o app o envia na compra e a Apple o devolve nas notificações, o que
+  /// casa a assinatura com a conta no servidor. Gerado sob demanda.
+  appAccountToken          String?   @unique
+  /// Quando o usuário recebeu a oferta de reconquista Premium Parceiro (win-back
+  /// do backoffice). Enquanto preenchida, o app libera a compra do plano parceiro
+  /// mesmo sem vínculo de entidade. Null = sem oferta ativa.
+  winbackParceiroEm        DateTime?
   /// Quando aceitou o EULA do marketplace (exigido antes de anunciar). Null = nunca.
   aceitouEulaMarketplaceEm DateTime?
   criadoEm                 DateTime  @default(now())
@@ -269,6 +277,7 @@ model UsuarioApp {
   logsNotificacao LogNotificacao[]
   leiturasNoticia LeituraNoticia[]
   processos       ProcessoDespachante[]
+  filiacoes       FiliacaoLiga[]
 
   // Marketplace
   lojas              Loja[]
@@ -280,9 +289,111 @@ model UsuarioApp {
   bloqueiosFeitos    BloqueioUsuario[] @relation("bloqueioDono")
   bloqueiosRecebidos BloqueioUsuario[] @relation("bloqueioAlvo")
   destaquesCompra    DestaqueCompra[]
+  assinaturas        AssinaturaApp[]
+  eventos            EventoUsuario[]
 
   @@index([ultimoAcessoEm])
   @@map("usuarios_app")
+}
+
+/// Linha do tempo de ações do usuário no app — histórico para o backoffice.
+/// ADITIVO e best-effort: registrar um evento NUNCA pode quebrar o fluxo que o
+/// originou (conta, compra, sync). Apps antigos continuam funcionando; eles só
+/// não emitem os eventos que dependem de endpoints novos (ex.: "tentou assinar").
+model EventoUsuario {
+  id        String     @id @default(cuid())
+  usuarioId String
+  usuario   UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  /// Chave do tipo de evento (ver dominio/eventoUsuario.ts): CONTA_CRIADA,
+  /// ASSINATURA_TENTATIVA, ASSINATURA_ATIVA, ASSINATURA_CANCELADA,
+  /// ASSINATURA_EXPIRADA, ASSINATURA_REEMBOLSADA, DOC_CRIADO, DOC_EDITADO,
+  /// DOC_REMOVIDO, ARMA_CRIADA, ARMA_EDITADA, ARMA_REMOVIDA.
+  tipo      String
+  /// Texto curto e legível para a timeline (ex.: "CRAF — Pistola Glock").
+  descricao String?    @db.Text
+  /// Origem/plataforma quando aplicável: IOS | ANDROID | APP | CUPOM | SISTEMA.
+  origem    String?
+  /// Metadados em JSON (ex.: { produtoId, status, registroId }).
+  meta      String?    @db.Text
+  criadoEm  DateTime   @default(now())
+
+  @@index([usuarioId, criadoEm])
+  @@map("eventos_usuario")
+}
+
+/// Assinatura de loja (App Store hoje; Google futuramente) de um usuário do app.
+/// É a FONTE DA VERDADE do Premium pago no SERVIDOR: derivada das App Store
+/// Server Notifications V2 e da App Store Server API, independente de o app
+/// reabrir. Agrupada pelo `originalTransactionId`, estável entre renovações.
+/// (Premium por CUPOM continua sendo reportado pelo app e NÃO vive aqui.)
+model AssinaturaApp {
+  id                    String      @id @default(cuid())
+  /// Conta dona. Null = notificação órfã (ainda não casada com um usuário);
+  /// re-vinculada quando o app reporta o originalTransactionId ou via API.
+  usuarioId             String?
+  usuario               UsuarioApp? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  /// IOS | ANDROID (validado na aplicação).
+  plataforma            String      @default("IOS")
+  /// Chave estável da loja que agrupa a assinatura e todas as suas renovações.
+  originalTransactionId String      @unique
+  /// SKU: premium_mensal | premium_anual | premium_parceiro.
+  produtoId             String
+  /// Tipo de premium correspondente: MENSAL | ANUAL | ANUAL_PARCEIRO.
+  premiumTipo           String?
+  /// ATIVA | EM_GRACA | CANCELADA_RENOVACAO | EXPIRADA | REEMBOLSADA | REVOGADA.
+  /// CANCELADA_RENOVACAO = desligou a renovação mas ainda está no período pago.
+  status                String      @default("ATIVA")
+  /// Renovação automática ligada. false sem expirar = churn voluntário sinalizado.
+  autoRenova            Boolean     @default(true)
+  /// Ambiente da loja: Production | Sandbox.
+  ambiente              String      @default("Production")
+  /// Fim do período pago atual (expiresDate da transação).
+  expiraEm              DateTime?
+  /// Início da assinatura (purchaseDate da primeira transação).
+  iniciouEm             DateTime?
+  /// Quando desligou a renovação automática (sinal de churn voluntário).
+  canceladaEm           DateTime?
+  /// Quando efetivamente expirou/perdeu o acesso.
+  expirouEm             DateTime?
+  /// Motivo bruto (expiration_intent / revocation_reason / tipo da notificação).
+  motivo                String?
+  /// Acompanhamento da reconquista: PENDENTE | CONTATADO | RECUPERADO | PERDIDO.
+  winbackStatus         String?
+  winbackEm             DateTime?
+  /// Anotação livre do operador no backoffice.
+  observacao            String?     @db.Text
+  /// Data do último evento aplicado (notificação/cron/backfill).
+  ultimoEventoEm        DateTime?
+  criadoEm              DateTime    @default(now())
+  atualizadoEm          DateTime    @updatedAt
+
+  eventos EventoAssinatura[]
+
+  @@index([usuarioId])
+  @@index([status])
+  @@index([expiraEm])
+  @@map("assinaturas_app")
+}
+
+/// Histórico cru de cada evento de assinatura — auditoria do "quando" e
+/// idempotência por `notificationUUID` (reprocessar a mesma notificação é no-op).
+model EventoAssinatura {
+  id               String        @id @default(cuid())
+  assinaturaId     String
+  assinatura       AssinaturaApp @relation(fields: [assinaturaId], references: [id], onDelete: Cascade)
+  /// notificationType da Apple (SUBSCRIBED, DID_RENEW, EXPIRED, REFUND, …) ou
+  /// sintético (CRON_EXPIRADA, BACKFILL) para eventos gerados por nós.
+  tipo             String
+  /// subtype da Apple (AUTO_RENEW_DISABLED, VOLUNTARY, BILLING_RETRY, …).
+  subtipo          String?
+  /// UUID da notificação (idempotência). Null em eventos sintéticos.
+  notificationUUID String?       @unique
+  /// Payload decodificado para auditoria/depuração (JSON serializado em texto).
+  payload          String?       @db.LongText
+  criadoEm         DateTime      @default(now())
+
+  @@index([assinaturaId])
+  @@map("eventos_assinatura")
 }
 
 /// Processo de despachante contratado pelo usuário (Renovação de CRAF / Emissão
@@ -341,6 +452,102 @@ model ConfiguracaoAsaas {
   atualizadoEm DateTime @updatedAt
 
   @@map("configuracao_asaas")
+}
+
+/// Filiação de um usuário à liga esportiva. Produto principal: anuidade que dá
+/// 1 ano de vínculo associativo (provas nacionais / validade PF), concede o
+/// Premium no app, carteirinha digital e certificado. A cobrança roda pelo Asaas
+/// como ASSINATURA ANUAL recorrente (fora do IAP, por ser serviço do mundo real).
+/// O app recebe o espelho via sync (RegistroSync tipo 'filiacoes'). ADITIVO:
+/// apps antigos ignoram o tipo de sync desconhecido, nada quebra.
+model FiliacaoLiga {
+  id                   String   @id @default(cuid())
+  usuarioId            String
+  /// Número de registro público da filiação (ex. "2026-000123"). Atribuído ao
+  /// ativar (pagamento confirmado / migração). Null enquanto pendente. Único.
+  numeroFiliacao       String?  @unique
+  /// pendente_pagamento | ativa | suspensa | vencida | cancelada
+  status               String   @default("pendente_pagamento")
+  /// ASAAS | CORTESIA_MIGRACAO (legado anual IAP migrado por 12 meses)
+  origem               String   @default("ASAAS")
+
+  // Dados do filiado (snapshot no momento da filiação).
+  nomeCompleto         String
+  cpf                  String
+  cep                  String?
+  logradouro           String?
+  numero               String?
+  complemento          String?
+  bairro               String?
+  cidade               String?
+  uf                   String?
+  /// CNH | RG | RNE | OUTRO
+  docTipo              String?
+  /// registroId do ArquivoSync com a imagem/PDF do documento de identificação.
+  docArquivoId         String?
+  documentacaoCompleta Boolean  @default(false)
+
+  // Pagamento (Asaas, assinatura recorrente anual).
+  asaasSubscriptionId  String?  @unique
+  invoiceUrl           String?
+  valorCentavos        Int
+  /// Até quando a filiação é válida (vínculo de 1 ano). Renovações estendem.
+  vigenteAte           DateTime
+  criadoEm             DateTime @default(now())
+  atualizadoEm         DateTime @updatedAt
+
+  usuario UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@index([status])
+  @@map("filiacoes_liga")
+}
+
+/// Configuração da filiação à liga (singleton, id = "unico"), editável pelo
+/// backoffice sem update do app: valor da anuidade e identidade da liga
+/// (nome + logo), usada no app, na carteirinha, no certificado PDF e na página
+/// pública de verificação. Sem linha, usa os defaults de dominio/filiacao.ts.
+model FiliacaoConfig {
+  id            String   @id @default("unico")
+  /// Valor da anuidade da liga, em centavos.
+  valorCentavos Int      @default(0)
+  ativo         Boolean  @default(true)
+  /// Nome da liga exibido nos documentos (ex. "Liga Nacional de Tiro Esportivo").
+  nomeLiga      String?
+  /// Logo da liga como data URI (base64) ou URL. Enviado pelo backoffice.
+  /// LongText: um data URI de imagem passa fácil dos 64KB do TEXT.
+  logoUrl       String?  @db.LongText
+  /// Conteúdo editável da tela da liga (JSON): titulo, subtitulo, vantagens[],
+  /// credibilidade, termos. Null = o app usa o texto embutido (fallback).
+  conteudoJson  String?  @db.LongText
+  atualizadoEm  DateTime @updatedAt
+
+  @@map("filiacao_config")
+}
+
+/// Eventos de produto/analytics (funil de onboarding). Aceita ANÔNIMO (antes de
+/// criar conta) via `anonId` estável do aparelho, e associa à conta quando logado.
+/// Best-effort: só alimenta métricas, nunca afeta o fluxo do app.
+model EventoApp {
+  id         String   @id @default(cuid())
+  /// Id estável do aparelho (gerado no app), para medir o funil do anônimo.
+  anonId     String
+  usuarioId  String?
+  /// Ex.: onb_iniciou, onb_passo_entrou, onb_passo_saiu, onb_pulou, onb_doc_subiu,
+  /// onb_concluiu, liga_vista, liga_filiou, liga_mensal, liga_recusou.
+  evento     String
+  /// Passo do onboarding quando aplicável: conta|validar|cr|craf|liga.
+  passo      String?
+  /// JSON livre (ex.: { tipoDoc, duracaoMs }).
+  meta       String?  @db.Text
+  plataforma String?
+  appVersao  String?
+  criadoEm   DateTime @default(now())
+
+  @@index([evento])
+  @@index([criadoEm])
+  @@index([anonId])
+  @@map("eventos_app")
 }
 
 /// Cupom promocional que libera o Premium. Gerenciado pelo backoffice.
@@ -444,6 +651,11 @@ model DispositivoPush {
   /// Versão de marketing do app reportada no registro (ex.: "1.8.1"). Null em
   /// apps antigos que ainda não mandam — tratados como "desconhecida".
   appVersao    String?
+  /// Premium reportado pelo APARELHO. Cobre compras de usuários ANÔNIMOS (sem
+  /// conta, que não reportam via /presenca). Reflete o cache da loja no aparelho.
+  premium      Boolean  @default(false)
+  /// Origem do premium do aparelho: CUPOM | MENSAL | ANUAL | ANUAL_PARCEIRO.
+  premiumTipo  String?
   ativo        Boolean  @default(true)
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt

@@ -12,11 +12,19 @@ import {
 import { reais } from '@/despachante/formato';
 import type { TipoServicoDespachante } from '@/domain/tipos';
 
+/** Passos genéricos (serviços novos usam estes). */
+const PASSOS_PADRAO: { icone: keyof typeof Ionicons.glyphMap; texto: string }[] = [
+  { icone: 'checkmark-circle-outline', texto: 'Você solicita o serviço aqui pelo app.' },
+  { icone: 'card-outline', texto: 'Paga o serviço (PIX, crédito ou débito).' },
+  { icone: 'briefcase-outline', texto: 'Nosso despachante protocola e cuida de todo o processo.' },
+  { icone: 'notifications-outline', texto: 'Você acompanha o andamento em "Meus processos".' },
+];
+
 /** Como o serviço funciona — passos mostrados no onboarding. */
-const PASSOS: Record<
+const PASSOS: Partial<Record<
   TipoServicoDespachante,
   { icone: keyof typeof Ionicons.glyphMap; texto: string }[]
-> = {
+>> = {
   RENOVACAO_CRAF: [
     { icone: 'checkmark-circle-outline', texto: 'Você escolhe de qual arma renovar o CRAF.' },
     { icone: 'card-outline', texto: 'Paga o serviço aqui pelo app (PIX, crédito ou débito).' },
@@ -37,7 +45,6 @@ export default function ServicoDespachanteTela() {
   const { tipo: tipoParam } = useLocalSearchParams<{ tipo: TipoServicoDespachante }>();
 
   const [servico, setServico] = useState<ServicoDespachante | null>(null);
-  const [gruNota, setGruNota] = useState<string>('');
   const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
@@ -47,7 +54,6 @@ export default function ServicoDespachanteTela() {
         const cat = await listarServicos();
         if (!vivo) return;
         setServico(cat.servicos.find((s) => s.tipo === tipoParam) ?? null);
-        setGruNota(cat.gruNota);
       } catch {
         /* sem rede: deixa o fallback abaixo */
       } finally {
@@ -59,7 +65,7 @@ export default function ServicoDespachanteTela() {
     };
   }, [tipoParam]);
 
-  const passos = PASSOS[tipoParam as TipoServicoDespachante] ?? [];
+  const passos = PASSOS[tipoParam as TipoServicoDespachante] ?? PASSOS_PADRAO;
 
   return (
     <Tela voltar tituloCabecalho="Serviços" estilo={p.conteudo}>
@@ -69,7 +75,13 @@ export default function ServicoDespachanteTela() {
         <>
           <View style={p.coroa}>
             <Ionicons
-              name={tipoParam === 'RENOVACAO_CRAF' ? 'refresh-circle-outline' : 'document-text-outline'}
+              name={
+                tipoParam === 'RENOVACAO_CRAF'
+                  ? 'refresh-circle-outline'
+                  : tipoParam === 'EMISSAO_GUIA'
+                    ? 'document-text-outline'
+                    : 'briefcase-outline'
+              }
               size={28}
               color={c.primario}
             />
@@ -81,11 +93,6 @@ export default function ServicoDespachanteTela() {
             <View style={p.precoCartao}>
               <Text style={p.preco}>{reais(servico.precoCentavos)}</Text>
               <Text style={p.precoUnidade}>{servico.unidade}</Text>
-              <View style={p.detalhe}>
-                <Text style={p.detalheTexto}>
-                  GRU {reais(servico.gruCentavos)} + serviço {reais(servico.servicoCentavos)}
-                </Text>
-              </View>
             </View>
           ) : null}
 
@@ -97,13 +104,6 @@ export default function ServicoDespachanteTela() {
               </View>
             ))}
           </View>
-
-          {gruNota ? (
-            <View style={p.aviso}>
-              <Ionicons name="information-circle-outline" size={18} color={c.textoMedio} />
-              <Text style={p.avisoTexto}>{gruNota}</Text>
-            </View>
-          ) : null}
 
           <View style={p.termos}>
             <Text style={p.termosTitulo}>Antes de contratar, fique ciente:</Text>

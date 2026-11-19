@@ -37,8 +37,8 @@ interface Conta {
     cpf: string;
     email: string;
     senha: string;
-    /** Opcional — número para contato e suporte. */
-    celular?: string | null;
+    /** Obrigatório — número para contato, suporte e cobranças. */
+    celular: string;
   }) => Promise<void>;
   /** descartarLocal: ignora o acervo do aparelho e traz só o da nuvem (true), ou mescla (false). */
   entrar: (email: string, senha: string, descartarLocal?: boolean) => Promise<void>;

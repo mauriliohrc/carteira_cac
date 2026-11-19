@@ -4,19 +4,11 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/api';
-import { tempoRelativo } from '@/lib/formato';
+import type { UsuarioApp } from '@/lib/tipos';
 import { Protegido } from '../../componentes/Protegido';
+import { CabecalhoUsuario, CelulasUsuario } from '../../componentes/ColunasUsuario';
 
-interface UsuarioLinha {
-  id: string;
-  nome: string;
-  email: string;
-  cpf: string;
-  celular: string | null;
-  emailVerificado: boolean;
-  ultimoAcessoEm: string | null;
-  criadoEm: string;
-}
+type UsuarioLinha = UsuarioApp;
 
 const TITULOS: Record<string, string> = {
   todos: 'Usuários com conta',
@@ -79,14 +71,17 @@ function Lista() {
 
   function exportarCsv() {
     if (!usuarios) return;
-    const cab = ['Nome', 'E-mail', 'CPF', 'Celular', 'E-mail confirmado', 'Último acesso', 'Criado em'];
+    const cab = ['Nome', 'E-mail', 'CPF', 'Celular', 'Plano', 'E-mail confirmado', 'Último acesso', 'Versão', 'Armas', 'Criado em'];
     const linhas = usuarios.map((u) => [
       u.nome,
       u.email,
       u.cpf,
       u.celular ?? '',
+      u.premium ? u.premiumTipo ?? 'Premium' : 'Grátis',
       u.emailVerificado ? 'sim' : 'nao',
       u.ultimoAcessoEm ?? '',
+      u.appVersao ?? '',
+      String(u.armasSistema ?? ''),
       u.criadoEm,
     ]);
     const escapar = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
@@ -115,7 +110,7 @@ function Lista() {
         </button>
       </div>
 
-      <div className="cartao" style={{ padding: 0 }}>
+      <div className="cartao" style={{ padding: 0, overflowX: 'auto' }}>
         {!usuarios ? (
           <div className="vazio">Carregando…</div>
         ) : usuarios.length === 0 ? (
@@ -124,32 +119,15 @@ function Lista() {
           <table>
             <thead>
               <tr>
-                <th>Nome</th>
-                <th>E-mail</th>
                 <th>CPF</th>
-                <th>Celular</th>
-                <th>Último acesso</th>
-                <th>Criado em</th>
+                <CabecalhoUsuario />
               </tr>
             </thead>
             <tbody>
               {usuarios.map((u) => (
                 <tr key={u.id}>
-                  <td>
-                    <Link href={`/usuarios/${u.id}`}>{u.nome}</Link>
-                  </td>
-                  <td>
-                    {u.email}{' '}
-                    {u.emailVerificado ? (
-                      <span title="E-mail confirmado" style={{ color: 'var(--ok)' }}>✓</span>
-                    ) : (
-                      <span title="E-mail não confirmado" style={{ color: '#c99a2e' }}>⧗</span>
-                    )}
-                  </td>
-                  <td>{u.cpf}</td>
-                  <td>{u.celular || '—'}</td>
-                  <td>{u.ultimoAcessoEm ? tempoRelativo(u.ultimoAcessoEm) : 'nunca'}</td>
-                  <td>{new Date(u.criadoEm).toLocaleDateString('pt-BR')}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{u.cpf}</td>
+                  <CelulasUsuario u={u} />
                 </tr>
               ))}
             </tbody>

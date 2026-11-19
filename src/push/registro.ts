@@ -4,6 +4,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 import { apiApp } from '@/conta/api';
+import { consultarPremiumCache, consultarTipoPremiumCache } from '@/billing';
 
 function obterProjectId(): string | undefined {
   return (
@@ -40,10 +41,14 @@ export async function registrarDispositivo(authToken?: string): Promise<void> {
   // Versão de marketing (app.json → "1.8.1"). O backoffice usa para rastrear
   // quem está desatualizado. Campo opcional: servidor aceita ausência.
   const appVersao = Constants.expoConfig?.version ?? undefined;
+  // Premium do aparelho — permite contabilizar compras de usuários ANÔNIMOS
+  // (sem conta, que não reportam via /presenca).
+  const premium = await consultarPremiumCache();
+  const premiumTipo = (await consultarTipoPremiumCache()) ?? undefined;
   try {
     await apiApp('/dispositivos', {
       metodo: 'POST',
-      corpo: { token, plataforma, appVersao },
+      corpo: { token, plataforma, appVersao, premium, premiumTipo },
       token: authToken ?? null,
     });
   } catch {

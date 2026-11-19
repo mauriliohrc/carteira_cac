@@ -35,7 +35,7 @@ export default function Cadastrar() {
   const senhaOk = senha.length >= 6;
   const nomeOk = nome.trim().length >= 2;
   const celularDigitos = celular.replace(/\D/g, '');
-  const celularOk = celularDigitos.length === 0 || celularDigitos.length === 10 || celularDigitos.length === 11;
+  const celularOk = celularDigitos.length === 10 || celularDigitos.length === 11;
   const podeEnviar = nomeOk && cpfOk && emailOk && senhaOk && celularOk;
 
   async function aoCadastrar() {
@@ -49,7 +49,7 @@ export default function Cadastrar() {
         cpf: limparCPF(cpf),
         email: email.trim(),
         senha,
-        celular: celularDigitos || null,
+        celular: celularDigitos,
       });
       router.back();
     } catch (e) {
@@ -91,14 +91,15 @@ export default function Cadastrar() {
         erro={tocado && !emailOk ? 'E-mail inválido.' : null}
       />
       <Campo
-        rotulo="Celular (opcional)"
+        rotulo="Celular"
         valor={celular}
         aoMudar={(v) => setCelular(mascaraCelular(v))}
         teclado="numeric"
         placeholder="(11) 99999-9999"
         maxLength={16}
-        dica="Usamos só para entrar em contato e dar suporte, se você precisar."
-        erro={tocado && !celularOk ? 'Informe um celular válido com DDD, ou deixe em branco.' : null}
+        obrigatorio
+        dica="Usamos para contato, suporte e para as cobranças dos serviços e da liga."
+        erro={tocado && !celularOk ? 'Informe um celular válido com DDD.' : null}
       />
       <Campo
         rotulo="Senha"

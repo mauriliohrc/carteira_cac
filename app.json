@@ -2,7 +2,7 @@
   "expo": {
     "name": "Carteira CAC",
     "slug": "cac-brasil",
-    "version": "1.8.2",
+    "version": "1.9.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "scheme": "cacbrasil",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "br.com.cacbrasil.carteira",
-      "buildNumber": "22",
+      "buildNumber": "29",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "A Carteira CAC usa suas fotos para você anexar imagens dos seus documentos — CRAF, guia de tráfego, laudo e CR — à carteira. As imagens ficam salvas só neste aparelho.",
         "NSCameraUsageDescription": "A Carteira CAC usa a câmera para você fotografar seus documentos — CRAF, guia de tráfego, laudo e CR — e anexá-los à carteira. As fotos ficam salvas só neste aparelho.",
@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "br.com.cacbrasil.carteira",
-      "versionCode": 22,
+      "versionCode": 28,
       "googleServicesFile": "./google-services.json",
       "predictiveBackGestureEnabled": false,
       "adaptiveIcon": {
@@ -80,6 +80,32 @@
         }
       ],
       "expo-iap",
+      [
+        "expo-widgets",
+        {
+          "groupIdentifier": "group.br.com.cacbrasil.carteira",
+          "enableAndroid": false,
+          "widgets": [
+            {
+              "name": "Acervo",
+              "displayName": "Status do acervo",
+              "description": "Veja num relance se seus documentos e habitualidade estão em dia.",
+              "supportedFamilies": [
+                "systemSmall",
+                "systemMedium"
+              ],
+              "contentMarginsDisabled": false,
+              "android": {
+                "minWidth": 180,
+                "minHeight": 110,
+                "targetCellWidth": 4,
+                "targetCellHeight": 2,
+                "resizeMode": "both"
+              }
+            }
+          ]
+        }
+      ],
       "./plugins/withSceneLifecycle"
     ],
     "experiments": {

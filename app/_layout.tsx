@@ -1,14 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Stack, router, type ErrorBoundaryProps } from 'expo-router';
+import { Stack, router, usePathname, type ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { hrefDeDados, type DadosNotificacao } from '@/notificacoes/rotas';
 import { consultarPremiumCache } from '@/billing';
+import { deveOfertarLiga, registrarOfertaExibida, rearmarOfertaSessao } from '@/liga/oferta';
 import { AppProvider, useApp } from '@/estado/AppContext';
 import { ContaProvider, useConta } from '@/conta/ContaContext';
 import { CHAVES, gravarConfig, lerConfig } from '@/db/config';
@@ -96,6 +97,7 @@ function Raiz() {
   const { logado, usuario, carregando: contaCarregando } = useConta();
   const { pronta: trancaPronta, bloqueado } = useTranca();
   const c = useCores();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (pronto && trancaPronta) void SplashScreen.hideAsync();
@@ -119,19 +121,53 @@ function Raiz() {
   useEffect(() => {
     void lerConfig(CHAVES.onboardingFluxo).then((v) => setFluxoVisto(v === '1'));
   }, []);
+
+  // Acervo essencial vazio: nenhuma arma E nenhum documento-chave (CRAF, Guia
+  // de Tráfego ou CR). É o estado de "ainda não comecei meu acervo".
+  const semAcervoEssencial =
+    armas.length === 0 &&
+    !documentos.some((d) => d.tipo === 'CRAF' || d.tipo === 'GUIA_TRAFEGO' || d.tipo === 'CR');
+
+  // Enquanto o acervo essencial estiver vazio, reabrimos o fluxo guiado a CADA
+  // abertura do app (boot E volta do background), não só na primeira vez — o
+  // objetivo é empurrar o cadastro do primeiro documento até ele existir. Ao
+  // voltar à frente rearmamos `fluxoDisparado`; dentro da mesma vinda à frente
+  // ele evita abrir uma segunda cópia por cima.
   const fluxoDisparado = useRef(false);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (estado) => {
+      if (estado === 'active') {
+        fluxoDisparado.current = false;
+        rearmarOfertaSessao();
+      }
+    });
+    return () => sub.remove();
+  }, []);
   useEffect(() => {
     // Espera a sessão terminar de restaurar: no boot `logado` fica `false` por um
     // instante, e sem esse guarda o passo "conta" piscaria para quem já entrou.
     if (fluxoDisparado.current || fluxoVisto === null || !stackMontada || contaCarregando) return;
+    // Já dentro do próprio fluxo, não empilha outra cópia por cima.
+    if (pathname === '/onboarding-fluxo') return;
     const semDoc = logado && documentos.length === 0;
     const semArma = logado && armas.length === 0;
-    const deveAbrir = (!fluxoVisto && (!logado || semDoc || semArma)) || semDoc;
+    // Primeira vez (qualquer pendência) OU acervo essencial vazio em QUALQUER
+    // abertura — este último é o que reabre o fluxo "toda vez que abrir o app".
+    const deveAbrir = (!fluxoVisto && (!logado || semDoc || semArma)) || semAcervoEssencial;
     if (!deveAbrir) return;
     fluxoDisparado.current = true;
     void gravarConfig(CHAVES.onboardingFluxo, '1');
     router.push('/onboarding-fluxo');
-  }, [stackMontada, fluxoVisto, logado, documentos.length, armas.length, contaCarregando]);
+  }, [
+    stackMontada,
+    fluxoVisto,
+    logado,
+    documentos,
+    armas.length,
+    contaCarregando,
+    semAcervoEssencial,
+    pathname,
+  ]);
 
   // Voltamos ao onboarding inicial (ex.: logout rearma tudo em AppContext):
   // rearma o fluxo guiado para ele reaparecer assim que as permissões acabarem.
@@ -154,15 +190,33 @@ function Raiz() {
     }
   }, [stackMontada, logado, usuario, fluxoVisto]);
 
-  // Upsell: conta já confirmada, acervo acima do limite gratuito e sem Premium.
-  // Mostra uma vez por sessão o convite para assinar e liberar tudo.
-  const upsellMostrado = useRef(false);
+  // Oferta da liga (substitui o antigo upsell de premium: a liga já inclui o
+  // Premium e tem o fallback mensal). Em momento de valor — conta confirmada,
+  // já tem acervo e ainda está no grátis — decide entre:
+  //  • SPOTLIGHT: quem já usava o app e nunca viu a liga (atualizou de versão
+  //    antiga: tem acervo mas nenhuma oferta anterior) → 1 modal de novidade.
+  //  • RECONVERSÃO: demais não-filiados, respeitando o cooldown (7/14/30/60 d)
+  //    para não ser chato.
+  const ofertaLigaRef = useRef(false);
   useEffect(() => {
-    if (upsellMostrado.current || fluxoVisto !== true) return; // não empilha sobre o fluxo guiado
-    if (stackMontada && logado && usuario?.emailVerificado && !premium && armas.length > 1) {
-      upsellMostrado.current = true;
-      router.push('/premium-upsell');
-    }
+    if (ofertaLigaRef.current || fluxoVisto !== true) return; // não empilha sobre o fluxo guiado
+    if (!(stackMontada && logado && usuario?.emailVerificado && !premium && armas.length > 0)) return;
+    ofertaLigaRef.current = true;
+    (async () => {
+      const spotlightVisto = (await lerConfig(CHAVES.ligaSpotlightVisto)) === '1';
+      const ofertasAnteriores = Number((await lerConfig(CHAVES.ligaDispensas)) ?? '0') || 0;
+      // Já usava e nunca viu a liga: spotlight único de novidade.
+      if (!spotlightVisto && ofertasAnteriores === 0) {
+        await gravarConfig(CHAVES.ligaSpotlightVisto, '1');
+        await registrarOfertaExibida();
+        router.push({ pathname: '/filiacao', params: { novidade: '1' } });
+        return;
+      }
+      if (await deveOfertarLiga()) {
+        await registrarOfertaExibida();
+        router.push('/filiacao');
+      }
+    })();
   }, [stackMontada, logado, usuario, premium, armas.length, fluxoVisto]);
 
   // Tocar na notificação: abre direto no alvo (notícia, documento, arma,
@@ -218,13 +272,21 @@ function Raiz() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="arma/[id]" />
       <Stack.Screen name="arma/editar" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="habitualidade/editar" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="habitualidade/locais" options={{ presentation: 'modal' }} />
+      {/* habitualidade/editar e /locais abrem `await confirmar` (excluir) — como
+          o diálogo é um Modal da raiz, o iOS não o mostra sobre um modal nativo e
+          o fluxo trava no "confirmar". Não-modais, como as demais que confirmam. */}
+      <Stack.Screen name="habitualidade/editar" />
+      <Stack.Screen name="habitualidade/locais" />
       <Stack.Screen name="documento/[id]" />
       <Stack.Screen name="documento/editar" options={{ presentation: 'modal' }} />
       <Stack.Screen name="visualizador" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="premium" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="premium-upsell" options={{ presentation: 'modal' }} />
+      {/* premium/premium-upsell NÃO-modais de propósito: abrem diálogos
+          (avisar em restaurar/assinar) e levam ao fluxo da liga (também modal);
+          no iOS o diálogo da raiz não aparece sobre um modal nativo e a UI trava
+          — mesmo motivo das telas abaixo. Além disso, premium modal + filiação
+          modal empilhavam dois modais e o dismissAll+push do checkout travava. */}
+      <Stack.Screen name="premium" />
+      <Stack.Screen name="premium-upsell" />
       <Stack.Screen name="onboarding-fluxo" />
       {/* Tela empilhada (não modal): os diálogos de confirmação/aviso e o
           loading são apresentados a partir da raiz, e o iOS não mostra isso de
@@ -256,6 +318,14 @@ function Raiz() {
       <Stack.Screen name="despachante/pedido" />
       <Stack.Screen name="despachante/checkout" />
       <Stack.Screen name="despachante/meus" />
+      {/* Filiação à liga. 'dados' abre diálogos (avisar) e checkout empilha —
+          por isso não-modais (iOS não mostra diálogo sobre modal), como acima. */}
+      {/* Ajustes (ex-aba "Mais"): agora empilhada, aberta pelo botão do header. */}
+      <Stack.Screen name="mais" />
+      <Stack.Screen name="filiacao/index" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="filiacao/dados" />
+      <Stack.Screen name="filiacao/checkout" />
+      <Stack.Screen name="filiacao/carteirinha" />
     </Stack>
   );
 

@@ -21,6 +21,9 @@ import { rotasWhatsAdmin } from './rotas/whatsAdmin.js';
 import { rotasAcervoAdmin } from './rotas/acervoAdmin.js';
 import { rotasCuponsAdmin } from './rotas/cuponsAdmin.js';
 import { rotasDespachanteAdmin } from './rotas/despachanteAdmin.js';
+import { rotasFiliacoesAdmin } from './rotas/filiacoesAdmin.js';
+import { rotasChurnAdmin } from './rotas/churnAdmin.js';
+import { rotasMetricasAdmin } from './rotas/metricasAdmin.js';
 import { rotasAppV1 } from './rotas/v1/appAuth.js';
 import { rotasNoticiasAppV1 } from './rotas/v1/appNoticias.js';
 import { rotasDispositivosAppV1 } from './rotas/v1/appDispositivos.js';
@@ -32,10 +35,16 @@ import { rotasDocumentosAppV1 } from './rotas/v1/appDocumentos.js';
 import { rotasCupomAppV1 } from './rotas/v1/appCupom.js';
 import { rotasCompeticoesAppV1 } from './rotas/v1/appCompeticoes.js';
 import { rotasDespachanteAppV1 } from './rotas/v1/appDespachante.js';
+import { rotasFiliacaoAppV1 } from './rotas/v1/appFiliacao.js';
 import { rotasMarketplaceAppV1 } from './rotas/v1/appMarketplace.js';
+import { rotasAssinaturaAppV1 } from './rotas/v1/appAssinatura.js';
+import { rotasEventosAppV1 } from './rotas/v1/appEventos.js';
 import { rotasPublicoMarketplace } from './rotas/publicoMarketplace.js';
 import { rotasMarketplaceAdmin } from './rotas/marketplaceAdmin.js';
 import { rotasWebhookAsaas } from './rotas/webhookAsaas.js';
+import { rotasPublicoFiliacao } from './rotas/publicoFiliacao.js';
+import { rotasWebhookApple } from './rotas/webhookApple.js';
+import { rotasWebhookGoogle } from './rotas/webhookGoogle.js';
 
 export function construirApp() {
   // bodyLimit alto: uploads de PDF/foto em base64 na sincronização.
@@ -100,6 +109,9 @@ export function construirApp() {
   app.register(rotasAcervoAdmin);
   app.register(rotasCuponsAdmin);
   app.register(rotasDespachanteAdmin);
+  app.register(rotasFiliacoesAdmin);
+  app.register(rotasChurnAdmin);
+  app.register(rotasMetricasAdmin);
   app.register(rotasMarketplaceAdmin);
   app.register(rotasPublicoMarketplace);
 
@@ -116,10 +128,19 @@ export function construirApp() {
   app.register(rotasCupomAppV1, { prefix: '/api/v1' });
   app.register(rotasCompeticoesAppV1, { prefix: '/api/v1' });
   app.register(rotasDespachanteAppV1, { prefix: '/api/v1' });
+  app.register(rotasFiliacaoAppV1, { prefix: '/api/v1' });
   app.register(rotasMarketplaceAppV1, { prefix: '/api/v1' });
+  app.register(rotasAssinaturaAppV1, { prefix: '/api/v1' });
+  app.register(rotasEventosAppV1, { prefix: '/api/v1' });
 
   // Webhook do Asaas — público (autenticado por token no header), sem prefixo.
   app.register(rotasWebhookAsaas);
+  // Verificação pública da filiação (destino do QR do certificado), sem prefixo.
+  app.register(rotasPublicoFiliacao);
+  // Webhook da Apple (App Store Server Notifications V2) — público, autenticado
+  // pela assinatura JWS da própria Apple. Sem prefixo.
+  app.register(rotasWebhookApple);
+  app.register(rotasWebhookGoogle);
 
   return app;
 }

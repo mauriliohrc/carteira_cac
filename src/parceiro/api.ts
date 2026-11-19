@@ -3,6 +3,8 @@ import { lerToken } from '@/conta/armazenamento';
 
 export interface Elegibilidade {
   elegivel: boolean;
+  /** true = oferta de reconquista (win-back) liberada pelo backoffice. */
+  winback?: boolean;
   entidade?: { id: string; nome: string };
   atirador?: { nome?: string; matricula?: string; expiracao?: string };
   plano: { id: string; nome: string; precoLabel: string; periodo: string };

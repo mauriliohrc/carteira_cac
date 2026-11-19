@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/cliente.js';
 import { refletirProcessoNoSync } from '../dominio/despachanteSync.js';
+import { ativarFiliacao, encerrarFiliacao } from '../dominio/filiacao.js';
 import { resolverConfigAsaas } from '../dominio/asaasConfig.js';
 
 /** Eventos do Asaas que confirmam o pagamento → processo vira 'pago'. */
@@ -15,7 +16,7 @@ const EVENTOS_CANCELADO = new Set([
 
 interface CorpoWebhook {
   event?: string;
-  payment?: { id?: string; externalReference?: string };
+  payment?: { id?: string; externalReference?: string; subscription?: string };
 }
 
 /**
@@ -51,32 +52,56 @@ export async function rotasWebhookAsaas(app: FastifyInstance) {
     const { event, payment } = (req.body ?? {}) as CorpoWebhook;
     const pagamentoId = payment?.id;
     const referencia = payment?.externalReference;
+    const assinaturaId = payment?.subscription;
 
-    let novoStatus: string | null = null;
-    if (event && EVENTOS_PAGO.has(event)) novoStatus = 'pago';
-    else if (event && EVENTOS_CANCELADO.has(event)) novoStatus = 'cancelado';
-
+    const ehPago = Boolean(event && EVENTOS_PAGO.has(event));
+    const ehCancelado = Boolean(event && EVENTOS_CANCELADO.has(event));
     // Eventos que não mexem no andamento (ex.: PAYMENT_UPDATED): só confirmamos.
-    if (!novoStatus) return { ok: true };
+    if (!ehPago && !ehCancelado) return { ok: true };
 
-    // Acha o processo pelo id do pagamento (preferido) ou pela referência externa.
-    const processo = await prisma.processoDespachante.findFirst({
-      where: pagamentoId ? { asaasPaymentId: pagamentoId } : { id: referencia ?? '__none__' },
-    });
-    if (!processo) return { ok: true }; // nada a fazer; não força o Asaas a repetir
-
-    // Idempotência: já está no status alvo → nada a fazer.
-    if (processo.status === novoStatus) return { ok: true };
-    // Não "rebaixa" um processo que já avançou além de pago (em_andamento/concluido).
-    if (novoStatus === 'pago' && ['em_andamento', 'concluido'].includes(processo.status)) {
-      return { ok: true };
+    // --- Despachante: cobrança avulsa (sem assinatura). Mantido intacto. ------
+    if (!assinaturaId) {
+      const novoStatus = ehPago ? 'pago' : 'cancelado';
+      const processo = await prisma.processoDespachante.findFirst({
+        where: pagamentoId ? { asaasPaymentId: pagamentoId } : { id: referencia ?? '__none__' },
+      });
+      if (processo) {
+        // Idempotência + não "rebaixa" um processo já avançado.
+        if (processo.status === novoStatus) return { ok: true };
+        if (novoStatus === 'pago' && ['em_andamento', 'concluido'].includes(processo.status)) {
+          return { ok: true };
+        }
+        const atualizado = await prisma.processoDespachante.update({
+          where: { id: processo.id },
+          data: { status: novoStatus },
+        });
+        await refletirProcessoNoSync(atualizado);
+        return { ok: true };
+      }
+      // Pode ser uma cobrança de filiação cujo payment ainda não casou por
+      // subscription (raro). Tenta a filiação pela referência externa abaixo.
     }
 
-    const atualizado = await prisma.processoDespachante.update({
-      where: { id: processo.id },
-      data: { status: novoStatus },
+    // --- Filiação à liga: assinatura anual recorrente. ------------------------
+    // Casa pela assinatura (preferido) ou pela referência externa (= id da
+    // filiação, herdada pelas cobranças da assinatura).
+    const filiacao = await prisma.filiacaoLiga.findFirst({
+      where: assinaturaId
+        ? { asaasSubscriptionId: assinaturaId }
+        : { id: referencia ?? '__none__' },
     });
-    await refletirProcessoNoSync(atualizado);
+    if (!filiacao) return { ok: true }; // nada a fazer; não força o Asaas a repetir
+
+    if (ehPago) {
+      // Idempotência de pagamento repetido no mesmo ciclo: se já ativa e ainda
+      // vigente, não estende de novo (o Asaas pode reenviar o mesmo evento).
+      if (filiacao.status === 'ativa' && filiacao.vigenteAte > new Date()) return { ok: true };
+      await ativarFiliacao(filiacao, { origemEvento: 'ASAAS' });
+    } else {
+      const novoStatus = event === 'PAYMENT_OVERDUE' ? 'vencida' : 'cancelada';
+      if (filiacao.status === novoStatus) return { ok: true };
+      await encerrarFiliacao(filiacao, novoStatus, 'ASAAS');
+    }
 
     return { ok: true };
   });

@@ -8,9 +8,12 @@ import { cancelarCobranca, criarCliente, criarCobranca } from '../../integracoes
 import { refletirProcessoNoSync, removerProcessoDoSync } from '../../dominio/despachanteSync.js';
 import { GRU_NOTA } from '../../dominio/despachante.js';
 import { resolverServico, resolverServicos } from '../../dominio/despachanteConfig.js';
+import { lerTexto, CHAVE_WHATSAPP_JURIDICO } from '../../config/configStore.js';
 
 const pedidoSchema = z.object({
-  tipoServico: z.enum(['RENOVACAO_CRAF', 'EMISSAO_GUIA']),
+  // Validação real contra o catálogo (resolverServico) — aceita qualquer tipo
+  // do catálogo sem precisar listar literais aqui.
+  tipoServico: z.string().trim().min(1).max(60),
   armaId: z.string().optional().nullable(),
   armaNome: z.string().trim().max(120).optional().nullable(),
 });
@@ -43,9 +46,11 @@ export async function rotasDespachanteAppV1(app: FastifyInstance) {
   app.addHook('preHandler', exigirApp());
 
   // Catálogo de serviços (preços resolvidos: defaults + override do backoffice).
+  // `whatsappJuridico` = número configurável para o botão "Auxílio Jurídico".
   app.get('/app/despachante/servicos', async () => {
     const servicos = (await resolverServicos()).filter((s) => s.ativo);
-    return { servicos, gruNota: GRU_NOTA };
+    const whatsappJuridico = (await lerTexto(CHAVE_WHATSAPP_JURIDICO)) ?? '';
+    return { servicos, gruNota: GRU_NOTA, whatsappJuridico };
   });
 
   // Processos do usuário (fonte da verdade; o app também os recebe via sync).

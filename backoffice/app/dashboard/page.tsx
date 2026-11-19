@@ -20,9 +20,14 @@ interface Dashboard {
     planoAnual: number;
     planoMensal: number;
     premiumGratis: number;
+    churnCancelouRenovacao: number;
+    churnPerdidos30: number;
     processosTotal: number;
     processosAguardando: number;
     processosPagos: number;
+    totalFiliados: number;
+    filiadosPendenteDoc: number;
+    filiacoesVencidas: number;
     // compat
     total: number;
     ativos: number;
@@ -69,49 +74,65 @@ function Conteudo() {
 
   if (!d) return <div className="vazio">Carregando…</div>;
 
-  // Ordem pedida: geral → com conta → ativas → sem conta → sem validar e-mail
-  // → com documentos → sem documentos → com vínculo.
-  const cards: {
-    titulo: string;
-    valor: number;
-    dica: string;
-    href?: string; // ausente = card não clicável (ex.: agregado)
-  }[] = [
-    { titulo: 'Total geral', valor: d.cards.totalGeral, dica: 'Contas + instalações anônimas' },
-    { titulo: 'Com conta', valor: d.cards.comConta, dica: 'Contas criadas no app', href: '/dashboard/todos' },
-    { titulo: 'Contas ativas', valor: d.cards.contasAtivas, dica: 'Conta habilitada', href: '/dashboard/contasAtivas' },
-    { titulo: 'Sem conta', valor: d.cards.semConta, dica: 'Instalações anônimas', href: '/usuarios' },
-    { titulo: 'Sem validar e-mail', valor: d.cards.semAtivar, dica: 'Não confirmaram o e-mail', href: '/dashboard/semAtivar' },
-    { titulo: 'Com documentos', valor: d.cards.comDocumento, dica: 'Têm documentos cadastrados', href: '/dashboard/comDocumento' },
-    { titulo: 'Sem documentos', valor: d.cards.semDocumento, dica: 'Nenhum documento cadastrado', href: '/dashboard/semDocumento' },
-    { titulo: 'Com vínculo', valor: d.cards.comVinculo, dica: 'Vinculados a uma entidade', href: '/dashboard/comVinculo' },
-    { titulo: 'Plano anual ativo', valor: d.cards.planoAnual, dica: 'Assinantes anuais', href: '/dashboard/planoAnual' },
-    { titulo: 'Plano mensal ativo', valor: d.cards.planoMensal, dica: 'Assinantes mensais', href: '/dashboard/planoMensal' },
-    { titulo: 'Premium grátis', valor: d.cards.premiumGratis, dica: 'Premium via cupom', href: '/dashboard/premiumGratis' },
-    { titulo: 'Processos', valor: d.cards.processosTotal, dica: 'Serviços contratados (total)', href: '/despachante' },
-    { titulo: 'Aguardando pagamento', valor: d.cards.processosAguardando, dica: 'Processos não pagos', href: '/despachante' },
-    { titulo: 'Processos pagos', valor: d.cards.processosPagos, dica: 'Pagos — a executar/concluir', href: '/despachante' },
-  ];
+  // Cards agrupados por tópico (Usuários, Liga, Premium, Despachante, Demais).
+  type Card = { titulo: string; valor: number; dica: string; href?: string };
 
-  // Cards de versão do app entram no MESMO grid dos demais, clicáveis (abrem a
-  // lista de usuários daquela fatia).
-  if (versoes) {
-    cards.push(
-      {
-        titulo: `Na última${versoes.latest ? ` · ${versoes.latest}` : ''}`,
-        valor: versoes.versoes.find((v) => v.versao === versoes.latest)?.usuarios ?? 0,
-        dica: 'Na versão mais nova',
-        href: versoes.latest ? `/dashboard/${encodeURIComponent(`versao:${versoes.latest}`)}` : undefined,
-      },
-      {
-        titulo: 'Desatualizados',
-        // Quem não reporta versão (app antigo) também conta como desatualizado.
-        valor: versoes.desatualizados + versoes.desconhecidos,
-        dica: 'Abaixo da última ou sem versão',
-        href: '/dashboard/desatualizados',
-      }
-    );
-  }
+  const demais: Card[] = versoes
+    ? [
+        {
+          titulo: `Na última${versoes.latest ? ` · ${versoes.latest}` : ''}`,
+          valor: versoes.versoes.find((v) => v.versao === versoes.latest)?.usuarios ?? 0,
+          dica: 'Na versão mais nova',
+          href: versoes.latest ? `/dashboard/${encodeURIComponent(`versao:${versoes.latest}`)}` : undefined,
+        },
+        {
+          titulo: 'Desatualizados',
+          // Quem não reporta versão (app antigo) também conta como desatualizado.
+          valor: versoes.desatualizados + versoes.desconhecidos,
+          dica: 'Abaixo da última ou sem versão',
+          href: '/dashboard/desatualizados',
+        },
+      ]
+    : [];
+
+  const grupos: { titulo: string; cards: Card[] }[] = [
+    {
+      titulo: 'Usuários',
+      cards: [
+        { titulo: 'Total geral', valor: d.cards.totalGeral, dica: 'Contas + instalações anônimas' },
+        { titulo: 'Contas ativas', valor: d.cards.contasAtivas, dica: 'Conta habilitada', href: '/dashboard/contasAtivas' },
+        { titulo: 'Sem conta', valor: d.cards.semConta, dica: 'Instalações anônimas', href: '/usuarios' },
+        { titulo: 'Sem validar', valor: d.cards.semAtivar, dica: 'Não confirmaram o e-mail', href: '/dashboard/semAtivar' },
+        { titulo: 'Com documentos', valor: d.cards.comDocumento, dica: 'Têm documentos cadastrados', href: '/dashboard/comDocumento' },
+        { titulo: 'Sem documentos', valor: d.cards.semDocumento, dica: 'Nenhum documento cadastrado', href: '/dashboard/semDocumento' },
+      ],
+    },
+    {
+      titulo: 'Liga',
+      cards: [
+        { titulo: 'Total de filiados', valor: d.cards.totalFiliados, dica: 'Filiações ativas na liga', href: '/filiacoes' },
+        { titulo: 'Filiações pendentes', valor: d.cards.filiadosPendenteDoc, dica: 'Ativas sem documento enviado', href: '/filiacoes?filtro=pendente_doc' },
+        { titulo: 'Filiações vencidas', valor: d.cards.filiacoesVencidas, dica: 'Vínculo expirado', href: '/filiacoes?filtro=vencida' },
+      ],
+    },
+    {
+      titulo: 'Premium',
+      cards: [
+        { titulo: 'Plano anual ativo', valor: d.cards.planoAnual, dica: 'Assinantes anuais', href: '/dashboard/planoAnual' },
+        { titulo: 'Plano mensal ativo', valor: d.cards.planoMensal, dica: 'Assinantes mensais', href: '/dashboard/planoMensal' },
+        { titulo: 'Premium grátis', valor: d.cards.premiumGratis, dica: 'Premium via cupom', href: '/dashboard/premiumGratis' },
+      ],
+    },
+    {
+      titulo: 'Despachante',
+      cards: [
+        { titulo: 'Processos', valor: d.cards.processosTotal, dica: 'Serviços contratados (total)', href: '/despachante' },
+        { titulo: 'Aguardando pagamento', valor: d.cards.processosAguardando, dica: 'Processos não pagos', href: '/despachante' },
+        { titulo: 'Pagos', valor: d.cards.processosPagos, dica: 'Pagos — a executar/concluir', href: '/despachante' },
+      ],
+    },
+    { titulo: 'Demais', cards: demais },
+  ];
 
   return (
     <>
@@ -133,27 +154,44 @@ function Conteudo() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14 }}>
-        {cards.map((c) => {
-          const corpo = (
-            <div className="cartao" style={{ cursor: c.href ? 'pointer' : 'default', height: '100%' }}>
-              <div style={{ fontSize: 32, fontWeight: 800, lineHeight: 1 }}>{c.valor}</div>
-              <div style={{ fontWeight: 600, marginTop: 6 }}>{c.titulo}</div>
-              <div style={{ color: 'var(--texto-suave)', fontSize: 12.5, marginTop: 2 }}>
-                {c.dica}
-                {c.href ? ' ›' : ''}
-              </div>
+      {grupos.map((g) =>
+        g.cards.length === 0 ? null : (
+          <section key={g.titulo} style={{ marginBottom: 22 }}>
+            <h2
+              style={{
+                fontSize: 13,
+                textTransform: 'uppercase',
+                letterSpacing: 1,
+                color: 'var(--texto-suave)',
+                margin: '0 0 10px',
+              }}
+            >
+              {g.titulo}
+            </h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14 }}>
+              {g.cards.map((c) => {
+                const corpo = (
+                  <div className="cartao" style={{ cursor: c.href ? 'pointer' : 'default', height: '100%' }}>
+                    <div style={{ fontSize: 32, fontWeight: 800, lineHeight: 1 }}>{c.valor}</div>
+                    <div style={{ fontWeight: 600, marginTop: 6 }}>{c.titulo}</div>
+                    <div style={{ color: 'var(--texto-suave)', fontSize: 12.5, marginTop: 2 }}>
+                      {c.dica}
+                      {c.href ? ' ›' : ''}
+                    </div>
+                  </div>
+                );
+                return c.href ? (
+                  <Link key={c.titulo} href={c.href} style={{ textDecoration: 'none' }}>
+                    {corpo}
+                  </Link>
+                ) : (
+                  <div key={c.titulo}>{corpo}</div>
+                );
+              })}
             </div>
-          );
-          return c.href ? (
-            <Link key={c.titulo} href={c.href} style={{ textDecoration: 'none' }}>
-              {corpo}
-            </Link>
-          ) : (
-            <div key={c.titulo}>{corpo}</div>
-          );
-        })}
-      </div>
+          </section>
+        )
+      )}
 
       {versoes && versoes.versoes.length > 0 && (
         <div className="cartao" style={{ marginTop: 16 }}>

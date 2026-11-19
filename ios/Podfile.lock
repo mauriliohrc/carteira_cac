@@ -114,10 +114,13 @@ PODS:
     - ExpoModulesCore
   - ExpoSymbols (57.0.3):
     - ExpoModulesCore
-  - ExpoUI (57.0.19):
+  - ExpoUI (57.0.26):
     - ExpoModulesCore
     - ExpoModulesWorklets
     - React-RCTFabric
+  - ExpoWidgets (57.0.28):
+    - ExpoModulesCore
+    - ExpoUI
   - FBLazyVector (0.86.3)
   - hermes-engine (250829098.0.17):
     - hermes-engine/Pre-built (= 250829098.0.17)
@@ -2329,7 +2332,8 @@ DEPENDENCIES:
   - ExpoSQLite (from `../node_modules/expo-sqlite/ios`)
   - ExpoStoreReview (from `../node_modules/expo-store-review/ios`)
   - ExpoSymbols (from `../node_modules/expo-symbols/ios`)
-  - "ExpoUI (from `../node_modules/expo-router/node_modules/@expo/ui/ios`)"
+  - "ExpoUI (from `../node_modules/@expo/ui/ios`)"
+  - ExpoWidgets (from `../node_modules/expo-widgets/ios`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
@@ -2482,7 +2486,9 @@ EXTERNAL SOURCES:
   ExpoSymbols:
     :path: "../node_modules/expo-symbols/ios"
   ExpoUI:
-    :path: "../node_modules/expo-router/node_modules/@expo/ui/ios"
+    :path: "../node_modules/@expo/ui/ios"
+  ExpoWidgets:
+    :path: "../node_modules/expo-widgets/ios"
   FBLazyVector:
     :path: "../node_modules/react-native/Libraries/FBLazyVector"
   hermes-engine:
@@ -2681,7 +2687,8 @@ SPEC CHECKSUMS:
   ExpoSQLite: 72e6ada0504a27cd043eb1bf172db70485a761b6
   ExpoStoreReview: a70a18f8ec77262d6c63a6578ce4de3b3ee8ddf0
   ExpoSymbols: 37a3a6e5847edb08b83a5ee04d3b46525e205f00
-  ExpoUI: 98d4650d9d32daaf772597adc76525c645b1ff76
+  ExpoUI: 162ba2d970e9fba2d53d819945c41ed6b529a73f
+  ExpoWidgets: 1a4f9a108209246411306b00bf8df227acb92afd
   FBLazyVector: 2138c6c2ab66c31bf5754dc18097fbc498a49c7f
   hermes-engine: 63c5db7d529c36335fada6582fd293ae2a105d77
   openiap: 253070b2afe71078a2cae63a2b8e282bdd44a059
@@ -2766,6 +2773,6 @@ SPEC CHECKSUMS:
   RNWorklets: 43af89f696342f91118a2f1f3a879056e2f47331
   Yoga: 18b74b3ade30bebc1904004dfaceae1dd02a330a
 
-PODFILE CHECKSUM: 6cc4d457920cd94f2e06297de74cf87799fb6114
+PODFILE CHECKSUM: e18e795676fbf655269dd75783ac9975ce95ce58
 
 COCOAPODS: 1.16.2

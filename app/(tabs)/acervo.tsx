@@ -10,7 +10,7 @@ import { Sobreposicao, Tela, TituloTela } from '@/ui/base';
 import { escolher } from '@/ui/dialogo';
 import { escolherDocumento } from '@/arquivos/cofre';
 import { extrairCamposDoArquivo } from '@/integracoes/extracao';
-import { BotaoSino } from '@/ui/BotaoSino';
+import { AcoesCabecalho } from '@/ui/AcoesCabecalho';
 import { ConteudoAcervo } from '@/ui/ConteudoAcervo';
 import { ConteudoHabitualidade } from '@/ui/ConteudoHabitualidade';
 import { DuasColunas } from '@/ui/layout/DuasColunas';
@@ -181,7 +181,7 @@ export default function TelaAcervo() {
       <Tela
         sobBarra
         rolavel={false}
-        acao={<BotaoSino />}
+        acao={<AcoesCabecalho />}
         estilo={{ paddingLeft: insets.left, paddingRight: insets.right }}
       >
         <View style={{ paddingHorizontal: espaco.lg }}>{cabecalho}</View>
@@ -212,7 +212,7 @@ export default function TelaAcervo() {
   }
 
   return (
-    <Tela sobBarra aoAtualizar={sincronizarAgora} acao={<BotaoSino />}>
+    <Tela sobBarra aoAtualizar={sincronizarAgora} acao={<AcoesCabecalho />}>
       {cabecalho}
       {ehHabitualidade ? (
         <ConteudoHabitualidade aoRegistrar={() => router.push('/habitualidade/editar')} />

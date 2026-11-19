@@ -5,11 +5,13 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { dataHora } from '@/lib/formato';
+import type { UsuarioApp } from '@/lib/tipos';
 import { Protegido } from '../../../componentes/Protegido';
+import { CabecalhoUsuario, CelulasUsuario } from '../../../componentes/ColunasUsuario';
 
 interface Leitura {
   criadoEm: string;
-  usuario: { id: string; nome: string; email: string; cpf: string | null };
+  usuario: UsuarioApp;
 }
 
 export default function PaginaLeituras() {
@@ -48,7 +50,7 @@ function Leituras() {
         </Link>
       </div>
 
-      <div className="cartao" style={{ padding: 0 }}>
+      <div className="cartao" style={{ padding: 0, overflowX: 'auto' }}>
         {carregando ? (
           <div className="vazio">Carregando…</div>
         ) : !leituras || leituras.length === 0 ? (
@@ -57,21 +59,15 @@ function Leituras() {
           <table>
             <thead>
               <tr>
-                <th>Usuário</th>
-                <th>E-mail</th>
-                <th>CPF</th>
                 <th>Visualizou em</th>
+                <CabecalhoUsuario />
               </tr>
             </thead>
             <tbody>
               {leituras.map((l) => (
                 <tr key={l.usuario.id}>
-                  <td>
-                    <Link href={`/usuarios/${l.usuario.id}`}>{l.usuario.nome}</Link>
-                  </td>
-                  <td>{l.usuario.email}</td>
-                  <td>{l.usuario.cpf ?? '—'}</td>
-                  <td>{dataHora(l.criadoEm)}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{dataHora(l.criadoEm)}</td>
+                  <CelulasUsuario u={l.usuario} />
                 </tr>
               ))}
             </tbody>

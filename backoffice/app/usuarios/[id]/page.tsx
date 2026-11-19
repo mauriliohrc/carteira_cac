@@ -1,7 +1,8 @@
 'use client';
 
-import { use, useCallback, useEffect, useState } from 'react';
+import { Suspense, use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api, ErroApi } from '@/lib/api';
 import { dataHora, tempoRelativo } from '@/lib/formato';
 import {
@@ -10,11 +11,13 @@ import {
   DEF_DOC_POR_TIPO,
   ROTULO_ACERVO,
   ROTULO_GRUPO,
-  rotuloPlano,
+  ROTULO_STATUS_FILIACAO,
   type ArmaApp,
   type DocumentoApp,
   type Entidade,
+  type FiliacaoAdmin,
   type PerfilUsuarioApp,
+  type StatusFiliacao,
 } from '@/lib/tipos';
 
 const GRUPOS = Object.keys(ROTULO_GRUPO);
@@ -24,10 +27,15 @@ export default function PaginaPerfil({ params }: { params: Promise<{ id: string 
   const { id } = use(params);
   return (
     <Protegido>
-      <Perfil id={id} />
+      <Suspense fallback={<div className="vazio">Carregando…</div>}>
+        <Perfil id={id} />
+      </Suspense>
     </Protegido>
   );
 }
+
+const ABAS_VALIDAS = ['historico', 'acervo', 'docs', 'habitualidades', 'notificacoes', 'filiacao'] as const;
+type Aba = (typeof ABAS_VALIDAS)[number];
 
 function dataBR(iso: string | null | undefined) {
   if (!iso) return '—';
@@ -53,7 +61,15 @@ function Perfil({ id }: { id: string }) {
   const [novaArma, setNovaArma] = useState(false);
   const [novaHab, setNovaHab] = useState(false);
   const [editando, setEditando] = useState(false);
+  const [salvandoPlano, setSalvandoPlano] = useState(false);
   const [entidadesDisp, setEntidadesDisp] = useState<Entidade[]>([]);
+  // Aba ativa do conteúdo (o cabeçalho com conta + entidades fica sempre visível).
+  // Histórico de Ações é a primeira aba.
+  const sp = useSearchParams();
+  const abaInicial = (ABAS_VALIDAS as readonly string[]).includes(sp.get('aba') ?? '')
+    ? (sp.get('aba') as Aba)
+    : 'historico';
+  const [aba, setAba] = useState<Aba>(abaInicial);
 
   const carregar = useCallback(async () => {
     const r = await api<PerfilUsuarioApp>(`/api/admin/usuarios-app/${id}/perfil`);
@@ -74,6 +90,19 @@ function Perfil({ id }: { id: string }) {
   async function removerVinculo(entidadeId: string) {
     await api(`/api/admin/usuarios-app/${id}/vinculos/${entidadeId}`, { metodo: 'DELETE' });
     carregar();
+  }
+
+  // Correção manual da categoria de plano (para casos que não contabilizaram).
+  async function mudarPlano(categoria: string) {
+    setSalvandoPlano(true);
+    try {
+      await api(`/api/admin/usuarios-app/${id}/plano`, { metodo: 'PATCH', corpo: { categoria } });
+      await carregar();
+    } catch (e) {
+      alert(e instanceof ErroApi ? e.message : 'Falha ao mudar o plano');
+    } finally {
+      setSalvandoPlano(false);
+    }
   }
 
   async function excluir(tipo: string, registroId: string, rotulo: string) {
@@ -97,10 +126,23 @@ function Perfil({ id }: { id: string }) {
   if (!perfil) return <div className="vazio">Usuário não encontrado.</div>;
 
   const u = perfil.usuario;
+  const categoriaPlanoAtual = !u.premium
+    ? 'GRATIS'
+    : u.premiumTipo === 'MENSAL'
+      ? 'MENSAL'
+      : u.premiumTipo === 'ANUAL_PARCEIRO'
+        ? 'ANUAL_PARCEIRO'
+        : u.premiumTipo === 'CUPOM'
+          ? 'CORTESIA'
+          : 'ANUAL';
   const online = u.ultimoAcessoEm && Date.now() - new Date(u.ultimoAcessoEm).getTime() < 5 * 60000;
   const arquivosPorDoc = new Map(perfil.arquivos.map((a) => [a.documento_id, a.id]));
   const docsDaArma = (armaId: string) => perfil.documentos.filter((d) => d.arma_id === armaId);
   const docsPessoais = perfil.documentos.filter((d) => !d.arma_id);
+  const fotosDaArma = (armaId: string) =>
+    (perfil.fotos ?? [])
+      .filter((f) => f.arma_id === armaId)
+      .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
 
   function fecharEdicao(recarregar: boolean) {
     setEdicao(null);
@@ -187,7 +229,22 @@ function Perfil({ id }: { id: string }) {
             <Campo rotulo="Conta criada em" valor={dataHora(u.criadoEm)} />
             <Campo rotulo="Último acesso" valor={online ? 'online agora' : tempoRelativo(u.ultimoAcessoEm)} />
             <Campo rotulo="E-mail verificado" valor={u.emailVerificado ? 'Sim' : 'Não'} />
-            <Campo rotulo="Plano" valor={rotuloPlano(u.premium, u.premiumTipo)} />
+            <div>
+              <div style={{ color: 'var(--texto-suave)', fontSize: 12 }}>Plano (ajuste manual)</div>
+              <select
+                value={categoriaPlanoAtual}
+                disabled={salvandoPlano}
+                onChange={(e) => mudarPlano(e.target.value)}
+                style={{ width: 'auto', marginTop: 2 }}
+                title="Definir a categoria de plano manualmente"
+              >
+                <option value="GRATIS">Grátis</option>
+                <option value="MENSAL">Premium · Mensal</option>
+                <option value="ANUAL">Premium · Anual</option>
+                <option value="ANUAL_PARCEIRO">Premium · Anual (Parceiro)</option>
+                <option value="CORTESIA">Cortesia (cupom)</option>
+              </select>
+            </div>
             <Campo rotulo="Status" valor={u.ativo ? 'Ativa' : 'Inativa'} />
             <Campo
               rotulo="Versão do app"
@@ -237,7 +294,36 @@ function Perfil({ id }: { id: string }) {
         </select>
       </div>
 
-      {/* Formulário flutuante de documento (add/editar) */}
+      {/* Abas — o cabeçalho acima (conta + entidades) fica SEMPRE visível. */}
+      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--borda)', marginBottom: 16, flexWrap: 'wrap' }}>
+        {([
+          ['historico', 'Histórico de Ações'],
+          ['filiacao', perfil.filiacao ? `Filiação (${perfil.filiacao.numeroFiliacao ?? '•'})` : 'Filiação'],
+          ['acervo', `Acervo (${perfil.armas.length})`],
+          ['docs', `Docs (${docsPessoais.length})`],
+          ['habitualidades', `Habitualidades (${perfil.habitualidades.length})`],
+          ['notificacoes', 'Notificações'],
+        ] as const).map(([k, rot]) => (
+          <button
+            key={k}
+            onClick={() => setAba(k)}
+            style={{
+              background: 'none',
+              border: 'none',
+              borderBottom: aba === k ? '2px solid var(--acento)' : '2px solid transparent',
+              color: aba === k ? 'var(--texto)' : 'var(--texto-suave)',
+              fontWeight: aba === k ? 700 : 500,
+              padding: '8px 12px',
+              cursor: 'pointer',
+              font: 'inherit',
+            }}
+          >
+            {rot}
+          </button>
+        ))}
+      </div>
+
+      {/* Formulário flutuante de documento (add/editar) — vale em qualquer aba. */}
       {edicao && (
         <FormularioDocumento
           usuarioId={id}
@@ -249,6 +335,14 @@ function Perfil({ id }: { id: string }) {
         />
       )}
 
+      {aba === 'historico' && <HistoricoAcoes usuarioId={id} />}
+
+      {aba === 'filiacao' && (
+        <SecaoFiliacao usuarioId={id} usuario={perfil.usuario} filiacao={perfil.filiacao} aoMudar={carregar} />
+      )}
+
+      {aba === 'acervo' && (
+        <>
       {/* ------------------------------ Acervo ------------------------------ */}
       <div className="cabeca-secao">
         <h2 style={{ margin: 0 }}>
@@ -292,6 +386,13 @@ function Perfil({ id }: { id: string }) {
                   Excluir arma
                 </button>
               </div>
+              {fotosDaArma(a.id).length > 0 && (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '0 12px 10px' }}>
+                  {fotosDaArma(a.id).map((f) => (
+                    <FotoArmaImg key={f.id} usuarioId={id} fotoId={f.id} />
+                  ))}
+                </div>
+              )}
               <div className="arma-docs">
                 {docs.length === 0 ? (
                   <div className="vazio-inline">Sem documentos vinculados.</div>
@@ -311,9 +412,13 @@ function Perfil({ id }: { id: string }) {
           );
         })
       )}
+        </>
+      )}
 
+      {aba === 'docs' && (
+        <>
       {/* ----------------------- Documentos pessoais ----------------------- */}
-      <div className="cabeca-secao" style={{ marginTop: 24 }}>
+      <div className="cabeca-secao" style={{ marginTop: 0 }}>
         <h2 style={{ margin: 0 }}>Documentos pessoais ({docsPessoais.length})</h2>
         <button className="pequeno" onClick={() => setEdicao({ armaId: null, escopo: 'PESSOAL' })}>
           + Documento pessoal
@@ -326,9 +431,13 @@ function Perfil({ id }: { id: string }) {
           docsPessoais.map((d) => <LinhaDoc key={d.id} d={d} />)
         )}
       </div>
+        </>
+      )}
 
+      {aba === 'habitualidades' && (
+        <>
       {/* --------------------------- Habitualidades --------------------------- */}
-      <div className="cabeca-secao" style={{ marginTop: 24 }}>
+      <div className="cabeca-secao" style={{ marginTop: 0 }}>
         <h2 style={{ margin: 0 }}>Habitualidades ({perfil.habitualidades.length})</h2>
         {!novaHab && (
           <button className="pequeno" onClick={() => setNovaHab(true)}>
@@ -381,13 +490,304 @@ function Perfil({ id }: { id: string }) {
           </table>
         )}
       </div>
+        </>
+      )}
 
-      {/* ---------------------- Notificações recebidas ---------------------- */}
-      <div className="cabeca-secao" style={{ marginTop: 24 }}>
-        <h2 style={{ margin: 0 }}>Notificações recebidas</h2>
-      </div>
-      <NotificacoesRecebidas usuarioId={id} />
+      {aba === 'notificacoes' && <NotificacoesRecebidas usuarioId={id} />}
     </>
+  );
+}
+
+/** Miniatura de uma foto de arma — baixa o blob via /arquivo/<id> e exibe. */
+function FotoArmaImg({ usuarioId, fotoId }: { usuarioId: string; fotoId: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [erro, setErro] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    api<{ base64: string; mime: string | null }>(`/api/admin/usuarios-app/${usuarioId}/arquivo/${fotoId}`)
+      .then((r) => {
+        if (vivo) setSrc(`data:${r.mime ?? 'image/jpeg'};base64,${r.base64}`);
+      })
+      .catch(() => {
+        if (vivo) setErro(true);
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [usuarioId, fotoId]);
+  if (erro) return null;
+  if (!src)
+    return <div style={{ width: 84, height: 84, borderRadius: 8, background: 'var(--superficie-alta, #eee)' }} />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt="Foto da arma"
+      onClick={() => window.open(src, '_blank')}
+      style={{ width: 84, height: 84, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--borda)', cursor: 'pointer' }}
+    />
+  );
+}
+
+/**
+ * Gestão da filiação à liga DENTRO do perfil do usuário (tela única): promover a
+ * filiado, ajustar validade, status, documento e abrir carteirinha/certificado.
+ */
+function SecaoFiliacao({
+  usuarioId,
+  usuario,
+  filiacao,
+  aoMudar,
+}: {
+  usuarioId: string;
+  usuario: PerfilUsuarioApp['usuario'];
+  filiacao: (FiliacaoAdmin & { docArquivoId: string | null }) | null;
+  aoMudar: () => void;
+}) {
+  const [salvando, setSalvando] = useState(false);
+  const [validade, setValidade] = useState('');
+
+  useEffect(() => {
+    setValidade(filiacao?.vigenteAte ? filiacao.vigenteAte.slice(0, 10) : '');
+  }, [filiacao?.vigenteAte]);
+
+  async function promover() {
+    setSalvando(true);
+    try {
+      await api(`/api/admin/usuarios-app/${usuarioId}/filiacao`, {
+        metodo: 'POST',
+        corpo: { vigenteAte: validade || undefined },
+      });
+      aoMudar();
+    } catch (e) {
+      alert(e instanceof ErroApi ? e.message : 'Falha ao promover');
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  async function patch(corpo: { status?: StatusFiliacao; documentacaoCompleta?: boolean; vigenteAte?: string }) {
+    if (!filiacao) return;
+    setSalvando(true);
+    try {
+      await api(`/api/admin/filiacoes/${filiacao.id}`, { metodo: 'PATCH', corpo });
+      aoMudar();
+    } catch (e) {
+      alert(e instanceof ErroApi ? e.message : 'Falha ao atualizar');
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  async function verDocumento() {
+    if (!filiacao?.docArquivoId) return;
+    try {
+      const r = await api<{ base64: string; mime: string | null }>(
+        `/api/admin/usuarios-app/${usuarioId}/arquivo/${filiacao.docArquivoId}`
+      );
+      const win = window.open();
+      if (win) {
+        const src = `data:${r.mime ?? 'application/octet-stream'};base64,${r.base64}`;
+        win.document.write(
+          (r.mime ?? '').includes('pdf')
+            ? `<iframe src="${src}" style="width:100%;height:100%;border:0"></iframe>`
+            : `<img src="${src}" style="max-width:100%" />`
+        );
+      }
+    } catch (e) {
+      alert(e instanceof ErroApi ? e.message : 'Falha ao abrir documento');
+    }
+  }
+
+  if (!filiacao) {
+    return (
+      <div className="cartao">
+        <h2 style={{ marginTop: 0, fontSize: 16 }}>Não é filiado</h2>
+        <p className="subtitulo" style={{ marginTop: 0 }}>
+          Promova <strong>{usuario.nome}</strong> a filiado da liga (cortesia/manual). Concede o
+          Premium e gera a carteirinha. O vínculo nasce válido por 1 ano (ajustável abaixo).
+        </p>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', fontSize: 12 }}>
+            Válido até (opcional)
+            <input type="date" value={validade} onChange={(e) => setValidade(e.target.value)} />
+          </label>
+          <button className="pequeno" disabled={salvando} onClick={promover}>
+            {salvando ? 'Promovendo…' : '+ Promover a filiado'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const numero = filiacao.numeroFiliacao;
+  const certificadoUrl = numero
+    ? `${process.env.NEXT_PUBLIC_API_URL ?? ''}/filiacao/certificado/${encodeURIComponent(numero)}`
+    : null;
+  const verificacaoUrl = numero ? `/filiacao/${encodeURIComponent(numero)}` : null;
+
+  return (
+    <div className="cartao">
+      <div className="cabeca-secao" style={{ marginTop: 0 }}>
+        <h2 style={{ margin: 0, fontSize: 16 }}>
+          Filiação {numero ?? ''}{' '}
+          <span className={`etiqueta ${filiacao.status === 'ativa' ? 'publicada' : filiacao.status === 'cancelada' || filiacao.status === 'vencida' ? 'inativo' : ''}`}>
+            {ROTULO_STATUS_FILIACAO[filiacao.status]}
+          </span>
+        </h2>
+        <span className="subtitulo">
+          {filiacao.origem === 'CORTESIA_MIGRACAO' ? 'Cortesia (migrado)' : filiacao.origem === 'MANUAL' ? 'Manual' : 'Asaas'}
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', margin: '8px 0 16px' }}>
+        <div>
+          <div className="subtitulo" style={{ fontSize: 11 }}>DOCUMENTO</div>
+          {filiacao.documentacaoCompleta ? (
+            <span className="etiqueta publicada">Entregue{filiacao.docTipo ? ` (${filiacao.docTipo})` : ''}</span>
+          ) : (
+            <span className="etiqueta">Pendente</span>
+          )}
+        </div>
+        <div>
+          <div className="subtitulo" style={{ fontSize: 11 }}>ANUIDADE</div>
+          <div>R$ {(filiacao.valorCentavos / 100).toFixed(2).replace('.', ',')}</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 12 }}>
+        <label style={{ display: 'flex', flexDirection: 'column', fontSize: 12 }}>
+          Válido até
+          <input type="date" value={validade} onChange={(e) => setValidade(e.target.value)} />
+        </label>
+        <button
+          className="secundario pequeno"
+          disabled={salvando || !validade || validade === (filiacao.vigenteAte?.slice(0, 10) ?? '')}
+          onClick={() => patch({ vigenteAte: validade })}
+        >
+          Salvar validade
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button className="secundario pequeno" disabled={salvando} onClick={() => patch({ documentacaoCompleta: !filiacao.documentacaoCompleta })}>
+          {filiacao.documentacaoCompleta ? 'Marcar doc pendente' : 'Marcar doc OK'}
+        </button>
+        {filiacao.docArquivoId ? (
+          <button className="secundario pequeno" onClick={verDocumento}>Ver documento</button>
+        ) : null}
+        {certificadoUrl ? (
+          <a className="secundario pequeno" href={certificadoUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>Certificado</a>
+        ) : null}
+        {verificacaoUrl ? (
+          <a className="secundario pequeno" href={verificacaoUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>Verificação</a>
+        ) : null}
+        {filiacao.status === 'ativa' ? (
+          <button className="secundario pequeno" disabled={salvando} onClick={() => patch({ status: 'suspensa' })}>Suspender</button>
+        ) : (
+          <button className="secundario pequeno" disabled={salvando} onClick={() => patch({ status: 'ativa' })}>Ativar</button>
+        )}
+        {filiacao.status !== 'cancelada' ? (
+          <button className="perigo pequeno" disabled={salvando} onClick={() => patch({ status: 'cancelada' })}>Cancelar filiação</button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// Rótulo, ícone e cor de cada tipo de evento da timeline.
+const EVENTO_META: Record<string, { rotulo: string; icone: string; cor: string }> = {
+  CONTA_CRIADA: { rotulo: 'Criou a conta', icone: '👤', cor: 'var(--texto)' },
+  ASSINATURA_TENTATIVA: { rotulo: 'Tentou assinar', icone: '🛒', cor: '#c99a2e' },
+  ASSINATURA_ATIVA: { rotulo: 'Assinou', icone: '⭐', cor: 'var(--ok)' },
+  ASSINATURA_CANCELADA: { rotulo: 'Cancelou a renovação', icone: '⚠️', cor: '#c99a2e' },
+  ASSINATURA_EXPIRADA: { rotulo: 'Assinatura expirou', icone: '⌛', cor: 'var(--perigo, #c0392b)' },
+  ASSINATURA_REEMBOLSADA: { rotulo: 'Reembolsado', icone: '↩️', cor: 'var(--perigo, #c0392b)' },
+  ASSINATURA_REVOGADA: { rotulo: 'Assinatura revogada', icone: '🚫', cor: 'var(--perigo, #c0392b)' },
+  DOC_CRIADO: { rotulo: 'Cadastrou documento', icone: '📄', cor: 'var(--texto)' },
+  DOC_EDITADO: { rotulo: 'Editou documento', icone: '✏️', cor: 'var(--texto-suave)' },
+  DOC_REMOVIDO: { rotulo: 'Removeu documento', icone: '🗑️', cor: 'var(--texto-suave)' },
+  ARMA_CRIADA: { rotulo: 'Cadastrou arma', icone: '🔫', cor: 'var(--texto)' },
+  ARMA_EDITADA: { rotulo: 'Editou arma', icone: '✏️', cor: 'var(--texto-suave)' },
+  ARMA_REMOVIDA: { rotulo: 'Removeu arma', icone: '🗑️', cor: 'var(--texto-suave)' },
+};
+
+interface EventoTimeline {
+  id: string;
+  tipo: string;
+  descricao: string | null;
+  origem: string | null;
+  meta: unknown;
+  criadoEm: string;
+}
+
+function HistoricoAcoes({ usuarioId }: { usuarioId: string }) {
+  const [eventos, setEventos] = useState<EventoTimeline[] | null>(null);
+
+  useEffect(() => {
+    api<{ eventos: EventoTimeline[] }>(`/api/admin/usuarios-app/${usuarioId}/eventos`)
+      .then((r) => setEventos(r.eventos))
+      .catch(() => setEventos([]));
+  }, [usuarioId]);
+
+  if (eventos === null)
+    return <div className="cartao"><div className="vazio-inline">Carregando…</div></div>;
+  if (eventos.length === 0)
+    return (
+      <div className="cartao">
+        <div className="vazio-inline">Nenhuma ação registrada ainda para este usuário.</div>
+      </div>
+    );
+
+  return (
+    <div className="cartao">
+      <ol style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+        {eventos.map((e, i) => {
+          const meta = EVENTO_META[e.tipo] ?? { rotulo: e.tipo, icone: '•', cor: 'var(--texto)' };
+          const ultimo = i === eventos.length - 1;
+          return (
+            <li key={e.id} style={{ display: 'flex', gap: 12 }}>
+              {/* Trilho + marcador */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <span
+                  aria-hidden
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: '50%',
+                    background: 'var(--superficie-alta, #f1f1f1)',
+                    border: '1px solid var(--borda)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 13,
+                    flexShrink: 0,
+                  }}
+                >
+                  {meta.icone}
+                </span>
+                {!ultimo && <span style={{ flex: 1, width: 1, background: 'var(--borda)', minHeight: 14 }} />}
+              </div>
+              {/* Conteúdo */}
+              <div style={{ paddingBottom: ultimo ? 0 : 16, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                  <strong style={{ color: meta.cor }}>{meta.rotulo}</strong>
+                  {e.origem && e.origem !== 'APP' && (
+                    <span className="etiqueta" style={{ fontSize: 11 }}>{e.origem}</span>
+                  )}
+                  <span style={{ color: 'var(--texto-suave)', fontSize: 12 }} title={new Date(e.criadoEm).toLocaleString('pt-BR')}>
+                    {tempoRelativo(e.criadoEm)}
+                  </span>
+                </div>
+                {e.descricao && (
+                  <div style={{ color: 'var(--texto-suave)', fontSize: 13, marginTop: 2 }}>{e.descricao}</div>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 

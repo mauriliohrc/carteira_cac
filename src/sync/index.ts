@@ -9,6 +9,7 @@ import {
   type RegistroSync,
 } from '@/db/sync';
 import { sincronizarArquivos } from './arquivos';
+import { sincronizarPremiumFiliacao } from '@/billing';
 import { importarArmasAuto } from '@/parceiro/armas';
 import { importarDocumentosAuto } from '@/parceiro/documentos';
 import { importarShootingHouse } from '@/integracoes/habitualidades';
@@ -56,6 +57,10 @@ export async function sincronizar(): Promise<ResultadoSync> {
     // o cursor nunca era salvo — o acervo não descia nunca.
     await aplicarLote(resp.registros);
     await gravarConfig(CHAVES.syncCursor, resp.servidorAgora);
+
+    // Reconcilia o Premium por filiação à liga (a filiação chega como registro
+    // 'filiacoes'): filiado vigente → concede Premium; vencido → limpa a origem.
+    await sincronizarPremiumFiliacao();
 
     // Arquivos (PDFs/fotos): sobe os que faltam, baixa os ausentes.
     await sincronizarArquivos(token);

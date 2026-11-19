@@ -82,3 +82,56 @@ export async function cancelarCobranca(id: string): Promise<void> {
     // Já paga/removida ou indisponível — seguimos; o processo é removido localmente.
   }
 }
+
+// ---------------------------------------------------------------------------
+// Assinaturas recorrentes — usadas pela FILIAÇÃO à liga (anuidade). Diferente
+// das cobranças avulsas do despachante, a assinatura renova sozinha a cada
+// ciclo (YEARLY) e o Asaas gera uma nova cobrança por período. Também é fora do
+// IAP, por ser serviço do mundo real (vínculo associativo com validade PF).
+// ---------------------------------------------------------------------------
+
+export interface AssinaturaAsaas {
+  id: string;
+  status?: string;
+}
+
+/**
+ * Cria uma assinatura recorrente no Asaas. `billingType: 'UNDEFINED'` deixa o
+ * cliente escolher PIX/crédito/débito no checkout. `value` em reais. `cycle`
+ * padrão YEARLY (anuidade). `externalReference` = id da filiação, p/ reconciliar
+ * no webhook. A 1ª cobrança é criada junto; o `invoiceUrl` vem de
+ * {@link cobrancasDaAssinatura}.
+ */
+export async function criarAssinatura(dados: {
+  customer: string;
+  value: number;
+  description: string;
+  externalReference: string;
+  nextDueDate: string; // YYYY-MM-DD
+  cycle?: 'YEARLY' | 'MONTHLY';
+}): Promise<AssinaturaAsaas> {
+  const { cycle = 'YEARLY', ...resto } = dados;
+  return requisitar<AssinaturaAsaas>('/subscriptions', 'POST', {
+    billingType: 'UNDEFINED',
+    cycle,
+    ...resto,
+  });
+}
+
+/** Cobranças geradas por uma assinatura (a 1ª traz o `invoiceUrl` do checkout). */
+export async function cobrancasDaAssinatura(id: string): Promise<CobrancaAsaas[]> {
+  const resp = await requisitar<{ data?: CobrancaAsaas[] }>(
+    `/subscriptions/${id}/payments`,
+    'GET'
+  );
+  return resp.data ?? [];
+}
+
+/** Cancela uma assinatura no Asaas (para a recorrência). Best-effort. */
+export async function cancelarAssinatura(id: string): Promise<void> {
+  try {
+    await requisitar(`/subscriptions/${id}`, 'DELETE');
+  } catch {
+    // Já cancelada/indisponível — seguimos; o status local é a fonte da verdade.
+  }
+}

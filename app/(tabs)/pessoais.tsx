@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { useApp } from '@/estado/AppContext';
 import { Botao, Secao, Tela, TituloTela, Vazio } from '@/ui/base';
-import { BotaoSino } from '@/ui/BotaoSino';
+import { AcoesCabecalho } from '@/ui/AcoesCabecalho';
 import { CartaoDocumento } from '@/ui/cartoes';
 import { AnalisandoDocumento } from '@/ui/AnalisandoDocumento';
 import { useNovoDocumento } from '@/ui/useNovoDocumento';
@@ -146,7 +146,7 @@ export default function Pessoais() {
       <Tela
         sobBarra
         rolavel={false}
-        acao={<BotaoSino />}
+        acao={<AcoesCabecalho />}
         estilo={{ paddingLeft: insets.left, paddingRight: insets.right }}
       >
         <View style={{ paddingHorizontal: espaco.lg }}>{cabecalho}</View>
@@ -172,7 +172,7 @@ export default function Pessoais() {
   }
 
   return (
-    <Tela sobBarra acao={<BotaoSino />}>
+    <Tela sobBarra acao={<AcoesCabecalho />}>
       {cabecalho}
       {listaDocs}
       <AnalisandoDocumento visivel={analisando} />

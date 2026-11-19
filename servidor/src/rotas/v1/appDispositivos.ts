@@ -16,15 +16,24 @@ const JANELA_VINCULOS_MS = 6 * 60 * 60 * 1000; // revê filiação na SH no máx
 export async function rotasDispositivosAppV1(app: FastifyInstance) {
   // Registra/atualiza o token deste aparelho. Associa à conta se autenticado.
   app.post('/app/dispositivos', async (req, reply) => {
-    const { token, plataforma, appVersao } = registrarDispositivoSchema.parse(req.body);
+    const { token, plataforma, appVersao, premium, premiumTipo } =
+      registrarDispositivoSchema.parse(req.body);
     const usuarioId = usuarioAppOpcional(req); // null = anônimo
+
+    // Premium do APARELHO (cobre compras anônimas). Só grava quando o app mandou
+    // (apps antigos não mandam → mantém o valor atual). Perder o premium zera o tipo.
+    const dadosPremium: Record<string, unknown> = {};
+    if (typeof premium === 'boolean') {
+      dadosPremium.premium = premium;
+      dadosPremium.premiumTipo = premium ? premiumTipo ?? null : null;
+    }
 
     // appVersao só é gravada quando veio (apps antigos não mandam): num update
     // nunca sobrescreve o valor conhecido com null.
     await prisma.dispositivoPush.upsert({
       where: { token },
-      create: { token, plataforma, usuarioId, ativo: true, ...(appVersao ? { appVersao } : {}) },
-      update: { plataforma, usuarioId, ativo: true, ...(appVersao ? { appVersao } : {}) },
+      create: { token, plataforma, usuarioId, ativo: true, ...(appVersao ? { appVersao } : {}), ...dadosPremium },
+      update: { plataforma, usuarioId, ativo: true, ...(appVersao ? { appVersao } : {}), ...dadosPremium },
     });
 
     if (usuarioId) {
@@ -61,7 +70,7 @@ export async function rotasDispositivosAppV1(app: FastifyInstance) {
     // Retrocompatível: apps antigos mandam só `premium` (booleano). O
     // `premiumTipo` é opcional e só grava quando vem um valor conhecido;
     // perder o premium zera o tipo.
-    const tiposValidos = ['CUPOM', 'MENSAL', 'ANUAL', 'ANUAL_PARCEIRO'];
+    const tiposValidos = ['CUPOM', 'MENSAL', 'ANUAL', 'ANUAL_PARCEIRO', 'FILIACAO'];
     const dados: Record<string, unknown> = { ultimoAcessoEm: new Date() };
     if (typeof corpo.premium === 'boolean') {
       dados.premium = corpo.premium;

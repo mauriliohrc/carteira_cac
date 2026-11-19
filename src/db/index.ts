@@ -2,7 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import { Platform } from 'react-native';
 
 const NOME_BANCO = 'cacbrasil.db';
-const VERSAO_ALVO = 12;
+const VERSAO_ALVO = 13;
 
 let instancia: SQLite.SQLiteDatabase | null = null;
 let abrindo: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -253,6 +253,38 @@ const MIGRACOES: ((db: SQLite.SQLiteDatabase) => Promise<void>)[] = [
          asaas_payment_id TEXT,
          invoice_url TEXT,
          criado_em TEXT NOT NULL,
+         atualizado_em TEXT NOT NULL
+       );`
+    );
+  },
+
+  // v13 — filiação à liga esportiva. Tabela própria e só de LEITURA no app: a
+  // filiação é criada e tocada pelo servidor (assinatura anual Asaas) e chega
+  // aqui apenas pelo pull. É a origem do Premium para o filiado (ver billing).
+  // Apps antigos ignoram o tipo 'filiacoes' no pull (tipo desconhecido), então
+  // é seguro. Colunas em snake_case, idênticas ao que o sync reflete.
+  async (db) => {
+    await db.execAsync(
+      `CREATE TABLE IF NOT EXISTS filiacoes (
+         id TEXT PRIMARY KEY NOT NULL,
+         numero_filiacao TEXT,
+         status TEXT NOT NULL,
+         origem TEXT,
+         nome_completo TEXT,
+         cpf TEXT,
+         cep TEXT,
+         logradouro TEXT,
+         numero TEXT,
+         complemento TEXT,
+         bairro TEXT,
+         cidade TEXT,
+         uf TEXT,
+         doc_tipo TEXT,
+         documentacao_completa INTEGER NOT NULL DEFAULT 0,
+         valor_centavos INTEGER,
+         vigente_ate TEXT,
+         invoice_url TEXT,
+         criado_em TEXT,
          atualizado_em TEXT NOT NULL
        );`
     );

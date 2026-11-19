@@ -35,6 +35,9 @@ export async function gravarTexto(chave: string, valor: string): Promise<void> {
   });
 }
 
+/** Número de WhatsApp do Carteira CAC para o "Auxílio Jurídico" (só dígitos, com DDI/DDD). */
+export const CHAVE_WHATSAPP_JURIDICO = 'whatsapp_juridico';
+
 /** Chave do interruptor-mestre das mensagens automáticas. */
 export const CHAVE_AUTOMACOES = 'automacoes_ativas';
 

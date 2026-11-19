@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { tempoRelativo } from '@/lib/formato';
 import { categoriaPlano, PLANO_META } from '@/lib/tipos';
@@ -11,7 +12,9 @@ import { Protegido } from '../componentes/Protegido';
 export default function PaginaUsuarios() {
   return (
     <Protegido>
-      <ListaUsuarios />
+      <Suspense fallback={<div className="vazio">Carregando…</div>}>
+        <ListaUsuarios />
+      </Suspense>
     </Protegido>
   );
 }
@@ -58,8 +61,11 @@ function formatarCelular(c?: string | null): string | null {
 }
 
 function ListaUsuarios() {
+  // Seed da busca vinda do header (/usuarios?busca=…). Reflete também quando o
+  // header dispara outra busca já estando nesta página.
+  const buscaUrl = useSearchParams().get('busca') ?? '';
   const [dados, setDados] = useState<ListaUsuariosApp | null>(null);
-  const [busca, setBusca] = useState('');
+  const [busca, setBusca] = useState(buscaUrl);
   const [pagina, setPagina] = useState(1);
   const [ordenar, setOrdenar] = useState('criadoEm');
   const [direcao, setDirecao] = useState<Dir>('desc');
@@ -102,6 +108,12 @@ function ListaUsuarios() {
     const t = setTimeout(carregar, 250); // debounce da busca
     return () => clearTimeout(t);
   }, [carregar]);
+
+  // Header disparou uma nova busca (ou mudou o ?busca=): aplica na lista.
+  useEffect(() => {
+    setBusca(buscaUrl);
+    setPagina(1);
+  }, [buscaUrl]);
 
   // Busca a contagem de armas da SH só para os usuários ainda não cacheados.
   useEffect(() => {
@@ -390,15 +402,31 @@ interface Anonimo {
   criadoEm: string;
   ultimoEm: string;
   online: boolean;
+  premium: boolean;
+  premiumTipo: string | null;
 }
+
+interface RespAnonimos {
+  total: number;
+  ativos: number;
+  premium: number;
+  dispositivos: Anonimo[];
+}
+
+const ROTULO_TIPO_ANON: Record<string, string> = {
+  CUPOM: 'Cortesia',
+  MENSAL: 'Mensal',
+  ANUAL: 'Anual',
+  ANUAL_PARCEIRO: 'Anual parceiro',
+};
 
 /** Instalações anônimas (sem conta) — uso do app por quem ainda não se cadastrou. */
 function AnonimosResumo() {
-  const [dados, setDados] = useState<{ total: number; ativos: number; dispositivos: Anonimo[] } | null>(null);
+  const [dados, setDados] = useState<RespAnonimos | null>(null);
   const [aberto, setAberto] = useState(false);
 
   useEffect(() => {
-    api<{ total: number; ativos: number; dispositivos: Anonimo[] }>('/api/admin/anonimos')
+    api<RespAnonimos>('/api/admin/anonimos')
       .then(setDados)
       .catch(() => setDados(null));
   }, []);
@@ -411,8 +439,13 @@ function AnonimosResumo() {
         <div>
           <strong>{dados.total}</strong> instalação(ões) anônima(s){' '}
           <span style={{ color: 'var(--texto-suave)' }}>· {dados.ativos} ativa(s)</span>
+          {dados.premium > 0 && (
+            <span className="etiqueta plano-premium" style={{ marginLeft: 8 }}>
+              {dados.premium} premium
+            </span>
+          )}
           <p className="subtitulo" style={{ margin: '4px 0 0' }}>
-            Aparelhos que usam o app sem conta. Cada um tem um id anônimo estável.
+            Aparelhos que usam o app sem conta. Premium anônimo = comprou sem criar conta.
           </p>
         </div>
         <button className="secundario pequeno" onClick={() => setAberto((a) => !a)}>
@@ -425,6 +458,7 @@ function AnonimosResumo() {
             <tr>
               <th>ID anônimo</th>
               <th>Plataforma</th>
+              <th>Plano</th>
               <th>Instalado</th>
               <th>Visto por último</th>
             </tr>
@@ -434,6 +468,15 @@ function AnonimosResumo() {
               <tr key={d.id}>
                 <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{d.id}</td>
                 <td>{d.plataforma === 'IOS' ? 'iOS' : 'Android'}</td>
+                <td>
+                  {d.premium ? (
+                    <span className="etiqueta plano-premium">
+                      Premium{d.premiumTipo ? ` · ${ROTULO_TIPO_ANON[d.premiumTipo] ?? d.premiumTipo}` : ''}
+                    </span>
+                  ) : (
+                    <span style={{ color: 'var(--texto-suave)' }}>Grátis</span>
+                  )}
+                </td>
                 <td>{new Date(d.criadoEm).toLocaleDateString('pt-BR')}</td>
                 <td>
                   <span className={`ponto ${d.online ? 'online' : 'offline'}`} />

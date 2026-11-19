@@ -30,6 +30,7 @@ import { consultarPremium, consultarPremiumCache, observarPremium } from '@/bill
 import { useConta } from '@/conta/ContaContext';
 import { sincronizar } from '@/sync';
 import { pedirPermissao, prepararCanal, reagendarAlertas } from '@/notificacoes';
+import { publicarResumoWidget } from '@/widget/publicar';
 import { limparCentral, observarRecebidos, sincronizarCaixa } from '@/notificacoes/caixa';
 import { avaliar, PESO_SITUACAO, type InfoSituacao } from '@/domain/vencimento';
 import {
@@ -177,6 +178,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Reagenda sempre: o conjunto de avisos depende da data de hoje — e agora
     // também da habitualidade, que entra no plano como uma frente.
     void reagendarAlertas(listaDocs, listaArmas, listaHabitualidades, gerencia);
+
+    // Atualiza o widget da tela inicial com o mesmo recorte do acervo. É
+    // independente da permissão de notificação: o widget vale mesmo com os
+    // avisos desligados.
+    publicarResumoWidget(listaDocs, listaArmas, listaHabitualidades, gerencia);
 
     // Recupera o que chegou enquanto o app estava fechado.
     await sincronizarCaixa();

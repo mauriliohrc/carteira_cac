@@ -19,9 +19,15 @@ export interface RegistroSync {
 // antigos não o conhecem: ignoram o tipo no pull (TABELAS_VALIDAS) e nunca o
 // enviam — por isso é seguro sincronizá-lo sem quebrar versões anteriores.
 const TABELAS_SIMPLES = ['locais_tiro', 'armas', 'documentos', 'arquivos', 'fotos', 'favoritos', 'ambitos_competicao'] as const;
-// 'processos' é só de leitura no app (criado/tocado pelo servidor): entra em
-// VALIDAS (aplica no pull) mas NÃO em SIMPLES (o app nunca faz push disso).
-const TABELAS_VALIDAS = new Set<string>([...TABELAS_SIMPLES, 'habitualidades', 'processos']);
+// 'processos' e 'filiacoes' são só de leitura no app (criados/tocados pelo
+// servidor): entram em VALIDAS (aplicam no pull) mas NÃO em SIMPLES (o app nunca
+// faz push disso).
+const TABELAS_VALIDAS = new Set<string>([
+  ...TABELAS_SIMPLES,
+  'habitualidades',
+  'processos',
+  'filiacoes',
+]);
 
 type Linha = Record<string, unknown> & { id: string };
 
@@ -130,6 +136,7 @@ export async function limparAcervoLocal(): Promise<void> {
       'documentos',
       'favoritos',
       'processos',
+      'filiacoes',
       'armas',
       'locais_tiro',
       'exclusoes',

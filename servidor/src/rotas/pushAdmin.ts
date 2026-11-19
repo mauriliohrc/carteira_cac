@@ -380,19 +380,25 @@ export async function rotasPushAdmin(app: FastifyInstance) {
   app.get('/api/admin/anonimos', async (req) => {
     const q = req.query as { limite?: string };
     const limite = Math.min(500, Math.max(1, Number(q.limite) || 100));
-    const [total, lista] = await Promise.all([
+    const [total, lista, ativos, premium] = await Promise.all([
       prisma.dispositivoPush.count({ where: { usuarioId: null } }),
       prisma.dispositivoPush.findMany({
         where: { usuarioId: null },
-        orderBy: { atualizadoEm: 'desc' },
+        orderBy: [{ premium: 'desc' }, { atualizadoEm: 'desc' }],
         take: limite,
-        select: { id: true, plataforma: true, ativo: true, criadoEm: true, atualizadoEm: true },
+        select: {
+          id: true, plataforma: true, ativo: true, criadoEm: true, atualizadoEm: true,
+          premium: true, premiumTipo: true,
+        },
       }),
+      prisma.dispositivoPush.count({ where: { usuarioId: null, ativo: true } }),
+      // Aparelhos anônimos com premium (compras sem conta).
+      prisma.dispositivoPush.count({ where: { usuarioId: null, premium: true } }),
     ]);
-    const ativos = await prisma.dispositivoPush.count({ where: { usuarioId: null, ativo: true } });
     return {
       total,
       ativos,
+      premium,
       dispositivos: lista.map((d) => ({
         // Id anônimo estável do aparelho (sem expor o push token).
         id: d.id,
@@ -401,6 +407,8 @@ export async function rotasPushAdmin(app: FastifyInstance) {
         criadoEm: d.criadoEm,
         ultimoEm: d.atualizadoEm,
         online: estaOnline(d.atualizadoEm),
+        premium: d.premium,
+        premiumTipo: d.premiumTipo,
       })),
     };
   });
@@ -420,6 +428,31 @@ export async function rotasPushAdmin(app: FastifyInstance) {
       }
       throw err;
     }
+    return { ok: true };
+  });
+
+  // Define MANUALMENTE a categoria de plano do usuário (correção pelo backoffice,
+  // para casos que não contabilizaram certo). Mapeia a categoria para
+  // premium/premiumTipo. Atenção: para contas que o app reporta ativamente, o
+  // próximo heartbeat pode sobrescrever — útil sobretudo para cortesia e ajustes.
+  app.patch('/api/admin/usuarios-app/:id/plano', async (req) => {
+    const { id } = req.params as { id: string };
+    const { categoria } = (req.body ?? {}) as { categoria?: string };
+    const mapa: Record<string, { premium: boolean; premiumTipo: string | null }> = {
+      GRATIS: { premium: false, premiumTipo: null },
+      ANUAL: { premium: true, premiumTipo: 'ANUAL' },
+      MENSAL: { premium: true, premiumTipo: 'MENSAL' },
+      CORTESIA: { premium: true, premiumTipo: 'CUPOM' },
+      ANUAL_PARCEIRO: { premium: true, premiumTipo: 'ANUAL_PARCEIRO' },
+    };
+    const alvo = categoria ? mapa[categoria] : undefined;
+    if (!alvo) throw conflito('Categoria inválida');
+    const usuario = await prisma.usuarioApp.findUnique({ where: { id }, select: { id: true } });
+    if (!usuario) throw naoEncontrado('Usuário não encontrado');
+    await prisma.usuarioApp.update({
+      where: { id },
+      data: { premium: alvo.premium, premiumTipo: alvo.premiumTipo },
+    });
     return { ok: true };
   });
 

@@ -11,16 +11,22 @@ import { avisar } from '@/ui/dialogo';
 import {
   BENEFICIOS_PREMIUM,
   LIMITE_GRATUITO_ARMAS,
-  PRECO_PARCEIRO_PADRAO,
-  PRODUTO_PARCEIRO,
-  carregarOfertaParceiro,
   carregarOfertas,
   comprarPlano,
   restaurarCompras,
   type IdPlano,
   type OfertaPlano,
 } from '@/billing';
-import { verificarElegibilidade, type Elegibilidade } from '@/parceiro/api';
+import { registrarPresenca } from '@/push/presenca';
+import { registrarDispositivo } from '@/push/registro';
+import { lerToken } from '@/conta/armazenamento';
+
+/** Sincroniza o premium com o servidor: por conta (presença) e por aparelho (registro). */
+async function sincronizarPremiumServidor() {
+  const tk = await lerToken();
+  void registrarPresenca(true); // conta logada → UsuarioApp.premium
+  void registrarDispositivo(tk ?? undefined); // aparelho (cobre anônimo) → DispositivoPush.premium
+}
 
 const LEGAL = (Constants.expoConfig?.extra as { legal?: { termosUrl?: string; privacidadeUrl?: string } })?.legal;
 const TERMOS_URL = LEGAL?.termosUrl ?? 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
@@ -30,18 +36,21 @@ export default function Premium() {
   const c = useCores();
   const p = useEstilos(folha);
   const { armas, premium, definirPremium } = useApp();
-  const [plano, setPlano] = useState<IdPlano>('premium_anual');
+  const [plano, setPlano] = useState<IdPlano>('premium_mensal');
   const [ofertas, setOfertas] = useState<OfertaPlano[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [processando, setProcessando] = useState(false);
-  const [parceiro, setParceiro] = useState<Elegibilidade | null>(null);
-  const [precoParceiro, setPrecoParceiro] = useState(PRECO_PARCEIRO_PADRAO);
 
   useEffect(() => {
     let vivo = true;
     (async () => {
       try {
-        const lista = await carregarOfertas();
+        // A ANUAL saiu de vez: o vínculo anual agora é a FILIAÇÃO à liga (via
+        // Asaas), inclusive para sócios de parceiro — não há mais plano anual
+        // nem plano de parceiro na vitrine. Aqui fica só a mensalidade do app,
+        // para quem quer apenas destravar o aplicativo sem se filiar. Assinantes
+        // antigos seguem intactos (restore e renovação da anual continuam).
+        const lista = (await carregarOfertas()).filter((o) => o.id === 'premium_mensal');
         if (!vivo) return;
         setOfertas(lista);
         if (lista.length) setPlano(lista[0].id);
@@ -49,33 +58,10 @@ export default function Premium() {
         if (vivo) setCarregando(false);
       }
     })();
-    // Elegibilidade ao Parceiro Premium (sócio ativo/adimplente de parceiro).
-    (async () => {
-      const e = await verificarElegibilidade();
-      if (!vivo || !e?.elegivel) return;
-      setParceiro(e);
-      setPrecoParceiro(await carregarOfertaParceiro());
-    })();
     return () => {
       vivo = false;
     };
   }, []);
-
-  const assinarParceiro = async () => {
-    setProcessando(true);
-    try {
-      const ok = await comprarPlano(PRODUTO_PARCEIRO);
-      if (ok) {
-        await definirPremium(true);
-        avisar('Parceiro Premium ativo', 'Plano de parceiro liberado. Bom tiro!');
-        router.back();
-      }
-    } catch (e) {
-      avisar('Não deu para assinar', e instanceof Error ? e.message : String(e));
-    } finally {
-      setProcessando(false);
-    }
-  };
 
   const assinar = async () => {
     setProcessando(true);
@@ -83,6 +69,7 @@ export default function Premium() {
       const ok = await comprarPlano(plano);
       if (ok) {
         await definirPremium(true);
+        void sincronizarPremiumServidor(); // reporta o premium (conta + aparelho)
         avisar('Premium ativo', 'Seu acervo está liberado. Bom tiro!');
         router.back();
       }
@@ -96,6 +83,7 @@ export default function Premium() {
   const restaurar = async () => {
     const ok = await restaurarCompras();
     await definirPremium(ok);
+    void sincronizarPremiumServidor(); // sincroniza o premium (conta + aparelho)
     avisar(
       ok ? 'Assinatura restaurada' : 'Nada encontrado',
       ok ? 'Seu Premium foi reativado.' : 'Não encontramos uma assinatura ativa nesta conta.'
@@ -127,36 +115,26 @@ export default function Premium() {
       <View style={p.coroa}>
         <Ionicons name="shield-half-outline" size={26} color={c.latao} />
       </View>
-      <Text style={p.titulo}>Acervo ilimitado</Text>
+      <Text style={p.titulo}>Filie-se à liga</Text>
       <Text style={p.subtitulo}>
-        O plano grátis guarda {LIMITE_GRATUITO_ARMAS} arma com todos os documentos. O Premium libera
-        o acervo inteiro.
+        A filiação à liga esportiva dá o vínculo anual (válido na Polícia Federal), assessoria
+        jurídica e o Premium completo. Ou assine só a mensalidade do app.
       </Text>
 
-      {parceiro?.elegivel ? (
-        <View style={p.parceiro}>
-          <View style={p.parceiroSelo}>
-            <Ionicons name="ribbon" size={14} color={c.latao} />
-            <Text style={p.parceiroSeloTexto}>PARCEIRO</Text>
-          </View>
-          <Text style={p.parceiroTitulo}>Parceiro Premium</Text>
-          <Text style={p.parceiroSub}>
-            Você é sócio de {parceiro.entidade?.nome ?? 'um parceiro'} — tem direito ao plano anual
-            exclusivo.
-          </Text>
-          <Text style={p.parceiroPreco}>
-            {precoParceiro} <Text style={p.parceiroPeriodo}>/ ano</Text>
-          </Text>
-          <Botao
-            titulo="Assinar Parceiro Premium"
-            icone="ribbon"
-            aoTocar={assinarParceiro}
-            carregando={processando}
-            estilo={{ alignSelf: 'stretch', marginTop: espaco.md }}
-          />
-          <Text style={p.parceiroOu}>ou escolha um plano padrão abaixo</Text>
+      <Pressable style={p.filiacao} onPress={() => router.push('/filiacao')}>
+        <View style={p.filiacaoSelo}>
+          <Ionicons name="ribbon" size={14} color={c.latao} />
+          <Text style={p.parceiroSeloTexto}>LIGA</Text>
         </View>
-      ) : null}
+        <Text style={p.parceiroTitulo}>Filiação à liga esportiva</Text>
+        <Text style={p.parceiroSub}>
+          Vínculo de 1 ano, provas de nível nacional, carteirinha, certificado e Premium incluso.
+        </Text>
+        <View style={p.filiacaoCta}>
+          <Text style={p.filiacaoCtaTexto}>Conhecer a filiação</Text>
+          <Ionicons name="arrow-forward" size={16} color={c.sobrePrimario} />
+        </View>
+      </Pressable>
 
       <View style={p.beneficios}>
         {BENEFICIOS_PREMIUM.map((b) => (
@@ -201,7 +179,7 @@ export default function Premium() {
           </View>
 
           <Botao
-            titulo="Assinar Premium"
+            titulo="Assinar mensalidade do app"
             icone="star"
             aoTocar={assinar}
             carregando={processando}
@@ -266,7 +244,7 @@ const folha = (c: Paleta) =>
       marginTop: espaco.sm,
       maxWidth: 320,
     },
-    parceiro: {
+    filiacao: {
       alignSelf: 'stretch',
       marginTop: espaco.xl,
       padding: espaco.lg,
@@ -276,7 +254,7 @@ const folha = (c: Paleta) =>
       borderColor: `${c.latao}88`,
       alignItems: 'center',
     },
-    parceiroSelo: {
+    filiacaoSelo: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 5,
@@ -285,6 +263,17 @@ const folha = (c: Paleta) =>
       paddingHorizontal: espaco.sm,
       paddingVertical: 4,
     },
+    filiacaoCta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: c.primario,
+      borderRadius: raio.sm,
+      paddingHorizontal: espaco.lg,
+      paddingVertical: 10,
+      marginTop: espaco.md,
+    },
+    filiacaoCtaTexto: { ...tipo.corpoPequeno, fontWeight: '700', color: c.sobrePrimario },
     parceiroSeloTexto: { ...tipo.etiqueta, fontSize: 9, color: c.latao },
     parceiroTitulo: { ...tipo.titulo, color: c.texto, marginTop: espaco.sm },
     parceiroSub: {
@@ -294,9 +283,6 @@ const folha = (c: Paleta) =>
       marginTop: 4,
       maxWidth: 320,
     },
-    parceiroPreco: { ...tipo.numero, fontSize: 26, color: c.texto, marginTop: espaco.md },
-    parceiroPeriodo: { ...tipo.corpoPequeno, color: c.textoFraco },
-    parceiroOu: { ...tipo.legenda, color: c.textoFraco, marginTop: espaco.md },
 
     beneficios: { alignSelf: 'stretch', marginTop: espaco.xl, gap: espaco.md },
     beneficio: { flexDirection: 'row', alignItems: 'center', gap: espaco.md },

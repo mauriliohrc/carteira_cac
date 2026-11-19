@@ -9,6 +9,7 @@ import { apresentarNoticia } from '../http/apresentadores.js';
 import { invalido, naoEncontrado } from '../http/erros.js';
 import { exigirAdmin } from '../http/guardas.js';
 import { enviarPush } from '../push/expo.js';
+import { INCLUDE_USUARIO_LISTA, mapUsuarioLista } from '../dominio/usuarioLista.js';
 
 function limpar<T extends Record<string, unknown>>(obj: T): Partial<T> {
   return Object.fromEntries(
@@ -243,17 +244,12 @@ export async function rotasNoticias(app: FastifyInstance) {
     const leituras = await prisma.leituraNoticia.findMany({
       where: { noticiaId: id },
       orderBy: { criadoEm: 'desc' },
-      include: { usuario: { select: { id: true, nome: true, email: true, cpf: true } } },
+      include: { usuario: { include: INCLUDE_USUARIO_LISTA } },
     });
     return {
       leituras: leituras.map((l) => ({
         criadoEm: l.criadoEm,
-        usuario: {
-          id: l.usuario.id,
-          nome: l.usuario.nome,
-          email: l.usuario.email,
-          cpf: l.usuario.cpf,
-        },
+        usuario: mapUsuarioLista(l.usuario),
       })),
     };
   });

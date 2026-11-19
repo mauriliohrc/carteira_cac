@@ -3,6 +3,29 @@ import { z } from 'zod';
 import { prisma } from '../../db/cliente.js';
 import { exigirApp } from '../../http/guardas.js';
 import { invalido, naoEncontrado } from '../../http/erros.js';
+import { registrarEventoUsuario, type TipoEventoUsuario } from '../../dominio/eventoUsuario.js';
+
+/** Sync tipos do acervo que viram evento na timeline (criar/editar/remover). */
+const EVENTOS_ACERVO: Record<string, { criado: TipoEventoUsuario; editado: TipoEventoUsuario; removido: TipoEventoUsuario }> = {
+  documentos: { criado: 'DOC_CRIADO', editado: 'DOC_EDITADO', removido: 'DOC_REMOVIDO' },
+  armas: { criado: 'ARMA_CRIADA', editado: 'ARMA_EDITADA', removido: 'ARMA_REMOVIDA' },
+};
+
+/** Rótulo curto e legível de um registro de acervo para a timeline. */
+function rotuloAcervo(tipo: string, dados: unknown): string | null {
+  if (!dados || typeof dados !== 'object') return null;
+  const d = dados as Record<string, unknown>;
+  const txt = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+  if (tipo === 'documentos') {
+    const partes = [txt(d.tipo), txt(d.numero) ?? txt(d.nome)].filter(Boolean);
+    return partes.length ? partes.join(' — ') : null;
+  }
+  if (tipo === 'armas') {
+    const partes = [txt(d.fabricante), txt(d.modelo) ?? txt(d.calibre)].filter(Boolean);
+    return partes.length ? partes.join(' ') : null;
+  }
+  return null;
+}
 
 const registroSchema = z.object({
   tipo: z.string().min(1),
@@ -60,6 +83,26 @@ export async function rotasSyncAppV1(app: FastifyInstance) {
         },
         update: { dados, atualizadoEm, removido: r.removido ?? false },
       });
+
+      // Timeline do acervo (documentos/armas): deriva criar/editar/remover do
+      // estado anterior. Best-effort — só registra transições reais (não repete
+      // em re-push idêntico). Apps antigos continuam funcionando normalmente.
+      const mapa = EVENTOS_ACERVO[r.tipo];
+      if (mapa) {
+        const removidoAgora = r.removido ?? false;
+        const removidoAntes = existente?.removido ?? false;
+        let evento: TipoEventoUsuario | null = null;
+        if (!existente && !removidoAgora) evento = mapa.criado;
+        else if (removidoAgora && !removidoAntes) evento = mapa.removido;
+        else if (existente && !removidoAgora && existente.dados !== dados) evento = mapa.editado;
+        if (evento) {
+          void registrarEventoUsuario(usuarioId, evento, {
+            origem: 'APP',
+            descricao: rotuloAcervo(r.tipo, r.dados),
+            meta: { registroId: r.registroId },
+          });
+        }
+      }
     }
 
     return { servidorAgora: new Date().toISOString() };

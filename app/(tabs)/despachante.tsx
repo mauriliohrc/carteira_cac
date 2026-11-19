@@ -1,12 +1,14 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
 import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
 import { useApp } from '@/estado/AppContext';
 import { Secao, Tela, TituloTela } from '@/ui/base';
-import { BotaoSino } from '@/ui/BotaoSino';
+import { AcoesCabecalho } from '@/ui/AcoesCabecalho';
+import { avisar } from '@/ui/dialogo';
+import { listarServicos } from '@/despachante/api';
 import type { TipoServicoDespachante } from '@/domain/tipos';
 
 /** Serviços oferecidos — rótulos de vitrine. Preço/nota de GRU vêm do servidor
@@ -18,16 +20,28 @@ const SERVICOS: {
   sub: string;
 }[] = [
   {
-    tipo: 'RENOVACAO_CRAF',
-    icone: 'refresh-circle-outline',
-    titulo: 'Renovação de CRAF',
-    sub: 'Renovamos o registro de cada arma do seu acervo.',
+    tipo: 'CADASTRO_RENOVACAO_IBAMA',
+    icone: 'leaf-outline',
+    titulo: 'Cadastro / Renovação IBAMA',
+    sub: 'Cuidamos do seu cadastro ou renovação no IBAMA (CTF).',
   },
   {
-    tipo: 'EMISSAO_GUIA',
-    icone: 'document-text-outline',
-    titulo: 'Emissão de Guias',
-    sub: 'Emitimos a guia de tráfego do armamento que você precisar.',
+    tipo: 'AQUISICAO_TRANSFERENCIA',
+    icone: 'swap-horizontal-outline',
+    titulo: 'Aquisição / Transferência de Equipamento (CAC)',
+    sub: 'Conduzimos a aquisição ou transferência do seu armamento.',
+  },
+  {
+    tipo: 'POSSE_PF',
+    icone: 'home-outline',
+    titulo: 'Posse - Polícia Federal',
+    sub: 'Tocamos o seu processo de posse junto à Polícia Federal.',
+  },
+  {
+    tipo: 'PORTE_PF',
+    icone: 'shield-checkmark-outline',
+    titulo: 'Porte - Polícia Federal',
+    sub: 'Tocamos o seu processo de porte junto à Polícia Federal.',
   },
 ];
 
@@ -35,11 +49,34 @@ export default function Despachante() {
   const c = useCores();
   const s = useEstilos(folha);
   const { processos } = useApp();
+  const [whatsappJuridico, setWhatsappJuridico] = useState('');
+
+  useEffect(() => {
+    let vivo = true;
+    listarServicos()
+      .then((cat) => {
+        if (vivo) setWhatsappJuridico(cat.whatsappJuridico ?? '');
+      })
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, []);
 
   const emAberto = processos.filter((p) => p.status !== 'concluido' && p.status !== 'cancelado');
 
+  const abrirWhatsapp = (mensagem: string) => {
+    const num = (whatsappJuridico || '').replace(/\D/g, '');
+    if (!num) {
+      return avisar('Fale conosco', 'Canal de atendimento ainda não configurado. Tente mais tarde.');
+    }
+    Linking.openURL(`https://wa.me/${num}?text=${encodeURIComponent(mensagem)}`).catch(() =>
+      avisar('Não foi possível abrir', 'Verifique se o WhatsApp está instalado.')
+    );
+  };
+
   return (
-    <Tela sobBarra acao={<BotaoSino />}>
+    <Tela sobBarra acao={<AcoesCabecalho />}>
       <TituloTela
         titulo="Serviços"
         sub="Deixe a burocracia com a gente. Você contrata, paga pelo app e acompanha por aqui."
@@ -65,6 +102,36 @@ export default function Despachante() {
             <Ionicons name="chevron-forward" size={20} color={c.textoFraco} />
           </Pressable>
         ))}
+
+          {/* Auxílio Jurídico — não é um serviço pago; abre o WhatsApp do Carteira CAC. */}
+          <Pressable
+            onPress={() => abrirWhatsapp('Olá! Preciso do auxílio jurídico da Carteira CAC.')}
+            style={s.card}
+          >
+            <View style={s.icone}>
+              <Ionicons name="chatbubbles-outline" size={24} color={c.primario} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.cardTitulo}>Auxílio Jurídico</Text>
+              <Text style={s.cardSub}>Fale com o nosso time jurídico pelo WhatsApp.</Text>
+            </View>
+            <Ionicons name="logo-whatsapp" size={20} color={c.primario} />
+          </Pressable>
+
+          {/* Outros serviços — mesmo canal de atendimento (WhatsApp). */}
+          <Pressable
+            onPress={() => abrirWhatsapp('Olá! Gostaria de saber sobre outros serviços da Carteira CAC.')}
+            style={s.card}
+          >
+            <View style={s.icone}>
+              <Ionicons name="ellipsis-horizontal" size={24} color={c.primario} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.cardTitulo}>Outros serviços</Text>
+              <Text style={s.cardSub}>Precisa de algo diferente? Fale com a gente pelo WhatsApp.</Text>
+            </View>
+            <Ionicons name="logo-whatsapp" size={20} color={c.primario} />
+          </Pressable>
         </View>
       </Secao>
 

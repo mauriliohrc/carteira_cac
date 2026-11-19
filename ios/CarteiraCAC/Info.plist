@@ -19,7 +19,7 @@
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.8.2</string>
+	<string>1.9.0</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleURLTypes</key>
@@ -33,7 +33,11 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>22</string>
+	<string>29</string>
+	<key>ExpoWidgetsAppGroupIdentifier</key>
+	<string>group.br.com.cacbrasil.carteira</string>
+	<key>ExpoWidgets_EnablePushNotifications</key>
+	<false/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSMinimumSystemVersion</key>
@@ -47,14 +51,18 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>A Carteira CAC se conecta ao servidor na sua rede local para sincronizar sua conta durante os testes.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>A Carteira CAC usa a câmera para você fotografar seus documentos — CRAF, guia de tráfego, laudo e CR — e anexá-los à carteira. As fotos ficam salvas só neste aparelho.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>A Carteira CAC usa o Face ID para desbloquear o app sem digitar o PIN, mantendo seu acervo privado.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>A Carteira CAC se conecta ao servidor na sua rede local para sincronizar sua conta durante os testes.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>A Carteira CAC usa suas fotos para você anexar imagens dos seus documentos — CRAF, guia de tráfego, laudo e CR — à carteira. As imagens ficam salvas só neste aparelho.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
+	<false/>
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
@@ -94,6 +102,8 @@
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>

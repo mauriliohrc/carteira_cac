@@ -76,3 +76,7 @@ amostras/
 
 # Saída de VSL (mídia gerada — fora do versionamento)
 vsl_out/
+
+# Chaves da App Store Server API (.p8) — NUNCA versionar
+SubscriptionKey_*.p8
+*.p8

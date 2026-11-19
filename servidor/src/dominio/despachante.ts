@@ -8,7 +8,14 @@
  * (atirador desportivo, nacional) R$20,00/arma. Honorário padrão: R$80,00.
  */
 
-export type TipoServicoDespachante = 'RENOVACAO_CRAF' | 'EMISSAO_GUIA';
+export type TipoServicoDespachante =
+  | 'CADASTRO_RENOVACAO_IBAMA'
+  | 'AQUISICAO_TRANSFERENCIA'
+  | 'POSSE_PF'
+  | 'PORTE_PF'
+  // Legados (apps antigos ainda os pedem; mantidos no catálogo por compat).
+  | 'RENOVACAO_CRAF'
+  | 'EMISSAO_GUIA';
 
 export interface ServicoDespachante {
   tipo: TipoServicoDespachante;
@@ -23,6 +30,42 @@ export interface ServicoDespachante {
 }
 
 export const SERVICOS_DESPACHANTE: ServicoDespachante[] = [
+  {
+    tipo: 'CADASTRO_RENOVACAO_IBAMA',
+    nome: 'Cadastro / Renovação IBAMA',
+    descricao:
+      'Fazemos o seu cadastro ou a renovação no IBAMA (CTF), do protocolo ao ' +
+      'acompanhamento, sem você perder tempo com a burocracia.',
+    gruCentavos: 0,
+    servicoCentavos: 15000,
+    unidade: 'por processo',
+  },
+  {
+    tipo: 'AQUISICAO_TRANSFERENCIA',
+    nome: 'Aquisição / Transferência de Equipamento (CAC)',
+    descricao:
+      'Cuidamos de todo o processo de aquisição ou transferência de armamento do ' +
+      'atirador, caçador ou colecionador.',
+    gruCentavos: 0,
+    servicoCentavos: 20000,
+    unidade: 'por processo',
+  },
+  {
+    tipo: 'POSSE_PF',
+    nome: 'Posse - Polícia Federal',
+    descricao: 'Conduzimos o seu processo de posse de arma de fogo junto à Polícia Federal.',
+    gruCentavos: 0,
+    servicoCentavos: 25000,
+    unidade: 'por processo',
+  },
+  {
+    tipo: 'PORTE_PF',
+    nome: 'Porte - Polícia Federal',
+    descricao: 'Conduzimos o seu processo de porte de arma de fogo junto à Polícia Federal.',
+    gruCentavos: 0,
+    servicoCentavos: 30000,
+    unidade: 'por processo',
+  },
   {
     tipo: 'RENOVACAO_CRAF',
     nome: 'Renovação de CRAF',

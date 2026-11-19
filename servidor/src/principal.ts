@@ -4,6 +4,7 @@ import { construirApp } from './app.js';
 import { iniciar as iniciarWhatsapp } from './whatsapp/cliente.js';
 import { registrarRetomada, retomar } from './whatsapp/dispatcher.js';
 import { iniciarAgendador } from './whatsapp/automacoes.js';
+import { iniciarCronAssinaturas } from './dominio/assinaturaCron.js';
 
 const app = construirApp();
 
@@ -20,6 +21,7 @@ app
     }
     retomar(); // retoma campanhas EM_ANDAMENTO após restart
     iniciarAgendador(); // mensagens automáticas (boas-vindas / 7 dias sem arma)
+    iniciarCronAssinaturas(app.log); // rede de segurança: expira assinaturas vencidas
   })
   .catch((erro) => {
     app.log.error(erro);

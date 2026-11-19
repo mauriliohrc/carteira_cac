@@ -122,7 +122,9 @@ export function BarraAbas({ state, descriptors, navigation, icones }: PropsBarra
             style={b.trilho}
             onLayout={(ev) => setLarguraUtil(ev.nativeEvent.layout.width)}
           >
-            {larguraAba && indiceAtivo >= 0 ? (
+            {/* A cápsula de seleção é oculta na aba central (Serviços): ali já há
+                o círculo verde saltado, e a cápsula passaria por baixo dele. */}
+            {larguraAba && indiceAtivo >= 0 && indiceAtivo !== idxCentral ? (
               <Animated.View
                 pointerEvents="none"
                 style={[

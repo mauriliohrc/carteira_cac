@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { prisma } from '../db/cliente.js';
 import { exigirAdmin } from '../http/guardas.js';
 import { naoEncontrado } from '../http/erros.js';
+import { apresentarFiliacao } from '../dominio/filiacao.js';
 
 const TIPOS = new Set(['armas', 'documentos', 'habitualidades', 'locais_tiro', 'arquivos', 'fotos', 'processos']);
 
@@ -15,6 +16,15 @@ const criarRegistroSchema = z.object({
 
 function agora(): string {
   return new Date().toISOString();
+}
+
+/** Faz parse de JSON tolerante (meta da timeline); devolve a string crua se falhar. */
+function safeJson(s: string): unknown {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return s;
+  }
 }
 
 async function acharUsuario(id: string) {
@@ -38,6 +48,27 @@ async function lerAcervo(usuarioId: string) {
 export async function rotasAcervoAdmin(app: FastifyInstance) {
   app.addHook('preHandler', exigirAdmin());
 
+  // Timeline de ações do usuário (histórico para o backoffice). Mais recente no
+  // topo. Limitado para não explodir em contas antigas.
+  app.get('/api/admin/usuarios-app/:id/eventos', async (req) => {
+    const { id } = req.params as { id: string };
+    const eventos = await prisma.eventoUsuario.findMany({
+      where: { usuarioId: id },
+      orderBy: { criadoEm: 'desc' },
+      take: 500,
+    });
+    return {
+      eventos: eventos.map((e) => ({
+        id: e.id,
+        tipo: e.tipo,
+        descricao: e.descricao,
+        origem: e.origem,
+        meta: e.meta ? safeJson(e.meta) : null,
+        criadoEm: e.criadoEm.toISOString(),
+      })),
+    };
+  });
+
   // Perfil completo + acervo do usuário do app.
   app.get('/api/admin/usuarios-app/:id/perfil', async (req) => {
     const { id } = req.params as { id: string };
@@ -47,6 +78,12 @@ export async function rotasAcervoAdmin(app: FastifyInstance) {
       include: { entidade: { select: { id: true, nome: true } } },
     });
     const acervo = await lerAcervo(id);
+
+    // Filiação à liga (a mais recente), para a gestão no próprio perfil.
+    const filiacaoRaw = await prisma.filiacaoLiga.findFirst({
+      where: { usuarioId: id },
+      orderBy: { criadoEm: 'desc' },
+    });
 
     // Versão do app (a mais nova entre os aparelhos ativos) + plataformas.
     const dispositivos = await prisma.dispositivoPush.findMany({
@@ -89,6 +126,12 @@ export async function rotasAcervoAdmin(app: FastifyInstance) {
       habitualidades: acervo.habitualidades ?? [],
       locais: acervo.locais_tiro ?? [],
       arquivos: acervo.arquivos ?? [],
+      // Fotos das armas (dados crus: { id, arma_id, ordem, ... }); o blob de cada
+      // uma é baixado pelo backoffice via /arquivo/<foto.id>.
+      fotos: acervo.fotos ?? [],
+      filiacao: filiacaoRaw
+        ? { ...apresentarFiliacao(filiacaoRaw), docArquivoId: filiacaoRaw.docArquivoId }
+        : null,
     };
   });
 

@@ -84,6 +84,12 @@ const celularOpcional = z
   })
   .refine((v) => v === null || (v.length >= 10 && v.length <= 11), 'Celular deve ter DDD + número');
 
+/** Celular BR obrigatório: só dígitos, 10–11 com DDD. Usado no cadastro. */
+const celularObrigatorio = z
+  .string({ required_error: 'Informe seu celular' })
+  .transform((v) => (v ?? '').replace(/\D/g, ''))
+  .refine((v) => v.length >= 10 && v.length <= 11, 'Celular deve ter DDD + número');
+
 export const cadastroAppSchema = z.object({
   nome: z.string().trim().min(2, 'Informe seu nome'),
   cpf: z
@@ -92,8 +98,8 @@ export const cadastroAppSchema = z.object({
     .refine(validarCPF, 'CPF inválido'),
   email: z.string().trim().toLowerCase().email('E-mail inválido'),
   senha: z.string().min(6, 'A senha deve ter ao menos 6 caracteres'),
-  /** Opcional — número para contato e suporte. */
-  celular: celularOpcional,
+  /** Obrigatório — número para contato, suporte e cobranças (Despachante/Liga). */
+  celular: celularObrigatorio,
 });
 
 /** Atualização de perfil pelo app (hoje só o celular). */
@@ -106,6 +112,9 @@ export const registrarDispositivoSchema = z.object({
   plataforma: z.enum(PLATAFORMAS_PUSH as [string, ...string[]]),
   /** Versão de marketing do app (ex.: "1.8.1"). Opcional: apps antigos não mandam. */
   appVersao: z.string().trim().max(20).optional(),
+  /** Premium do aparelho (cobre compras anônimas). Opcional: apps antigos não mandam. */
+  premium: z.boolean().optional(),
+  premiumTipo: z.enum(['CUPOM', 'MENSAL', 'ANUAL', 'ANUAL_PARCEIRO', 'FILIACAO']).optional(),
 });
 
 // ---------------------------------------------------- push (backoffice)
@@ -456,6 +465,24 @@ export const editarLojaSchema = z
     ativo: z.boolean(),
   })
   .partial();
+
+// ------------------------------------------------------------- eventos do app (analytics)
+export const eventosAppSchema = z.object({
+  // Id estável do aparelho (gerado no app). Mede o funil até de quem não tem conta.
+  anonId: z.string().trim().min(1).max(100),
+  plataforma: z.string().trim().max(20).optional(),
+  appVersao: z.string().trim().max(40).optional(),
+  eventos: z
+    .array(
+      z.object({
+        evento: z.string().trim().min(1).max(80),
+        passo: z.string().trim().max(40).optional(),
+        meta: z.unknown().optional(),
+      })
+    )
+    .min(1)
+    .max(50),
+});
 
 // ------------------------------------------------------------- contato (site público)
 export const criarContatoSchema = z.object({

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,8 @@ import { useConta } from '@/conta/ContaContext';
 import { CHAVES, gravarConfig } from '@/db/config';
 import { AnalisandoDocumento } from '@/ui/AnalisandoDocumento';
 import { capturarCraf, capturarDocumentoPessoal } from '@/ui/onboardingAcervo';
+import { registrarOfertaExibida } from '@/liga/oferta';
+import { registrarEvento, type PassoOnb } from '@/metricas';
 
 /**
  * Fluxo guiado único: conta → validar e-mail → CR/Posse/Porte → CRAF → premium.
@@ -47,12 +49,37 @@ export default function OnboardingFluxo() {
             ? 'craf'
             : 'premium';
 
+  // Métricas do funil: 'onb_iniciou' uma vez e 'onb_passo_entrou' na 1ª vez que
+  // cada passo aparece. O passo 'premium' vira 'liga' (nome do funil no server).
+  // Chegar à liga também é a 1ª oferta: agenda o cooldown da reconversão e marca
+  // 'liga_vista', tudo aqui para não disparar duas vezes.
+  const iniciouRegistrado = useRef(false);
+  const passosVistos = useRef<Set<PassoOnb>>(new Set());
+  const ofertaRegistrada = useRef(false);
+  useEffect(() => {
+    if (!iniciouRegistrado.current) {
+      iniciouRegistrado.current = true;
+      void registrarEvento('onb_iniciou');
+    }
+    const passo: PassoOnb = etapa === 'premium' ? 'liga' : etapa;
+    if (!passosVistos.current.has(passo)) {
+      passosVistos.current.add(passo);
+      void registrarEvento('onb_passo_entrou', { passo });
+    }
+    if (etapa === 'premium' && !ofertaRegistrada.current) {
+      ofertaRegistrada.current = true;
+      void registrarEvento('liga_vista');
+      void registrarOfertaExibida();
+    }
+  }, [etapa]);
+
   // O passo do CRAF é um laço: enviou um, perguntamos "mais um?" e só saímos
   // quando ele disser que não quer mais. Assim ele cadastra o acervo inteiro já
   // no onboarding — e vê, logo em seguida, quanta coisa o Premium destrava.
   const jaInseriuCraf = armas.length > 0;
 
   const concluir = async () => {
+    void registrarEvento('onb_concluiu');
     await gravarConfig(CHAVES.onboardingFluxo, '1').catch(() => {});
     router.back();
   };
@@ -62,7 +89,10 @@ export default function OnboardingFluxo() {
     setOcupado(true);
     try {
       const r = await capturarDocumentoPessoal('CR', setAnalisando);
-      if (r === 'criado') await recarregar(); // documentos.length muda → avança
+      if (r === 'criado') {
+        void registrarEvento('onb_doc_subiu', { passo: 'cr', meta: { tipo: 'CR' } });
+        await recarregar(); // documentos.length muda → avança
+      }
     } finally {
       setOcupado(false);
     }
@@ -73,7 +103,10 @@ export default function OnboardingFluxo() {
     setOcupado(true);
     try {
       const r = await capturarCraf(setAnalisando);
-      if (r === 'criado') await recarregar(); // armas.length muda → avança
+      if (r === 'criado') {
+        void registrarEvento('onb_doc_subiu', { passo: 'craf', meta: { tipo: 'CRAF' } });
+        await recarregar(); // armas.length muda → avança
+      }
     } finally {
       setOcupado(false);
     }
@@ -104,7 +137,7 @@ export default function OnboardingFluxo() {
             c={c}
             selo="CONFIRME SEU E-MAIL"
             icone="mail-unread"
-            titulo="Falta confirmar\nseu e-mail"
+            titulo={'Falta confirmar\nseu e-mail'}
             sub={`Sua conta foi criada, mas ainda não está ativa. Enviamos um código para ${usuario?.email ?? 'seu e-mail'}. Confirmar ativa a conta e protege seus dados.`}
           />
         ) : null}
@@ -146,14 +179,15 @@ export default function OnboardingFluxo() {
           <Passo
             p={p}
             c={c}
-            selo="APOIE O PROJETO"
-            icone="heart"
-            titulo={'Ajude a manter\no app de pé'}
-            sub="Esta ferramenta é feita por um atirador para facilitar a vida do CAC — justamente num momento em que querem desarmar a população. Sua assinatura mantém o desenvolvimento vivo. E fique tranquilo: dá pra usar de graça com uma arma."
+            selo="FILIE-SE À LIGA"
+            icone="ribbon"
+            titulo={'Faça parte da\nliga esportiva'}
+            sub="A filiação à liga garante um ano de vínculo associativo, com validade na Polícia Federal para provas de nível nacional, assessoria jurídica — e libera o Premium completo do app. Prefere só o app? Dá pra usar de graça com uma arma, ou assinar a mensalidade."
             itens={[
-              { icone: 'infinite-outline', texto: 'Armas e documentos ilimitados' },
-              { icone: 'sparkles-outline', texto: 'Leitura de documentos por IA' },
-              { icone: 'hand-left-outline', texto: 'Apoio direto a quem constrói o app' },
+              { icone: 'shield-checkmark-outline', texto: 'Vínculo de 1 ano válido na PF' },
+              { icone: 'ribbon-outline', texto: 'Liga formalizada · responsáveis +10 anos no mercado' },
+              { icone: 'card-outline', texto: 'Carteirinha e certificado de filiação' },
+              { icone: 'sparkles-outline', texto: 'Premium completo do app incluso' },
             ]}
           />
         ) : null}
@@ -170,28 +204,60 @@ export default function OnboardingFluxo() {
               aoTocar={() => router.push('/conta/entrar')}
               estilo={{ marginTop: espaco.sm }}
             />
-            <Botao titulo="Usar sem conta" variante="fantasma" aoTocar={() => setPulouConta(true)} estilo={{ marginTop: espaco.xs }} />
+            <Botao
+              titulo="Usar sem conta"
+              variante="fantasma"
+              aoTocar={() => {
+                void registrarEvento('onb_pulou', { passo: 'conta' });
+                setPulouConta(true);
+              }}
+              estilo={{ marginTop: espaco.xs }}
+            />
           </>
         ) : null}
 
         {etapa === 'validar' ? (
           <>
             <Botao titulo="Confirmar e-mail agora" icone="mail-open-outline" aoTocar={() => router.push('/conta/verificar')} />
-            <Botao titulo="Agora não" variante="fantasma" aoTocar={() => setPulouValidar(true)} estilo={{ marginTop: espaco.xs }} />
+            <Botao
+              titulo="Agora não"
+              variante="fantasma"
+              aoTocar={() => {
+                void registrarEvento('onb_pulou', { passo: 'validar' });
+                setPulouValidar(true);
+              }}
+              estilo={{ marginTop: espaco.xs }}
+            />
           </>
         ) : null}
 
         {etapa === 'cr' ? (
           <>
             <Botao titulo="Enviar documento" icone="scan-outline" aoTocar={enviarCR} carregando={ocupado} />
-            <Botao titulo="Pular por enquanto" variante="fantasma" aoTocar={() => setPulouCR(true)} estilo={{ marginTop: espaco.xs }} />
+            <Botao
+              titulo="Pular por enquanto"
+              variante="fantasma"
+              aoTocar={() => {
+                void registrarEvento('onb_pulou', { passo: 'cr' });
+                setPulouCR(true);
+              }}
+              estilo={{ marginTop: espaco.xs }}
+            />
           </>
         ) : null}
 
         {etapa === 'craf' && !jaInseriuCraf ? (
           <>
             <Botao titulo="Enviar CRAF" icone="scan-outline" aoTocar={enviarCRAF} carregando={ocupado} />
-            <Botao titulo="Pular por enquanto" variante="fantasma" aoTocar={() => setPulouCRAF(true)} estilo={{ marginTop: espaco.xs }} />
+            <Botao
+              titulo="Pular por enquanto"
+              variante="fantasma"
+              aoTocar={() => {
+                void registrarEvento('onb_pulou', { passo: 'craf' });
+                setPulouCRAF(true);
+              }}
+              estilo={{ marginTop: espaco.xs }}
+            />
           </>
         ) : null}
 
@@ -204,8 +270,33 @@ export default function OnboardingFluxo() {
 
         {etapa === 'premium' ? (
           <>
-            <Botao titulo="Quero apoiar e assinar" icone="heart" aoTocar={() => router.push('/premium')} />
-            <Botao titulo="Continuar grátis com 1 arma" variante="fantasma" aoTocar={() => void concluir()} estilo={{ marginTop: espaco.xs }} />
+            <Botao
+              titulo="Quero me filiar à liga"
+              icone="ribbon"
+              aoTocar={() => {
+                void registrarEvento('liga_filiou');
+                router.push('/filiacao');
+              }}
+            />
+            <Botao
+              titulo="Ver só o Premium do app"
+              variante="secundario"
+              icone="star-outline"
+              aoTocar={() => {
+                void registrarEvento('liga_mensal');
+                router.push('/premium');
+              }}
+              estilo={{ marginTop: espaco.sm }}
+            />
+            <Botao
+              titulo="Continuar grátis com 1 arma"
+              variante="fantasma"
+              aoTocar={() => {
+                void registrarEvento('liga_recusou');
+                void concluir();
+              }}
+              estilo={{ marginTop: espaco.xs }}
+            />
           </>
         ) : null}
 

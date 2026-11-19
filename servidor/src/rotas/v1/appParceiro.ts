@@ -21,6 +21,17 @@ export async function rotasParceiroAppV1(app: FastifyInstance) {
     const usuario = await prisma.usuarioApp.findUnique({ where: { id: req.usuario!.id } });
     if (!usuario) return { elegivel: false, plano: PLANO_PARCEIRO };
 
+    // Reconquista: quem recebeu a oferta de win-back no backoffice pode comprar o
+    // Parceiro Premium mesmo sem vínculo de entidade (preço menor como isca de
+    // retorno). `winback: true` deixa o app rotular a tela como oferta de volta.
+    if (usuario.winbackParceiroEm) {
+      return {
+        elegivel: true,
+        winback: true,
+        plano: PLANO_PARCEIRO,
+      };
+    }
+
     const entidades = await prisma.entidadeTiro.findMany({
       where: { shIntegracaoAtiva: true, shLogin: { not: null }, shSenha: { not: null } },
       select: { id: true, nome: true, shBaseUrl: true, shLogin: true, shSenha: true },

@@ -4,18 +4,78 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ErroApi } from '@/lib/api';
 import type { ConfigAsaasAdmin } from '@/lib/tipos';
 import { Protegido } from '../componentes/Protegido';
+import { SecaoDespachanteValores } from '../componentes/SecaoDespachanteValores';
+import { SecaoLiga } from '../componentes/SecaoLiga';
 
 export default function PaginaConfig() {
   return (
     <Protegido>
       <div className="cabeca-secao">
         <div>
-          <h1>Config</h1>
-          <p className="subtitulo">Configurações de sistema e integrações.</p>
+          <h1>Gestão</h1>
+          <p className="subtitulo">
+            Central de gestão do negócio: cada frente (serviços, pagamentos e liga) num bloco próprio.
+            As alterações valem na hora, sem atualizar o app.
+          </p>
         </div>
       </div>
+      <AuxilioJuridico />
       <IntegracaoAsaas />
+      <SecaoDespachanteValores />
+      <SecaoLiga />
     </Protegido>
+  );
+}
+
+/** Número do Carteira CAC que o botão "Auxílio Jurídico" do app abre no WhatsApp. */
+function AuxilioJuridico() {
+  const [numero, setNumero] = useState('');
+  const [salvando, setSalvando] = useState(false);
+
+  const carregar = useCallback(async () => {
+    const r = await api<{ whatsappJuridico: string }>('/api/admin/config/juridico');
+    setNumero(r.whatsappJuridico ?? '');
+  }, []);
+
+  useEffect(() => {
+    carregar();
+  }, [carregar]);
+
+  async function salvar() {
+    setSalvando(true);
+    try {
+      await api('/api/admin/config/juridico', { metodo: 'PUT', corpo: { whatsappJuridico: numero } });
+      alert('WhatsApp do Auxílio Jurídico salvo.');
+    } catch (e) {
+      alert(e instanceof ErroApi ? e.message : 'Falha ao salvar');
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <div className="cartao" style={{ marginBottom: 16 }}>
+      <h2 style={{ marginTop: 0, fontSize: 16 }}>Auxílio Jurídico (WhatsApp)</h2>
+      <p className="subtitulo" style={{ marginTop: 0 }}>
+        Número que o botão &quot;Auxílio Jurídico&quot; do app (aba Serviços) abre no WhatsApp. Use
+        DDI + DDD + número, só dígitos (ex.: 5531999990000).
+      </p>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', fontSize: 12 }}>
+          Número (com DDI)
+          <input
+            value={numero}
+            onChange={(e) => setNumero(e.target.value)}
+            placeholder="5531999990000"
+            inputMode="numeric"
+            style={{ width: 220 }}
+          />
+        </label>
+        <button className="secundario pequeno" disabled={salvando} onClick={salvar}>
+          {salvando ? 'Salvando…' : 'Salvar'}
+        </button>
+      </div>
+    </div>
   );
 }
 

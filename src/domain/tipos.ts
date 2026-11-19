@@ -143,7 +143,14 @@ export interface Habitualidade {
 // ---------------------------------------------------------------- despachante
 
 /** Serviços de despachante oferecidos no app. */
-export type TipoServicoDespachante = 'RENOVACAO_CRAF' | 'EMISSAO_GUIA';
+export type TipoServicoDespachante =
+  | 'CADASTRO_RENOVACAO_IBAMA'
+  | 'AQUISICAO_TRANSFERENCIA'
+  | 'POSSE_PF'
+  | 'PORTE_PF'
+  // Legados (processos antigos ainda usam estes tipos).
+  | 'RENOVACAO_CRAF'
+  | 'EMISSAO_GUIA';
 
 /** Andamento de um processo contratado (o servidor é a fonte da verdade). */
 export type StatusProcesso =
@@ -173,5 +180,44 @@ export interface Processo {
   /** Checkout hospedado do Asaas (PIX/cartão) para este processo. */
   invoiceUrl: string | null;
   criadoEm: string;
+  atualizadoEm: string;
+}
+
+/** Situação da filiação à liga (espelha o servidor). */
+export type StatusFiliacao =
+  | 'pendente_pagamento'
+  | 'ativa'
+  | 'suspensa'
+  | 'vencida'
+  | 'cancelada';
+
+/**
+ * Filiação do usuário à liga esportiva. Criada e tocada pelo SERVIDOR
+ * (assinatura anual via Asaas) e espelhada no app só pela sincronização (pull);
+ * o app nunca faz push de `filiacoes`. É a origem do Premium do filiado e a
+ * base da carteirinha/certificado.
+ */
+export interface Filiacao {
+  id: string;
+  numeroFiliacao: string | null;
+  status: StatusFiliacao;
+  origem: string | null;
+  nomeCompleto: string | null;
+  cpf: string | null;
+  endereco: {
+    cep: string | null;
+    logradouro: string | null;
+    numero: string | null;
+    complemento: string | null;
+    bairro: string | null;
+    cidade: string | null;
+    uf: string | null;
+  };
+  docTipo: string | null;
+  documentacaoCompleta: boolean;
+  valorCentavos: number | null;
+  vigenteAte: string | null;
+  invoiceUrl: string | null;
+  criadoEm: string | null;
   atualizadoEm: string;
 }

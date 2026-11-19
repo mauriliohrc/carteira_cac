@@ -1,20 +1,12 @@
 import React, { useState } from 'react';
-import {
-  Image,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 
 import { espaco, raio, tipo, useCores, useEstilos, type Paleta } from '@/tema';
-import { useLargura } from '@/ui/layout/useLargura';
 import { Botao } from '@/ui/base';
 import { Cabecalho } from '@/ui/Cabecalho';
+import { ImagemZoom } from '@/ui/ImagemZoom';
 import { LeitorPdf } from '@/ui/LeitorPdf';
 import { abrirNoSistema, compartilhar } from '@/arquivos/cofre';
 import type { Arquivo } from '@/domain/tipos';
@@ -27,7 +19,6 @@ export default function Visualizador() {
   }>();
   const c = useCores();
   const v = useEstilos(folha);
-  const { duasColunas } = useLargura();
   const [falhou, setFalhou] = useState(false);
 
   const ehPdf = (mime ?? '').includes('pdf') || nome?.toLowerCase().endsWith('.pdf');
@@ -48,25 +39,12 @@ export default function Visualizador() {
   );
 
   if (ehImagem) {
+    // Pinça/arraste/toque-duplo funcionam em iOS e Android (ver ImagemZoom). O
+    // ScrollView com maximumZoomScale de antes era iOS-only e no Android a
+    // imagem nunca dava zoom.
     return (
       <View style={{ flex: 1, backgroundColor: c.leitor }}>
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={v.centro}
-          maximumZoomScale={4}
-          minimumZoomScale={1}
-        >
-          <Image
-            source={{ uri }}
-            style={[
-              v.imagem,
-              // Tela larga: sem minHeight forçado e com teto, para a imagem não
-              // esticar de ponta a ponta no iPad/Mac/Duo aberto.
-              duasColunas && { minHeight: undefined, maxWidth: 1000, alignSelf: 'center' },
-            ]}
-            resizeMode="contain"
-          />
-        </ScrollView>
+        <ImagemZoom uri={uri} />
         {barra}
       </View>
     );
@@ -117,7 +95,6 @@ export default function Visualizador() {
 const folha = (c: Paleta) =>
   StyleSheet.create({
     centro: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
-    imagem: { width: '100%', height: '100%', minHeight: 500 },
     icone: {
       width: 58,
       height: 58,
