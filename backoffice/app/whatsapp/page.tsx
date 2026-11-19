@@ -270,7 +270,7 @@ function Disparo() {
           <div className="filtros">
             <div className="filtro-grupo">
               <span className="rotulo">Plano</span>
-              {(['GRATIS', 'ANUAL', 'MENSAL', 'CORTESIA'] as const).map((cat) => (
+              {(['GRATIS', 'ANUAL', 'MENSAL', 'CORTESIA', 'FEDERADO', 'CHURN'] as const).map((cat) => (
                 <button
                   key={cat}
                   className={`filtro-chip ${filtros.planos?.includes(cat) ? 'ativo' : ''}`}

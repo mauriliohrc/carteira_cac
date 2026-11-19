@@ -19,10 +19,12 @@ export interface Destinatario {
  */
 /** Faixa de plano → condição Prisma (mesmas regras da lista de usuários). */
 const PLANO_COND: Record<string, Prisma.UsuarioAppWhereInput> = {
-  GRATIS: { premium: false },
+  GRATIS: { premium: false, premiumTipo: null },
   ANUAL: { premium: true, premiumTipo: { in: ['ANUAL', 'ANUAL_PARCEIRO'] } },
   MENSAL: { premium: true, premiumTipo: 'MENSAL' },
   CORTESIA: { premium: true, premiumTipo: 'CUPOM' },
+  FEDERADO: { premium: true, premiumTipo: 'FILIACAO' },
+  CHURN: { premium: false, premiumTipo: 'CHURN' },
 };
 
 function montarWhere(f: FiltrosWhats): Prisma.UsuarioAppWhereInput {

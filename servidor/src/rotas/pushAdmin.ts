@@ -242,10 +242,12 @@ export async function rotasPushAdmin(app: FastifyInstance) {
 
       // Plano: faixas combinam em OR entre si (quem é anual OU mensal, p.ex.).
       const planoCond: Record<string, Prisma.UsuarioAppWhereInput> = {
-        GRATIS: { premium: false },
+        GRATIS: { premium: false, premiumTipo: null },
         ANUAL: { premium: true, premiumTipo: { in: ['ANUAL', 'ANUAL_PARCEIRO'] } },
         MENSAL: { premium: true, premiumTipo: 'MENSAL' },
         CORTESIA: { premium: true, premiumTipo: 'CUPOM' },
+        FEDERADO: { premium: true, premiumTipo: 'FILIACAO' },
+        CHURN: { premium: false, premiumTipo: 'CHURN' },
       };
       const planos = (q.planos ?? '')
         .split(',')
