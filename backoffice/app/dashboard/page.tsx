@@ -124,6 +124,23 @@ function Conteudo() {
       ],
     },
     {
+      titulo: 'Churn',
+      cards: [
+        {
+          titulo: 'Cancelaram renovação',
+          valor: d.cards.churnCancelouRenovacao,
+          dica: 'Desligaram a renovação — ainda com acesso',
+          href: '/churn?grupo=risco',
+        },
+        {
+          titulo: 'Perdidos (30d)',
+          valor: d.cards.churnPerdidos30,
+          dica: 'Expiraram/reembolsaram nos últimos 30 dias',
+          href: '/churn?grupo=perdidos',
+        },
+      ],
+    },
+    {
       titulo: 'Despachante',
       cards: [
         { titulo: 'Processos', valor: d.cards.processosTotal, dica: 'Serviços contratados (total)', href: '/despachante' },
