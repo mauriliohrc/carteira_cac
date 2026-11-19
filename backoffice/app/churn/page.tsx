@@ -62,6 +62,12 @@ const GRUPOS = [
   { id: 'perdidos', rotulo: 'Perdidos' },
 ];
 
+// Churn consumado: o usuário perdeu o acesso Premium (deixou de ser VIP). Nestes
+// status a coluna Plano mostra "Churn" (vermelho) no lugar do rótulo de premium
+// — que fica obsoleto enquanto a conta ainda não é rebaixada. Os de "risco"
+// (cancelaram a renovação mas seguem no período pago) continuam como Premium.
+const STATUS_PERDIDOS = ['EXPIRADA', 'REEMBOLSADA', 'REVOGADA'];
+
 export default function PaginaChurn() {
   return (
     <Protegido>
@@ -111,13 +117,22 @@ function Conteudo() {
     if (!confirm(rotulos[canal])) return;
     setOcupado(c.id);
     try {
-      const r = await api<{ ok: boolean; mensagem?: string; codigo?: string; aceitos?: number }>(
-        `/api/admin/churn/${c.id}/winback`,
-        { metodo: 'POST', corpo: { canal } }
-      );
+      const r = await api<{
+        ok: boolean;
+        mensagem?: string;
+        codigo?: string;
+        aceitos?: number;
+        titulo?: string;
+        corpo?: string;
+      }>(`/api/admin/churn/${c.id}/winback`, { metodo: 'POST', corpo: { canal } });
       if (canal === 'cupom' && r.codigo) alert(`Cupom gerado: ${r.codigo}`);
+      else if (canal === 'push')
+        alert(
+          `Push enviado (${r.aceitos ?? 0} aparelho(s)).\n\n` +
+            `${r.titulo ? r.titulo + '\n' : ''}${r.corpo ?? ''}`
+        );
+      else if (canal === 'whatsapp') alert(`WhatsApp enviado:\n\n${r.corpo ?? ''}`);
       else if (r.mensagem) alert(r.mensagem);
-      else if (canal === 'push') alert(`Push enviado (${r.aceitos ?? 0} aparelho(s)).`);
       else alert('Enviado.');
       await carregar();
     } catch (e) {
@@ -302,7 +317,7 @@ function Conteudo() {
                     </td>
 
                     {c.usuario ? (
-                      <CelulasUsuario u={c.usuario} />
+                      <CelulasUsuario u={c.usuario} churn={STATUS_PERDIDOS.includes(c.status)} />
                     ) : (
                       <td colSpan={COLUNAS_USUARIO} style={{ color: 'var(--texto-suave)', fontStyle: 'italic' }}>
                         Assinatura ainda não vinculada a uma conta
@@ -346,6 +361,10 @@ function Conteudo() {
 
       <p className="subtitulo" style={{ marginTop: 12 }}>
         <Link href="/dashboard">← Dashboard</Link>
+        {'  ·  '}
+        As mensagens de <strong>Push</strong> e <strong>Zap</strong> de reconquista são editáveis em{' '}
+        <Link href="/automacoes">Mensagens automáticas</Link> (gatilho “Reconquista”) e ficam
+        registradas em <Link href="/notificacoes">Auditoria de envios</Link>.
       </p>
     </>
   );

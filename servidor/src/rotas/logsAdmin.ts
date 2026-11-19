@@ -28,6 +28,7 @@ export async function rotasLogsAdmin(app: FastifyInstance) {
       q.tipo === 'BOAS_VINDAS' ||
       q.tipo === 'SEM_ARMA_7D' ||
       q.tipo === 'INATIVO_30D' ||
+      q.tipo === 'WINBACK' ||
       q.tipo === 'NOTICIA'
     )
       where.tipo = q.tipo;
@@ -50,6 +51,7 @@ export async function rotasLogsAdmin(app: FastifyInstance) {
         canal: l.canal,
         tipo: l.tipo,
         titulo: l.titulo,
+        corpo: l.corpo,
         destino: l.destino,
         status: l.status,
         erro: l.erro,

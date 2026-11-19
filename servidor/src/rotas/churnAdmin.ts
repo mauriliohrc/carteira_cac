@@ -10,6 +10,8 @@ import { JANELA_ONLINE_MIN } from '../dominio/tipos.js';
 import { backfillPorTransacao } from '../dominio/assinaturaServico.js';
 import { enviarPush } from '../push/expo.js';
 import { enviarTexto, estaConectado } from '../whatsapp/cliente.js';
+import { resolverModelo } from '../whatsapp/automacoes.js';
+import { registrarLog } from '../log/auditoria.js';
 import { normalizarCupom } from '../dominio/cupom.js';
 
 const STATUS_GRUPO: Record<string, string[]> = {
@@ -227,8 +229,10 @@ export async function rotasChurnAdmin(app: FastifyInstance) {
         break;
       }
       case 'push': {
-        const titulo = dados.titulo ?? 'Sentimos sua falta 🎯';
-        const corpo = dados.corpo ?? 'Volte ao Premium e mantenha seu acervo completo.';
+        // Texto do modelo editável (gatilho WINBACK) — ou o que vier no corpo.
+        const modelo = await resolverModelo('WINBACK', 'PUSH', u.nome);
+        const titulo = dados.titulo ?? modelo.titulo ?? 'Sentimos sua falta 🎯';
+        const corpo = dados.corpo ?? modelo.corpo;
         const disp = await prisma.dispositivoPush.findMany({
           where: { usuarioId: u.id, ativo: true },
           select: { token: true },
@@ -239,16 +243,47 @@ export async function rotasChurnAdmin(app: FastifyInstance) {
           corpo,
           dados: { tipo: 'winback' },
         });
-        resultado = { ok: true, aceitos: r.aceitos, falhas: r.erros.length };
+        const status = r.aceitos > 0 ? 'OK' : 'FALHOU';
+        await registrarLog({
+          usuarioId: u.id,
+          canal: 'PUSH',
+          tipo: 'WINBACK',
+          titulo,
+          corpo,
+          status,
+          erro: r.erros.length ? r.erros.map((e) => e.motivo).join('; ') : null,
+        });
+        resultado = { ok: true, titulo, corpo, aceitos: r.aceitos, falhas: r.erros.length };
         break;
       }
       case 'whatsapp': {
         if (!estaConectado()) throw conflito('WhatsApp desconectado no servidor');
         if (!u.celular) throw conflito('Usuário sem celular cadastrado');
-        const corpo =
-          dados.corpo ?? 'Oi! Vimos que seu Premium foi encerrado. Quer voltar com uma condição especial?';
-        await enviarTexto(u.celular, corpo, u.nome);
-        resultado = { ok: true };
+        const modelo = await resolverModelo('WINBACK', 'WHATSAPP', u.nome);
+        const corpo = dados.corpo ?? modelo.corpo;
+        try {
+          await enviarTexto(u.celular, corpo, u.nome);
+          await registrarLog({
+            usuarioId: u.id,
+            canal: 'WHATSAPP',
+            tipo: 'WINBACK',
+            corpo,
+            destino: u.celular,
+            status: 'OK',
+          });
+        } catch (e) {
+          await registrarLog({
+            usuarioId: u.id,
+            canal: 'WHATSAPP',
+            tipo: 'WINBACK',
+            corpo,
+            destino: u.celular,
+            status: 'FALHOU',
+            erro: e instanceof Error ? e.message : String(e),
+          });
+          throw e;
+        }
+        resultado = { ok: true, corpo };
         break;
       }
     }

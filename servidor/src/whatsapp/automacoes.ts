@@ -23,7 +23,7 @@ import { registrarLog } from '../log/auditoria.js';
  * repetir. O WhatsApp automático é espaçado para não parecer robô / evitar ban.
  */
 
-export type Gatilho = 'BOAS_VINDAS' | 'SEM_ARMA_7D' | 'INATIVO_30D';
+export type Gatilho = 'BOAS_VINDAS' | 'SEM_ARMA_7D' | 'INATIVO_30D' | 'WINBACK';
 export type Canal = 'WHATSAPP' | 'PUSH';
 
 export const GATILHOS: { id: Gatilho; rotulo: string; descricao: string }[] = [
@@ -41,6 +41,13 @@ export const GATILHOS: { id: Gatilho; rotulo: string; descricao: string }[] = [
     id: 'INATIVO_30D',
     rotulo: '30 dias sem acessar o app',
     descricao: 'Reengajamento: enviado uma vez a quem passa 30 dias sem abrir o aplicativo.',
+  },
+  {
+    id: 'WINBACK',
+    rotulo: 'Reconquista (churn)',
+    descricao:
+      'Mensagem de recuperação enviada MANUALMENTE pela tela de Churn & Reconquista ' +
+      '(botões Push / Zap). Não dispara sozinha — edite aqui o texto que vai ser usado.',
   },
 ];
 
@@ -108,7 +115,43 @@ const PADROES: { gatilho: Gatilho; canal: Canal; titulo?: string; corpo: string;
     titulo: 'Sentimos sua falta!',
     corpo: '{{nome}}, confira se seus documentos e a habitualidade seguem em dia no Carteira CAC.',
   },
+  // Reconquista — disparada só MANUALMENTE pela tela de Churn (não entra na
+  // varredura). O `ativo` não gate o envio manual; serve só como referência.
+  {
+    gatilho: 'WINBACK',
+    canal: 'WHATSAPP',
+    ativo: true,
+    corpo:
+      'Oi {{nome}}! Vi aqui que seu Premium no Carteira CAC foi encerrado. ' +
+      'Sentimos sua falta! 🎯 Quer voltar com uma condição especial? Posso te ajudar.',
+  },
+  {
+    gatilho: 'WINBACK',
+    canal: 'PUSH',
+    ativo: true,
+    titulo: 'Sentimos sua falta 🎯',
+    corpo: '{{nome}}, volte ao Premium e mantenha seu acervo e documentos sempre à mão.',
+  },
 ];
+
+/**
+ * Resolve o texto de um gatilho/canal já personalizado com o nome. Usa o modelo
+ * editado no backoffice; se ainda não existir, cai no padrão. Ignora o `ativo`
+ * (serve para disparos MANUAIS, como a reconquista pela tela de churn).
+ */
+export async function resolverModelo(
+  gatilho: Gatilho,
+  canal: Canal,
+  nome: string
+): Promise<{ titulo: string | null; corpo: string }> {
+  const modelo = await prisma.modeloMensagem.findUnique({
+    where: { gatilho_canal: { gatilho, canal } },
+  });
+  const base = modelo ?? PADROES.find((p) => p.gatilho === gatilho && p.canal === canal) ?? null;
+  const titulo = base?.titulo ? aplicarNome(base.titulo, nome) : null;
+  const corpo = aplicarNome(base?.corpo ?? '', nome);
+  return { titulo, corpo };
+}
 
 /** Garante que existam os modelos padrão (idempotente). */
 export async function garantirModelosPadrao(): Promise<void> {

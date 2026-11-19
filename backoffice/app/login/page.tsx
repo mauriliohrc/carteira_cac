@@ -20,7 +20,7 @@ export default function Login() {
     setEnviando(true);
     try {
       await entrar(email, senha);
-      router.replace('/entidades');
+      router.replace('/dashboard');
     } catch (err) {
       setErro(err instanceof ErroApi ? err.message : 'Falha ao entrar');
     } finally {

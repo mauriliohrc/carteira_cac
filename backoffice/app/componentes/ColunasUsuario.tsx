@@ -74,7 +74,16 @@ export const COLUNAS_USUARIO = 10;
  * <tr>, na mesma ordem de {@link CabecalhoUsuario}. `linkPerfil` (padrão true)
  * transforma o nome em link para /usuarios/[id].
  */
-export function CelulasUsuario({ u, linkPerfil = true }: { u: UsuarioApp; linkPerfil?: boolean }) {
+export function CelulasUsuario({
+  u,
+  linkPerfil = true,
+  churn = false,
+}: {
+  u: UsuarioApp;
+  linkPerfil?: boolean;
+  /** Churn consumado: mostra uma etiqueta "Churn" vermelha no lugar do plano. */
+  churn?: boolean;
+}) {
   const meta = PLANO_META[categoriaPlano(u.premium, u.premiumTipo)];
   return (
     <>
@@ -101,7 +110,17 @@ export function CelulasUsuario({ u, linkPerfil = true }: { u: UsuarioApp; linkPe
         {formatarCelular(u.celular) ?? <span style={{ color: 'var(--texto-suave)' }}>—</span>}
       </td>
       <td>
-        <span className={`etiqueta ${meta.classe}`}>{meta.rotulo}</span>
+        {churn ? (
+          <span
+            className="etiqueta"
+            title="Assinatura encerrada — o usuário perdeu o acesso Premium"
+            style={{ borderColor: 'var(--perigo, #d0585a)', color: 'var(--perigo, #d0585a)' }}
+          >
+            Churn
+          </span>
+        ) : (
+          <span className={`etiqueta ${meta.classe}`}>{meta.rotulo}</span>
+        )}
       </td>
       <td
         style={{ whiteSpace: 'nowrap', color: 'var(--texto-suave)', fontSize: 13 }}

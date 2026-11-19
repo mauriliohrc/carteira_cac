@@ -788,11 +788,14 @@ model LogNotificacao {
   usuarioId    String?
   /// WHATSAPP | PUSH
   canal        String
-  /// BOAS_VINDAS | SEM_ARMA_7D | NOTICIA
+  /// BOAS_VINDAS | SEM_ARMA_7D | INATIVO_30D | WINBACK | NOTICIA
   tipo         String
   /// noticiaId quando tipo = NOTICIA (ou outro id de referência).
   referenciaId String?
   titulo       String?  @db.Text
+  /// Texto efetivamente enviado (corpo da mensagem, já com o nome aplicado).
+  /// Permite auditar exatamente o que a pessoa recebeu (ex.: push de reconquista).
+  corpo        String?  @db.Text
   /// Destino resumido (ex.: celular no WhatsApp).
   destino      String?
   /// OK | FALHOU | PULADO

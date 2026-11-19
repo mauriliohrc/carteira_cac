@@ -1,7 +1,7 @@
 import { prisma } from '../db/cliente.js';
 
 export type CanalLog = 'WHATSAPP' | 'PUSH';
-export type TipoLog = 'BOAS_VINDAS' | 'SEM_ARMA_7D' | 'INATIVO_30D' | 'NOTICIA';
+export type TipoLog = 'BOAS_VINDAS' | 'SEM_ARMA_7D' | 'INATIVO_30D' | 'WINBACK' | 'NOTICIA';
 export type StatusLog = 'OK' | 'FALHOU' | 'PULADO';
 
 /**
@@ -15,6 +15,7 @@ export async function registrarLog(e: {
   tipo: TipoLog;
   referenciaId?: string | null;
   titulo?: string | null;
+  corpo?: string | null;
   destino?: string | null;
   status: StatusLog;
   erro?: string | null;
@@ -27,6 +28,7 @@ export async function registrarLog(e: {
         tipo: e.tipo,
         referenciaId: e.referenciaId ?? null,
         titulo: e.titulo ?? null,
+        corpo: e.corpo ?? null,
         destino: e.destino ?? null,
         status: e.status,
         erro: e.erro ?? null,

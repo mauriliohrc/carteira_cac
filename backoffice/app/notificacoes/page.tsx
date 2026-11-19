@@ -10,6 +10,7 @@ const ROTULO_TIPO: Record<string, string> = {
   BOAS_VINDAS: 'Boas-vindas',
   SEM_ARMA_7D: '7 dias sem cadastro',
   INATIVO_30D: '30 dias sem acessar',
+  WINBACK: 'Reconquista (churn)',
   NOTICIA: 'Notícia',
 };
 
@@ -18,6 +19,7 @@ interface LogItem {
   canal: string;
   tipo: string;
   titulo: string | null;
+  corpo: string | null;
   destino: string | null;
   status: string;
   erro: string | null;
@@ -98,6 +100,7 @@ function Auditoria() {
             <option value="BOAS_VINDAS">Boas-vindas</option>
             <option value="SEM_ARMA_7D">7 dias sem cadastro</option>
             <option value="INATIVO_30D">30 dias sem acessar</option>
+            <option value="WINBACK">Reconquista (churn)</option>
             <option value="NOTICIA">Notícia</option>
           </select>
         </div>
@@ -117,7 +120,7 @@ function Auditoria() {
                 <th>Usuário</th>
                 <th>Tipo</th>
                 <th>Canal</th>
-                <th>Título / destino</th>
+                <th>Mensagem</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -134,7 +137,19 @@ function Auditoria() {
                   </td>
                   <td>{ROTULO_TIPO[l.tipo] ?? l.tipo}</td>
                   <td>{l.canal === 'WHATSAPP' ? 'WhatsApp' : 'Push'}</td>
-                  <td>{l.titulo ?? l.destino ?? '—'}</td>
+                  <td style={{ maxWidth: 420 }}>
+                    {l.titulo && <div style={{ fontWeight: 600 }}>{l.titulo}</div>}
+                    {l.corpo ? (
+                      <div style={{ color: 'var(--texto-suave)', fontSize: 13, whiteSpace: 'pre-wrap' }}>
+                        {l.corpo}
+                      </div>
+                    ) : (
+                      !l.titulo && <span style={{ color: 'var(--texto-suave)' }}>{l.destino ?? '—'}</span>
+                    )}
+                    {l.destino && (l.titulo || l.corpo) && (
+                      <div style={{ color: 'var(--texto-suave)', fontSize: 11 }}>→ {l.destino}</div>
+                    )}
+                  </td>
                   <td>
                     <span
                       className={`etiqueta ${l.status === 'OK' ? 'publicada' : 'rascunho'}`}
