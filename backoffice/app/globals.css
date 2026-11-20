@@ -40,12 +40,15 @@
 html, body {
   margin: 0;
   padding: 0;
-  background: var(--fundo);
   color: var(--texto);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 16.5px;
   line-height: 1.5;
 }
+/* Cor de fallback no html (canvas). O body fica TRANSPARENTE para não tapar a
+   imagem de fundo (::before) nem o véu (::after), que têm z-index negativo. */
+html { background: var(--fundo); }
+body { background: transparent; }
 
 /* Imagem de fundo de TODAS as telas: a imagem fica VISÍVEL atrás de tudo e um
    véu de 25% da cor do tema passa por cima (contraste/legibilidade). */
