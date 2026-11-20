@@ -26,18 +26,22 @@ const DESPACHANTE_MENU: ItemMenu[] = [
   { href: '/despachante/catalogo', rotulo: 'Status' },
 ];
 
-// Submenu "Recursos" — menus menos frequentes, agrupados para enxugar a barra.
-const OUTROS: ItemMenu[] = [
-  { href: '/entidades', rotulo: 'Entidades' },
-  { href: '/despachante/catalogo', rotulo: 'Catálogo de serviços' },
-  { href: '/marketplace', rotulo: 'Marketplace' },
-  { href: '/push', rotulo: 'Push' },
-  { href: '/churn', rotulo: 'Churn' },
+// Submenu "Configurações" — gestão do negócio e canais.
+const CONFIG_MENU: ItemMenu[] = [
+  { href: '/config', rotulo: 'Gestão' },
   { href: '/whatsapp', rotulo: 'WhatsApp' },
   { href: '/automacoes', rotulo: 'Automações' },
   { href: '/cupons', rotulo: 'Cupons' },
+  { href: '/push', rotulo: 'Push' },
+  { href: '/entidades', rotulo: 'Entidades' },
+];
+
+// Submenu "Recursos" — menus menos frequentes, agrupados para enxugar a barra.
+const OUTROS: ItemMenu[] = [
+  { href: '/despachante/catalogo', rotulo: 'Catálogo de serviços' },
+  { href: '/marketplace', rotulo: 'Marketplace' },
+  { href: '/churn', rotulo: 'Churn' },
   { href: '/contatos', rotulo: 'Contatos' },
-  { href: '/config', rotulo: 'Gestão' },
 ];
 
 /** Envolve páginas internas: redireciona para /login se não houver admin. */
@@ -80,6 +84,7 @@ export function Protegido({ children }: { children: React.ReactNode }) {
             ))}
 
             <NavDropdown rotulo="Despachante" itens={DESPACHANTE_MENU} ativo={ehAtivo('/despachante')} />
+            <NavDropdown rotulo="Configurações" itens={CONFIG_MENU} ativo={CONFIG_MENU.some((o) => 'href' in o && ehAtivo(o.href))} />
             <NavDropdown rotulo="Recursos" itens={OUTROS} ativo={OUTROS.some((o) => 'href' in o && ehAtivo(o.href))} />
           </nav>
         </div>
