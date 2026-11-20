@@ -20,6 +20,7 @@ function Automacoes() {
   const [gatilhos, setGatilhos] = useState<GatilhoMensagem[]>([]);
   const [modelos, setModelos] = useState<ModeloMensagem[]>([]);
   const [carregando, setCarregando] = useState(true);
+  const [aba, setAba] = useState('');
 
   const carregar = useCallback(async () => {
     const r = await api<{ ativo: boolean; gatilhos: GatilhoMensagem[]; modelos: ModeloMensagem[] }>(
@@ -41,6 +42,8 @@ function Automacoes() {
   }
 
   if (carregando) return <div className="vazio">Carregando…</div>;
+
+  const sel = aba || gatilhos[0]?.id;
 
   return (
     <>
@@ -65,17 +68,32 @@ function Automacoes() {
         </p>
       </div>
 
-      {gatilhos.map((g) => (
-        <div key={g.id} style={{ opacity: ativo ? 1 : 0.6 }}>
-          <h2>{g.rotulo}</h2>
-          <p className="subtitulo" style={{ marginTop: -8 }}>{g.descricao}</p>
-          {modelos
-            .filter((m) => m.gatilho === g.id)
-            .map((m) => (
-              <CartaoModelo key={m.id} modelo={m} aoSalvar={carregar} />
-            ))}
+      <div className="filtros" style={{ margin: '16px 0' }}>
+        <div className="filtro-grupo">
+          {gatilhos.map((g) => (
+            <button
+              key={g.id}
+              className={`filtro-chip ${sel === g.id ? 'ativo' : ''}`}
+              onClick={() => setAba(g.id)}
+            >
+              {g.rotulo}
+            </button>
+          ))}
         </div>
-      ))}
+      </div>
+
+      {gatilhos
+        .filter((g) => g.id === sel)
+        .map((g) => (
+          <div key={g.id} style={{ opacity: ativo ? 1 : 0.6 }}>
+            <p className="subtitulo" style={{ marginTop: 0 }}>{g.descricao}</p>
+            {modelos
+              .filter((m) => m.gatilho === g.id)
+              .map((m) => (
+                <CartaoModelo key={m.id} modelo={m} aoSalvar={carregar} />
+              ))}
+          </div>
+        ))}
     </>
   );
 }
