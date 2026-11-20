@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "br.com.cacbrasil.carteira",
-      "versionCode": 29,
+      "versionCode": 30,
       "googleServicesFile": "./google-services.json",
       "predictiveBackGestureEnabled": false,
       "adaptiveIcon": {
