@@ -65,7 +65,7 @@ body::after {
   position: fixed;
   inset: 0;
   background: var(--fundo);
-  opacity: 0.8;
+  opacity: 0.9;
   z-index: -1;
   pointer-events: none;
 }
