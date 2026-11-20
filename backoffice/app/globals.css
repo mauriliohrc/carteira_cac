@@ -14,6 +14,25 @@
   --perigo: #CB5B45;
   --ok: #93AD65;
   --raio: 12px;
+  color-scheme: dark;
+}
+
+/* Tema CLARO — mesma identidade (verde-oliva/latão) sobre fundo claro. */
+:root[data-theme='light'] {
+  --fundo: #F3F5EF;
+  --superficie: #FFFFFF;
+  --superficie-2: #EDF0E8;
+  --borda: #DFE3D8;
+  --borda-forte: #C7CEBB;
+  --texto: #1A1F15;
+  --texto-suave: #5C6350;
+  --acento: #5E7A2E;
+  --acento-forte: #496021;
+  --sobre-acento: #FFFFFF;
+  --latao: #9A7B16;
+  --perigo: #B23B2A;
+  --ok: #4C7A2C;
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -130,8 +149,10 @@ tr:hover td { background: var(--superficie-2); }
   justify-content: space-between;
 }
 
-.nav { display: flex; gap: 18px; }
-.nav a { color: var(--texto-suave); font-size: 15px; font-weight: 600; padding: 4px 0; }
+.nav { display: flex; gap: 18px; align-items: center; }
+/* Links e botões de submenu com o MESMO tamanho/peso (16.5px, como os dropdowns). */
+.nav a, .nav .nav-outro { color: var(--texto-suave); font-size: 16.5px; font-weight: 600; padding: 4px 0; }
+.nav .nav-outro.nav-ativo { color: var(--acento-forte); }
 .nav a:hover { color: var(--texto); }
 .nav a.nav-ativo { color: var(--acento-forte); border-bottom: 2px solid var(--acento-forte); }
 

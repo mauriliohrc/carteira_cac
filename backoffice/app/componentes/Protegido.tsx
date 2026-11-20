@@ -11,7 +11,6 @@ const NAV = [
   { href: '/noticias', rotulo: 'Notícias' },
   { href: '/usuarios', rotulo: 'Usuários' },
   { href: '/filiacoes', rotulo: 'Liga' },
-  { href: '/notificacoes', rotulo: 'Auditoria' },
 ];
 
 type ItemMenu = { href: string; rotulo: string } | { sep: true };
@@ -38,6 +37,7 @@ const CONFIG_MENU: ItemMenu[] = [
 
 // Submenu "Recursos" — menus menos frequentes, agrupados para enxugar a barra.
 const OUTROS: ItemMenu[] = [
+  { href: '/notificacoes', rotulo: 'Auditoria' },
   { href: '/despachante/catalogo', rotulo: 'Catálogo de serviços' },
   { href: '/marketplace', rotulo: 'Marketplace' },
   { href: '/churn', rotulo: 'Churn' },
@@ -110,6 +110,7 @@ export function Protegido({ children }: { children: React.ReactNode }) {
             />
           </form>
           <span style={{ color: 'var(--texto-suave)', fontSize: 13 }}>{admin.email}</span>
+          <TemaToggle />
           <button className="secundario pequeno" onClick={sair}>
             Sair
           </button>
@@ -117,6 +118,39 @@ export function Protegido({ children }: { children: React.ReactNode }) {
       </header>
       <main className="conteudo">{children}</main>
     </>
+  );
+}
+
+/** Alterna tema claro/escuro e persiste no navegador (bo-tema). */
+function TemaToggle() {
+  const [tema, setTema] = useState<'dark' | 'light'>('dark');
+
+  useEffect(() => {
+    const atual = (document.documentElement.dataset.theme as 'dark' | 'light') || 'dark';
+    setTema(atual);
+  }, []);
+
+  function alternar() {
+    const novo = tema === 'dark' ? 'light' : 'dark';
+    setTema(novo);
+    document.documentElement.dataset.theme = novo;
+    try {
+      localStorage.setItem('bo-tema', novo);
+    } catch {
+      /* localStorage indisponível */
+    }
+  }
+
+  return (
+    <button
+      className="secundario pequeno"
+      onClick={alternar}
+      title={tema === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
+      aria-label="Alternar tema claro/escuro"
+      style={{ lineHeight: 1 }}
+    >
+      {tema === 'dark' ? '☀️' : '🌙'}
+    </button>
   );
 }
 
@@ -144,7 +178,7 @@ function NavDropdown({ rotulo, itens, ativo }: { rotulo: string; itens: ItemMenu
         aria-haspopup="menu"
         aria-expanded={aberto}
         onClick={() => setAberto((v) => !v)}
-        style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer' }}
+        style={{ background: 'none', border: 'none', fontFamily: 'inherit', cursor: 'pointer' }}
       >
         {rotulo} ▾
       </button>

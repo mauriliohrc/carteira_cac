@@ -15,7 +15,15 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        {/* Aplica o tema salvo ANTES da pintura (evita flash claro↔escuro). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: "try{var t=localStorage.getItem('bo-tema');if(t)document.documentElement.dataset.theme=t;}catch(e){}",
+          }}
+        />
+      </head>
       <body>
         <ProvedorSessao>{children}</ProvedorSessao>
       </body>
