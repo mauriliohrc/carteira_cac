@@ -117,10 +117,15 @@ const POR_SERVICO: Record<string, { termo: string; campos: CampoSeed[] }> = {
   RENOVACAO_CRAF: {
     termo: termo('Renovação de CRAF'),
     campos: [
-      ...COMUNS,
+      ...COMUNS.map((c) =>
+        c.nome.startsWith('Comprovante de endereço')
+          ? { ...c, nome: 'Comprovante de endereço (histórico dos últimos 5 anos)', descricao: 'Comprovantes que demonstrem a residência nos últimos 5 anos (exigência da renovação).' }
+          : c
+      ),
       arq('CR — Certificado de Registro (vigente)', 'Seu CR de CAC em vigência.', true),
       arq('CRAF atual da arma', 'O CRAF vigente/vencido da arma a ser renovada.', true),
-      arq('Comprovante de habitualidade (atirador)', 'Comprovante de habitualidade, quando aplicável.', false),
+      arq('Laudo de aptidão psicológica (renovado)', 'Laudo psicológico válido, renovado (psicólogo credenciado PF).', true),
+      arq('Comprovante de habitualidade (últimos 12 meses)', 'Comprovante de habitualidade do último ano (colecionador é dispensado).', false),
     ],
   },
   EMISSAO_GUIA: {
