@@ -32,9 +32,11 @@ const servicoSchema = z.object({
   gruCentavos: z.number().int().min(0).max(10_000_000).default(0),
   servicoCentavos: z.number().int().min(0).max(10_000_000).default(0),
   unidade: z.string().trim().max(40).optional(),
+  porArma: z.boolean().optional(),
   ativo: z.boolean().optional(),
   ordem: z.number().int().min(0).max(100_000).optional(),
   mensagemWhatsappInicio: z.string().trim().max(2000).nullish(),
+  termoAceite: z.string().trim().max(8000).nullish(),
 });
 
 const campoSchema = z.object({
@@ -166,9 +168,11 @@ export async function rotasDespachanteAdmin(app: FastifyInstance) {
         gruCentavos: d.gruCentavos,
         servicoCentavos: d.servicoCentavos,
         unidade: d.unidade || 'por processo',
+        porArma: d.porArma ?? false,
         ativo: d.ativo ?? true,
         ordem: d.ordem ?? 999,
         mensagemWhatsappInicio: d.mensagemWhatsappInicio ?? null,
+        termoAceite: d.termoAceite ?? null,
       },
     });
     return { ok: true, id: servico.id, codigo };
@@ -190,9 +194,11 @@ export async function rotasDespachanteAdmin(app: FastifyInstance) {
         gruCentavos: d.gruCentavos,
         servicoCentavos: d.servicoCentavos,
         unidade: d.unidade || existe.unidade,
+        porArma: d.porArma ?? existe.porArma,
         ativo: d.ativo ?? existe.ativo,
         ordem: d.ordem ?? existe.ordem,
         mensagemWhatsappInicio: d.mensagemWhatsappInicio ?? null,
+        termoAceite: d.termoAceite ?? null,
       },
     });
     return { ok: true };

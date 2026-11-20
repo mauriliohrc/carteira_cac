@@ -239,9 +239,11 @@ function ServicoCard({ servico, aoMudar }: { servico: ServicoDespachanteAdmin; a
   const [gru, setGru] = useState(reais(servico.gruCentavos));
   const [serv, setServ] = useState(reais(servico.servicoCentavos));
   const [unidade, setUnidade] = useState(servico.unidade);
+  const [porArma, setPorArma] = useState(servico.porArma);
   const [ativo, setAtivo] = useState(servico.ativo);
   const [ordem, setOrdem] = useState(String(servico.ordem));
   const [msg, setMsg] = useState(servico.mensagemWhatsappInicio ?? '');
+  const [termo, setTermo] = useState(servico.termoAceite ?? '');
   const [salvando, setSalvando] = useState(false);
 
   async function salvar() {
@@ -258,9 +260,11 @@ function ServicoCard({ servico, aoMudar }: { servico: ServicoDespachanteAdmin; a
           gruCentavos: paraCentavos(gru),
           servicoCentavos: paraCentavos(serv),
           unidade,
+          porArma,
           ativo,
           ordem: Number(ordem) || 0,
           mensagemWhatsappInicio: msg || null,
+          termoAceite: termo || null,
         },
       });
       aoMudar();
@@ -305,10 +309,17 @@ function ServicoCard({ servico, aoMudar }: { servico: ServicoDespachanteAdmin; a
         <label>Mensagem de WhatsApp ao iniciar (use {'{{nome}}'})</label>
         <textarea value={msg} onChange={(e) => setMsg(e.target.value)} style={{ minHeight: 60 }} />
       </div>
+      <div className="campo">
+        <label>Termo de aceite (o usuário aceita antes de contratar — deixe vazio para não exigir)</label>
+        <textarea value={termo} onChange={(e) => setTermo(e.target.value)} style={{ minHeight: 80 }} />
+      </div>
 
       <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
         <label className="radio-opcao" style={{ width: 'fit-content' }}>
           <input type="checkbox" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} style={{ width: 'auto' }} /> Ativo
+        </label>
+        <label className="radio-opcao" style={{ width: 'fit-content' }} title="O usuário escolhe a(s) arma(s) e paga por item (um processo por arma).">
+          <input type="checkbox" checked={porArma} onChange={(e) => setPorArma(e.target.checked)} style={{ width: 'auto' }} /> Vinculado a uma arma (cobra por arma)
         </label>
         <div className="campo" style={{ margin: 0 }}>
           <label>Ordem</label>

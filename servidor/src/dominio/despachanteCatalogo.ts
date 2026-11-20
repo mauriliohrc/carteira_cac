@@ -85,6 +85,7 @@ export async function garantirCatalogoDespachante(): Promise<void> {
           gruCentavos: c?.gruCentavos ?? s.gruCentavos,
           servicoCentavos: c?.servicoCentavos ?? s.servicoCentavos,
           unidade: s.unidade,
+          porArma: s.tipo === 'RENOVACAO_CRAF' || s.tipo === 'EMISSAO_GUIA',
           ativo: c?.ativo ?? true,
           ordem: (ordem += 10),
         },

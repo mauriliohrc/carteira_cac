@@ -62,6 +62,8 @@ function apresentarServico(s: ServicoComCampos) {
     comoFunciona: s.comoFunciona,
     icone: s.icone,
     ordem: s.ordem,
+    porArma: s.porArma,
+    termoAceite: s.termoAceite,
     campos: s.campos.map((c) => ({
       id: c.id,
       tipo: c.tipo,
@@ -210,7 +212,24 @@ export async function rotasDespachanteAppV1(app: FastifyInstance) {
     await refletirProcessoNoSync(processo);
     void aoCriarProcesso(processo, servico.nome).catch(() => {});
 
-    return { processo: { id: processo.id, status: processo.status, invoiceUrl: cobranca.invoiceUrl }, invoiceUrl: cobranca.invoiceUrl };
+    // Devolve o processo COMPLETO — o app grava no SQLite local (campos não
+    // podem faltar, senão o bind com `undefined` quebra o insert).
+    return {
+      processo: {
+        id: processo.id,
+        tipoServico: processo.tipoServico,
+        status: processo.status,
+        armaId: processo.armaId,
+        armaNome: processo.armaNome,
+        valorCentavos: processo.valorCentavos,
+        quantidade: processo.quantidade,
+        asaasPaymentId: processo.asaasPaymentId,
+        invoiceUrl: processo.invoiceUrl,
+        criadoEm: processo.criadoEm.toISOString(),
+        atualizadoEm: processo.atualizadoEm.toISOString(),
+      },
+      invoiceUrl: cobranca.invoiceUrl,
+    };
   });
 
   // Exclui um processo ainda NÃO pago.

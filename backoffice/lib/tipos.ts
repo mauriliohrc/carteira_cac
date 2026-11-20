@@ -707,9 +707,11 @@ export interface ServicoDespachanteAdmin {
   servicoCentavos: number;
   precoCentavos: number;
   unidade: string;
+  porArma: boolean;
   ativo: boolean;
   ordem: number;
   mensagemWhatsappInicio: string | null;
+  termoAceite: string | null;
   campos: CampoDespachante[];
 }
 

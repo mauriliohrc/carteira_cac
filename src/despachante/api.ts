@@ -29,6 +29,10 @@ export interface ServicoDespachante {
   precoCentavos: number;
   /** Unidade de cobrança, para a UI ("por CRAF", "por guia"). */
   unidade: string;
+  /** true = escolhe arma(s) e paga por item; false = valor único, sem arma. */
+  porArma?: boolean;
+  /** Termo de aceite que o usuário aceita antes de contratar (opcional). */
+  termoAceite?: string | null;
   // Aditivos (catálogo dinâmico) — ausentes no fallback offline.
   codigo?: string;
   subtitulo?: string | null;
@@ -197,7 +201,7 @@ export async function listarServicos(): Promise<CatalogoDespachante> {
  * processo criado e o `invoiceUrl` do checkout hospedado (PIX/cartão).
  */
 export async function criarPedido(dados: {
-  tipoServico: TipoServicoDespachante;
+  tipoServico: TipoServicoDespachante | string;
   armaId?: string | null;
   armaNome?: string | null;
 }): Promise<{ processo: Processo; invoiceUrl: string }> {

@@ -460,10 +460,15 @@ model ServicoDespachante {
   gruCentavos            Int      @default(0)
   servicoCentavos        Int      @default(0)
   unidade                String   @default("por processo")
+  /// true = vinculado a arma: o usuário escolhe a(s) arma(s) e paga por item
+  /// (um processo por arma). false = valor único, sem escolher arma.
+  porArma                Boolean  @default(false)
   ativo                  Boolean  @default(true)
   ordem                  Int      @default(0)
   /// Mensagem de WhatsApp enviada ao INICIAR o processo (pago), por serviço.
   mensagemWhatsappInicio String?  @db.Text
+  /// Termo de aceite que o usuário deve aceitar antes de contratar (opcional).
+  termoAceite            String?  @db.Text
   criadoEm               DateTime @default(now())
   atualizadoEm           DateTime @updatedAt
 
