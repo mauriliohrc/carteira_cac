@@ -55,6 +55,9 @@ export async function rotasSyncAppV1(app: FastifyInstance) {
   app.addHook('preHandler', exigirApp());
 
   // -------- PUSH: sobe alterações locais (LWW por atualizadoEm) ----------
+  // Normaliza a série para comparar (sem espaços, maiúsculas) — igual ao app.
+  const chaveSerie = (s: unknown) => String(s ?? '').replace(/\s+/g, '').toUpperCase();
+
   app.post('/app/sync/push', async (req) => {
     const { registros } = pushSchema.parse(req.body);
     const usuarioId = req.usuario!.id;
@@ -71,6 +74,29 @@ export async function rotasSyncAppV1(app: FastifyInstance) {
       // Só sobrescreve se o que chega for igual ou mais novo (last-write-wins).
       if (existente && existente.atualizadoEm > atualizadoEm) continue;
 
+      // Anti-duplicação de armas: se chega uma arma NOVA (registroId inédito,
+      // não removida) e já existe uma arma ATIVA com a MESMA série (de outro
+      // aparelho ou de uma re-importação), grava a nova como removida — evita o
+      // acúmulo de duplicatas por série no acervo.
+      let removido = r.removido ?? false;
+      if (r.tipo === 'armas' && !existente && !removido) {
+        const serie = chaveSerie((r.dados as { numero_serie?: unknown } | null)?.numero_serie);
+        if (serie) {
+          const ativas = await prisma.registroSync.findMany({
+            where: { usuarioId, tipo: 'armas', removido: false, registroId: { not: r.registroId } },
+            select: { dados: true },
+          });
+          const jaExiste = ativas.some((a) => {
+            try {
+              return chaveSerie((JSON.parse(a.dados) as { numero_serie?: unknown }).numero_serie) === serie;
+            } catch {
+              return false;
+            }
+          });
+          if (jaExiste) removido = true;
+        }
+      }
+
       await prisma.registroSync.upsert({
         where: { usuarioId_tipo_registroId: { usuarioId, tipo: r.tipo, registroId: r.registroId } },
         create: {
@@ -79,9 +105,9 @@ export async function rotasSyncAppV1(app: FastifyInstance) {
           registroId: r.registroId,
           dados,
           atualizadoEm,
-          removido: r.removido ?? false,
+          removido,
         },
-        update: { dados, atualizadoEm, removido: r.removido ?? false },
+        update: { dados, atualizadoEm, removido },
       });
 
       // Timeline do acervo (documentos/armas): deriva criar/editar/remover do
@@ -89,11 +115,11 @@ export async function rotasSyncAppV1(app: FastifyInstance) {
       // em re-push idêntico). Apps antigos continuam funcionando normalmente.
       const mapa = EVENTOS_ACERVO[r.tipo];
       if (mapa) {
-        const removidoAgora = r.removido ?? false;
+        const removidoAgora = removido;
         const removidoAntes = existente?.removido ?? false;
         let evento: TipoEventoUsuario | null = null;
         if (!existente && !removidoAgora) evento = mapa.criado;
-        else if (removidoAgora && !removidoAntes) evento = mapa.removido;
+        else if (removidoAgora && !removidoAntes && existente) evento = mapa.removido;
         else if (existente && !removidoAgora && existente.dados !== dados) evento = mapa.editado;
         if (evento) {
           void registrarEventoUsuario(usuarioId, evento, {
