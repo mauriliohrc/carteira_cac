@@ -21,6 +21,39 @@ export function adicionarMeses(base: Date, meses: number): Date {
   return d;
 }
 
+/**
+ * Filiação ativa CONCEDE o Premium no servidor (premiumTipo='FILIACAO'), para o
+ * backoffice refletir na hora — independente do heartbeat do app. O app também
+ * libera localmente ao ver a filiação ativa no sync.
+ */
+export async function concederPremiumFiliacao(usuarioId: string): Promise<void> {
+  await prisma.usuarioApp.update({
+    where: { id: usuarioId },
+    data: { premium: true, premiumTipo: 'FILIACAO' },
+  });
+}
+
+/**
+ * Ao encerrar a filiação, rebaixa o Premium SE ele veio da filiação e não há
+ * OUTRA filiação ativa e vigente. Premium de loja/cupom (outro premiumTipo) não
+ * é tocado. Corrige o "Federado" obsoleto quando a filiação vence/cancela.
+ */
+export async function revogarPremiumFiliacao(usuarioId: string): Promise<void> {
+  const u = await prisma.usuarioApp.findUnique({
+    where: { id: usuarioId },
+    select: { premiumTipo: true },
+  });
+  if (u?.premiumTipo !== 'FILIACAO') return;
+  const aindaAtiva = await prisma.filiacaoLiga.count({
+    where: { usuarioId, status: 'ativa', vigenteAte: { gt: new Date() } },
+  });
+  if (aindaAtiva > 0) return;
+  await prisma.usuarioApp.update({
+    where: { id: usuarioId },
+    data: { premium: false, premiumTipo: null },
+  });
+}
+
 /** Gera um número de filiação único e legível: "AAAA-000123". */
 async function gerarNumeroFiliacao(): Promise<string> {
   const ano = new Date().getFullYear();
@@ -57,6 +90,7 @@ export async function ativarFiliacao(
     },
   });
   await refletirFiliacaoNoSync(atualizada);
+  await concederPremiumFiliacao(atualizada.usuarioId);
   await registrarEventoUsuario(atualizada.usuarioId, 'FILIACAO_ATIVA', {
     origem: opcoes.origemEvento ?? 'ASAAS',
     descricao: `Filiação ${numeroFiliacao} ativa até ${atualizada.vigenteAte
@@ -77,6 +111,7 @@ export async function encerrarFiliacao(
     data: { status },
   });
   await refletirFiliacaoNoSync(atualizada);
+  await revogarPremiumFiliacao(atualizada.usuarioId);
   await registrarEventoUsuario(atualizada.usuarioId, 'FILIACAO_ENCERRADA', {
     origem: origemEvento,
     descricao: `Filiação ${filiacao.numeroFiliacao ?? ''} ${status}`.trim(),
@@ -111,6 +146,7 @@ export async function criarFiliacaoManual(opts: {
     },
   });
   await refletirFiliacaoNoSync(criada);
+  await concederPremiumFiliacao(criada.usuarioId);
   await registrarEventoUsuario(opts.usuarioId, 'FILIACAO_ATIVA', {
     origem: 'ADMIN',
     descricao: `Filiado manualmente (nº ${criada.numeroFiliacao})`,
