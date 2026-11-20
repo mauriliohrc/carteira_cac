@@ -22,9 +22,24 @@ interface ProcessoFila {
   valorCentavos: number;
   armaNome: string | null;
   invoiceUrl: string | null;
+  grupoId: string;
   criadoEm: string;
   atualizadoEm: string;
   usuario: { id: string; nome: string; email: string; cpf: string; celular: string | null };
+}
+
+/** Agrupa processos do mesmo pedido (por-arma) mantendo a ordem. */
+function agrupar(itens: ProcessoFila[]): ProcessoFila[][] {
+  const ordem: string[] = [];
+  const mapa = new Map<string, ProcessoFila[]>();
+  for (const it of itens) {
+    if (!mapa.has(it.grupoId)) {
+      mapa.set(it.grupoId, []);
+      ordem.push(it.grupoId);
+    }
+    mapa.get(it.grupoId)!.push(it);
+  }
+  return ordem.map((g) => mapa.get(g)!);
 }
 
 interface Resposta {
@@ -52,6 +67,49 @@ export default function PaginaDespachante() {
         <FilaDespachante />
       </Suspense>
     </Protegido>
+  );
+}
+
+function GrupoCard({ grupo }: { grupo: ProcessoFila[] }) {
+  const primeiro = grupo[0];
+  const porArma = grupo.length > 1;
+  const total = grupo.reduce((s, x) => s + x.valorCentavos, 0);
+  return (
+    <div className="cartao">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+        <div>
+          <strong>{nomeServico(primeiro.tipoServico)}</strong>
+          {porArma ? <span className="etiqueta" style={{ marginLeft: 8 }}>{grupo.length} equipamentos</span> : null}
+          <div style={{ color: 'var(--texto-suave)', fontSize: 13, marginTop: 2 }}>
+            <Link href={`/usuarios/${primeiro.usuario.id}`}>{primeiro.usuario.nome}</Link>
+            {primeiro.usuario.celular ? ` · ${primeiro.usuario.celular}` : ''} · {dataHora(primeiro.criadoEm)}
+          </div>
+        </div>
+        <strong style={{ whiteSpace: 'nowrap' }}>{reais(total)}</strong>
+      </div>
+
+      <div style={{ marginTop: 10, overflowX: 'auto' }}>
+        <table style={{ width: '100%' }}>
+          <tbody>
+            {grupo.map((p) => (
+              <tr key={p.id}>
+                <td>{porArma ? p.armaNome ?? 'Equipamento' : p.armaNome ?? '—'}</td>
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  <span className="etiqueta" style={{ borderColor: p.statusCor, color: p.statusCor }}>
+                    ● {p.statusLabel}
+                  </span>
+                </td>
+                <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+                  <Link href={`/despachante/${p.id}`} className="secundario pequeno" style={{ textDecoration: 'none' }}>
+                    Abrir
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -115,52 +173,17 @@ function FilaDespachante() {
         ))}
       </div>
 
-      <div className="cartao" style={{ padding: 0, overflowX: 'auto' }}>
-        {carregando ? (
-          <div className="vazio">Carregando…</div>
-        ) : !dados || dados.processos.length === 0 ? (
-          <div className="vazio">Nenhum processo neste filtro.</div>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Contratado</th>
-                <th>Serviço</th>
-                <th>Arma</th>
-                <th>Usuário</th>
-                <th>Telefone</th>
-                <th>Valor</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {dados.processos.map((p) => (
-                <tr key={p.id}>
-                  <td style={{ whiteSpace: 'nowrap' }}>{dataHora(p.criadoEm)}</td>
-                  <td>{nomeServico(p.tipoServico)}</td>
-                  <td>{p.armaNome ?? '—'}</td>
-                  <td>
-                    <Link href={`/usuarios/${p.usuario.id}`}>{p.usuario.nome}</Link>
-                  </td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{p.usuario.celular ?? '—'}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{reais(p.valorCentavos)}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>
-                    <span className="etiqueta" style={{ borderColor: p.statusCor, color: p.statusCor }}>
-                      ● {p.statusLabel}
-                    </span>
-                  </td>
-                  <td>
-                    <Link href={`/despachante/${p.id}`} className="secundario pequeno" style={{ textDecoration: 'none' }}>
-                      Abrir
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {carregando ? (
+        <div className="cartao"><div className="vazio">Carregando…</div></div>
+      ) : !dados || dados.processos.length === 0 ? (
+        <div className="cartao"><div className="vazio">Nenhum processo neste filtro.</div></div>
+      ) : (
+        <div style={{ display: 'grid', gap: 12 }}>
+          {agrupar(dados.processos).map((grupo) => (
+            <GrupoCard key={grupo[0].grupoId} grupo={grupo} />
+          ))}
+        </div>
+      )}
     </>
   );
 }

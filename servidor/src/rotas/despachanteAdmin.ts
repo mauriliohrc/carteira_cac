@@ -388,6 +388,8 @@ export async function rotasDespachanteAdmin(app: FastifyInstance) {
           valorCentavos: p.valorCentavos,
           armaNome: p.armaNome,
           invoiceUrl: p.invoiceUrl,
+          // Chave de agrupamento: processos do mesmo pedido (por-arma) compartilham.
+          grupoId: p.asaasPaymentId ?? p.id,
           criadoEm: p.criadoEm.toISOString(),
           atualizadoEm: p.atualizadoEm.toISOString(),
           usuario: p.usuario,

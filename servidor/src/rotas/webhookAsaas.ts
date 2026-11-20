@@ -60,25 +60,27 @@ export async function rotasWebhookAsaas(app: FastifyInstance) {
     // Eventos que não mexem no andamento (ex.: PAYMENT_UPDATED): só confirmamos.
     if (!ehPago && !ehCancelado) return { ok: true };
 
-    // --- Despachante: cobrança avulsa (sem assinatura). ----------------------
+    // --- Despachante: cobrança avulsa (sem assinatura). Uma cobrança pode
+    // cobrir VÁRIOS processos (pedido por-arma) — processa todos os irmãos. -----
     if (!assinaturaId) {
-      const processo = await prisma.processoDespachante.findFirst({
+      const processos = await prisma.processoDespachante.findMany({
         where: pagamentoId ? { asaasPaymentId: pagamentoId } : { id: referencia ?? '__none__' },
       });
-      if (processo) {
-        const stAtual = await prisma.statusProcessoDespachante.findUnique({
-          where: { codigo: processo.status },
-        });
-        if (ehPago) {
-          // Idempotência: não reprocessa um processo já pago/avançado.
-          const jaAvancou = ['PAGO', 'AGUARDANDO_DOC', 'EM_ANALISE', 'NORMAL', 'FINAL'].includes(
-            stAtual?.papel ?? ''
-          );
-          if (!jaAvancou) await aoPagarProcesso(processo);
-        } else {
-          if (stAtual?.papel !== 'CANCELADO') {
+      if (processos.length) {
+        for (let i = 0; i < processos.length; i++) {
+          const processo = processos[i]!;
+          const stAtual = await prisma.statusProcessoDespachante.findUnique({
+            where: { codigo: processo.status },
+          });
+          if (ehPago) {
+            const jaAvancou = ['PAGO', 'AGUARDANDO_DOC', 'EM_ANALISE', 'NORMAL', 'FINAL'].includes(
+              stAtual?.papel ?? ''
+            );
+            // Notifica só no primeiro do grupo (evita N mensagens por 1 pagamento).
+            if (!jaAvancou) await aoPagarProcesso(processo, { notificar: i === 0 });
+          } else if (stAtual?.papel !== 'CANCELADO') {
             const canc = await statusPorPapel('CANCELADO');
-            await mudarStatusProcesso(processo, canc?.codigo ?? 'cancelado');
+            await mudarStatusProcesso(processo, canc?.codigo ?? 'cancelado', { notificar: i === 0 });
           }
         }
         return { ok: true };

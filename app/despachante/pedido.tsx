@@ -77,24 +77,23 @@ export default function PedidoDespachante() {
     try {
       if (precisaCelular) await atualizarPerfil({ celular: celularDigitos });
 
-      const alvos = usaArmas
-        ? armas.filter((a) => selecionadas.has(a.id)).map((a) => ({ id: a.id as string | null, nome: nomeArma(a) as string | null }))
-        : [{ id: null as string | null, nome: null as string | null }];
+      const codigo = servico.codigo ?? servico.tipo;
+      const corpo = usaArmas
+        ? {
+            tipoServico: codigo,
+            armas: armas
+              .filter((a) => selecionadas.has(a.id))
+              .map((a) => ({ id: a.id as string | null, nome: nomeArma(a) as string | null })),
+          }
+        : { tipoServico: codigo };
 
-      let primeiroUrl: string | null = null;
-      for (const alvo of alvos) {
-        const { processo, invoiceUrl } = await criarPedido({
-          tipoServico: servico.codigo ?? servico.tipo,
-          armaId: alvo.id,
-          armaNome: alvo.nome,
-        });
-        await upsertProcessoLocal(processo);
-        if (!primeiroUrl) primeiroUrl = invoiceUrl;
-      }
+      // Uma única chamada: o servidor cria 1 processo por arma + 1 cobrança (total).
+      const { processos, invoiceUrl } = await criarPedido(corpo);
+      for (const pr of processos) await upsertProcessoLocal(pr);
 
       await recarregar();
 
-      if (primeiroUrl) router.replace({ pathname: '/despachante/checkout', params: { url: primeiroUrl } });
+      if (invoiceUrl) router.replace({ pathname: '/despachante/checkout', params: { url: invoiceUrl } });
       else router.replace('/despachante/meus');
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';

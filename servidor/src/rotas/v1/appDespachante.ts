@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import type { ProcessoDespachante } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../db/cliente.js';
 import { exigirApp } from '../../http/guardas.js';
@@ -23,8 +24,12 @@ const LIMITE_ARQUIVO = 10 * 1024 * 1024; // 10 MB
 
 const pedidoSchema = z.object({
   tipoServico: z.string().trim().min(1).max(60),
+  // App antigo: uma arma só (single).
   armaId: z.string().optional().nullable(),
-  armaNome: z.string().trim().max(120).optional().nullable(),
+  armaNome: z.string().trim().max(160).optional().nullable(),
+  // App novo: lista de armas (1..N) — gera um processo por arma e UMA cobrança
+  // somando todas. Cada processo tem o seu próprio formulário/checklist.
+  armas: z.array(z.object({ id: z.string().nullish(), nome: z.string().trim().max(160).nullish() })).max(50).optional(),
 });
 
 type ValorRow = {
@@ -152,6 +157,7 @@ export async function rotasDespachanteAppV1(app: FastifyInstance) {
         valorCentavos: p.valorCentavos,
         quantidade: p.quantidade,
         asaasPaymentId: p.asaasPaymentId,
+        grupoId: p.asaasPaymentId ?? p.id,
         invoiceUrl: p.invoiceUrl,
         criadoEm: p.criadoEm.toISOString(),
         atualizadoEm: p.atualizadoEm.toISOString(),
@@ -163,15 +169,24 @@ export async function rotasDespachanteAppV1(app: FastifyInstance) {
     return { processos: itens };
   });
 
-  // Cria um pedido e abre a cobrança no Asaas.
+  // Cria um pedido e abre a cobrança no Asaas. Serviço por-arma com N armas:
+  // N processos (um por arma, cada um com o seu formulário) + UMA cobrança
+  // somando todas (preço × nº de armas).
   app.post('/app/despachante/pedidos', async (req) => {
-    const { tipoServico, armaId, armaNome } = pedidoSchema.parse(req.body);
+    const { tipoServico, armaId, armaNome, armas } = pedidoSchema.parse(req.body);
     const servico = await resolverServicoDinamico(tipoServico);
     if (!servico || !servico.ativo) throw invalido('Serviço indisponível');
 
     const usuario = await prisma.usuarioApp.findUnique({ where: { id: req.usuario!.id } });
     if (!usuario || !usuario.ativo) throw naoAutorizado();
     if (!usuario.celular) throw invalido('celular_requerido');
+
+    // Itens cobrados: lista de armas (app novo) ou uma única (app antigo/genérico).
+    const itens =
+      armas && armas.length
+        ? armas.map((a) => ({ id: a.id ?? null, nome: a.nome ?? null }))
+        : [{ id: armaId ?? null, nome: armaNome ?? null }];
+    const totalCentavos = servico.precoCentavos * itens.length;
 
     let asaasCustomerId = usuario.asaasCustomerId;
     if (!asaasCustomerId) {
@@ -185,49 +200,62 @@ export async function rotasDespachanteAppV1(app: FastifyInstance) {
       await prisma.usuarioApp.update({ where: { id: usuario.id }, data: { asaasCustomerId } });
     }
 
-    let processo = await prisma.processoDespachante.create({
-      data: {
-        usuarioId: usuario.id,
-        tipoServico,
-        status: 'aguardando_pagamento',
-        valorCentavos: servico.precoCentavos,
-        armaId: armaId ?? null,
-        armaNome: armaNome ?? null,
-      },
-    });
+    // Um processo por item (cada um tem o seu próprio checklist).
+    const criados: ProcessoDespachante[] = [];
+    for (const it of itens) {
+      criados.push(
+        await prisma.processoDespachante.create({
+          data: {
+            usuarioId: usuario.id,
+            tipoServico,
+            status: 'aguardando_pagamento',
+            valorCentavos: servico.precoCentavos,
+            armaId: it.id,
+            armaNome: it.nome,
+          },
+        })
+      );
+    }
 
+    // UMA cobrança do total (referência = 1º processo; todos compartilham o id).
+    const resumoArmas = itens.length > 1 ? `${itens.length} armas` : itens[0]!.nome ?? '';
     const cobranca = await criarCobranca({
       customer: asaasCustomerId,
-      value: servico.precoCentavos / 100,
-      description: `${servico.nome}${armaNome ? ` — ${armaNome}` : ''}`,
-      externalReference: processo.id,
+      value: totalCentavos / 100,
+      description: `${servico.nome}${resumoArmas ? ` — ${resumoArmas}` : ''}`,
+      externalReference: criados[0]!.id,
       dueDate: vencimentoEmDias(3),
     });
 
-    processo = await prisma.processoDespachante.update({
-      where: { id: processo.id },
-      data: { asaasPaymentId: cobranca.id, invoiceUrl: cobranca.invoiceUrl },
+    const atualizados: ProcessoDespachante[] = [];
+    for (const pr of criados) {
+      const u = await prisma.processoDespachante.update({
+        where: { id: pr.id },
+        data: { asaasPaymentId: cobranca.id, invoiceUrl: cobranca.invoiceUrl },
+      });
+      await refletirProcessoNoSync(u);
+      atualizados.push(u);
+    }
+    // Um único "pedido criado" (evita N notificações).
+    void aoCriarProcesso(atualizados[0]!, servico.nome).catch(() => {});
+
+    // Devolve os processos COMPLETOS — o app grava cada um no SQLite local.
+    const full = (p: ProcessoDespachante) => ({
+      id: p.id,
+      tipoServico: p.tipoServico,
+      status: p.status,
+      armaId: p.armaId,
+      armaNome: p.armaNome,
+      valorCentavos: p.valorCentavos,
+      quantidade: p.quantidade,
+      asaasPaymentId: p.asaasPaymentId,
+      invoiceUrl: p.invoiceUrl,
+      criadoEm: p.criadoEm.toISOString(),
+      atualizadoEm: p.atualizadoEm.toISOString(),
     });
-
-    await refletirProcessoNoSync(processo);
-    void aoCriarProcesso(processo, servico.nome).catch(() => {});
-
-    // Devolve o processo COMPLETO — o app grava no SQLite local (campos não
-    // podem faltar, senão o bind com `undefined` quebra o insert).
     return {
-      processo: {
-        id: processo.id,
-        tipoServico: processo.tipoServico,
-        status: processo.status,
-        armaId: processo.armaId,
-        armaNome: processo.armaNome,
-        valorCentavos: processo.valorCentavos,
-        quantidade: processo.quantidade,
-        asaasPaymentId: processo.asaasPaymentId,
-        invoiceUrl: processo.invoiceUrl,
-        criadoEm: processo.criadoEm.toISOString(),
-        atualizadoEm: processo.atualizadoEm.toISOString(),
-      },
+      processos: atualizados.map(full),
+      processo: full(atualizados[0]!), // compat app antigo
       invoiceUrl: cobranca.invoiceUrl,
     };
   });

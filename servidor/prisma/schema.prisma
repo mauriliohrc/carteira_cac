@@ -412,8 +412,9 @@ model ProcessoDespachante {
   /// Arma alvo (solta, sem FK) + nome em snapshot — sobrevive à exclusão.
   armaId         String?
   armaNome       String?
-  /// Id do pagamento no Asaas e link do checkout hospedado (PIX/cartão).
-  asaasPaymentId String?  @unique
+  /// Id do pagamento no Asaas e link do checkout hospedado (PIX/cartão). NÃO é
+  /// único: um pedido por-arma gera N processos que COMPARTILHAM a mesma cobrança.
+  asaasPaymentId String?
   invoiceUrl     String?
   /// Anotação interna do despachante (não vai para o app).
   observacao     String?  @db.Text
@@ -425,6 +426,7 @@ model ProcessoDespachante {
 
   @@index([usuarioId])
   @@index([status])
+  @@index([asaasPaymentId])
   @@map("processos_despachante")
 }
 

@@ -102,6 +102,8 @@ export interface ProcessoDetalhe {
   valorCentavos: number;
   quantidade: number;
   asaasPaymentId: string | null;
+  /** Chave de agrupamento: processos do mesmo pedido (por-arma) compartilham. */
+  grupoId: string;
   invoiceUrl: string | null;
   criadoEm: string;
   atualizadoEm: string;
@@ -204,9 +206,11 @@ export async function criarPedido(dados: {
   tipoServico: TipoServicoDespachante | string;
   armaId?: string | null;
   armaNome?: string | null;
-}): Promise<{ processo: Processo; invoiceUrl: string }> {
+  /** App novo: lista de armas (por-arma) — gera 1 processo por arma + 1 cobrança. */
+  armas?: { id: string | null; nome: string | null }[];
+}): Promise<{ processos: Processo[]; processo: Processo; invoiceUrl: string }> {
   const token = await lerToken();
-  return apiApp<{ processo: Processo; invoiceUrl: string }>('/despachante/pedidos', {
+  return apiApp<{ processos: Processo[]; processo: Processo; invoiceUrl: string }>('/despachante/pedidos', {
     metodo: 'POST',
     token,
     corpo: dados,

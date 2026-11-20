@@ -161,9 +161,12 @@ export async function aoCriarProcesso(processo: ProcessoDespachante, servicoNome
  * documentação" (fallback "pago" só se esse status não existir). Dispara a
  * mensagem de início (WhatsApp por serviço).
  */
-export async function aoPagarProcesso(processo: ProcessoDespachante): Promise<void> {
+export async function aoPagarProcesso(
+  processo: ProcessoDespachante,
+  opts: { notificar?: boolean } = {}
+): Promise<void> {
   const alvo = (await statusPorPapel('AGUARDANDO_DOC')) ?? (await statusPorPapel('PAGO'));
-  await mudarStatusProcesso(processo, alvo?.codigo ?? 'aguardando_documentacao');
+  await mudarStatusProcesso(processo, alvo?.codigo ?? 'aguardando_documentacao', { notificar: opts.notificar ?? true });
 }
 
 /**
