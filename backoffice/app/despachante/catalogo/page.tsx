@@ -265,6 +265,7 @@ function ServicoCard({ servico, aoMudar }: { servico: ServicoDespachanteAdmin; a
   const [termo, setTermo] = useState(servico.termoAceite ?? '');
   const [salvando, setSalvando] = useState(false);
   const [aberto, setAberto] = useState(false);
+  const [abaServ, setAbaServ] = useState<'dados' | 'documentos'>('dados');
 
   async function salvar() {
     setSalvando(true);
@@ -326,6 +327,19 @@ function ServicoCard({ servico, aoMudar }: { servico: ServicoDespachanteAdmin; a
 
       {aberto && (
       <>
+      <div className="filtros" style={{ marginTop: 12 }}>
+        <div className="filtro-grupo">
+          <button className={`filtro-chip ${abaServ === 'dados' ? 'ativo' : ''}`} onClick={() => setAbaServ('dados')}>
+            Dados
+          </button>
+          <button className={`filtro-chip ${abaServ === 'documentos' ? 'ativo' : ''}`} onClick={() => setAbaServ('documentos')}>
+            Documentos ({servico.campos.length})
+          </button>
+        </div>
+      </div>
+
+      {abaServ === 'dados' && (
+      <>
       <div className="grade cols-2" style={{ marginTop: 10 }}>
         <div className="campo"><label>Nome (título)</label><input value={nome} onChange={(e) => setNome(e.target.value)} /></div>
         <div className="campo"><label>Subtítulo (card)</label><input value={subtitulo} onChange={(e) => setSubtitulo(e.target.value)} /></div>
@@ -364,8 +378,12 @@ function ServicoCard({ servico, aoMudar }: { servico: ServicoDespachanteAdmin; a
         <button onClick={salvar} disabled={salvando}>{salvando ? 'Salvando…' : 'Salvar serviço'}</button>
         <button className="perigo" onClick={excluir}>Excluir</button>
       </div>
+      </>
+      )}
 
-      <CamposServico servicoId={servico.id} campos={servico.campos} aoMudar={aoMudar} />
+      {abaServ === 'documentos' && (
+        <CamposServico servicoId={servico.id} campos={servico.campos} aoMudar={aoMudar} />
+      )}
       </>
       )}
     </div>
@@ -391,6 +409,9 @@ function CamposServico({
       {campos.map((c) => (
         <CampoLinha key={c.id} servicoId={servicoId} campo={c} aoMudar={aoMudar} />
       ))}
+      <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--texto-suave)', margin: '12px 0 6px' }}>
+        Adicionar campo
+      </div>
       <CampoLinha servicoId={servicoId} aoMudar={aoMudar} />
     </div>
   );
@@ -413,6 +434,7 @@ function CampoLinha({
   const [ordem, setOrdem] = useState(String(campo?.ordem ?? 999));
   const [ativo, setAtivo] = useState(campo?.ativo ?? true);
   const [salvando, setSalvando] = useState(false);
+  const [aberto, setAberto] = useState(false);
 
   async function salvar() {
     if (!nome.trim()) return;
@@ -447,9 +469,20 @@ function CampoLinha({
   return (
     <div
       className="cartao"
-      style={{ background: 'var(--superficie-2)', padding: 10, marginBottom: 8, opacity: ativo ? 1 : 0.6 }}
+      style={{ background: 'var(--superficie-2)', padding: 10, marginBottom: 8, opacity: (campo?.ativo ?? true) ? 1 : 0.6 }}
     >
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+      {!novo && (
+        <div onClick={() => setAberto((v) => !v)} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', flexWrap: 'wrap' }}>
+          <span style={{ color: 'var(--texto-suave)' }}>{aberto ? '▾' : '▸'}</span>
+          <strong style={{ fontSize: 14 }}>{campo!.nome}</strong>
+          <span className="etiqueta">{ROTULO_TIPO_CAMPO[campo!.tipo]}</span>
+          {campo!.obrigatorio && <span className="etiqueta" style={{ color: '#c99a2e' }}>obrigatório</span>}
+          {!campo!.ativo && <span className="etiqueta inativo">inativo</span>}
+        </div>
+      )}
+      {(novo || aberto) && (
+      <>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', marginTop: novo ? 0 : 10 }}>
         <div className="campo" style={{ margin: 0, minWidth: 180 }}>
           <label>Tipo</label>
           <select value={tipo} onChange={(e) => setTipo(e.target.value as TipoCampoDespachante)}>
@@ -485,6 +518,8 @@ function CampoLinha({
         </button>
         {!novo && <button className="perigo pequeno" onClick={excluir}>Excluir</button>}
       </div>
+      </>
+      )}
     </div>
   );
 }
