@@ -12,6 +12,7 @@ type UsuarioLinha = UsuarioApp;
 
 const TITULOS: Record<string, string> = {
   todos: 'Usuários com conta',
+  online: 'Usuários online agora',
   ativos: 'Usuários ativos',
   contasAtivas: 'Contas ativas',
   semAtivar: 'Usuários sem validar o e-mail',

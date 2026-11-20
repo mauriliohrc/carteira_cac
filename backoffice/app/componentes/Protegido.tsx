@@ -33,7 +33,6 @@ const OUTROS: ItemMenu[] = [
   { href: '/marketplace', rotulo: 'Marketplace' },
   { href: '/push', rotulo: 'Push' },
   { href: '/churn', rotulo: 'Churn' },
-  { href: '/metricas', rotulo: 'Métricas' },
   { href: '/whatsapp', rotulo: 'WhatsApp' },
   { href: '/automacoes', rotulo: 'Automações' },
   { href: '/cupons', rotulo: 'Cupons' },

@@ -51,6 +51,7 @@ function extrairDDD(celular: string): string | null {
 /** Filtros das métricas que viram listas de usuários (card → lista → CSV). */
 const FILTROS: Record<string, () => Prisma.UsuarioAppWhereInput> = {
   todos: () => ({}),
+  online: () => ({ ultimoAcessoEm: { gte: new Date(Date.now() - MIN_ONLINE * 60_000) } }),
   ativos: () => ({ ultimoAcessoEm: { gte: new Date(Date.now() - DIAS_ATIVO * 86_400_000) } }),
   contasAtivas: () => ({ ativo: true }),
   semAtivar: () => ({ emailVerificado: false }),

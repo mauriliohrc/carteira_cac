@@ -6,6 +6,15 @@ import { api } from '@/lib/api';
 import { ESTADOS_BR, VIEWBOX_BR } from '@/lib/brasilMapa';
 import type { AppVersoes } from '@/lib/tipos';
 import { Protegido } from '../componentes/Protegido';
+import { SecaoJornadas } from '../componentes/SecaoJornadas';
+
+type AbaDashboard = 'kpis' | 'mapa' | 'graficos' | 'jornadas';
+const TABS: { id: AbaDashboard; rotulo: string }[] = [
+  { id: 'kpis', rotulo: 'Indicadores' },
+  { id: 'mapa', rotulo: 'Mapa' },
+  { id: 'graficos', rotulo: 'Gráficos' },
+  { id: 'jornadas', rotulo: 'Jornadas' },
+];
 
 interface Dashboard {
   cards: {
@@ -67,6 +76,7 @@ export default function PaginaDashboard() {
 function Conteudo() {
   const [d, setD] = useState<Dashboard | null>(null);
   const [versoes, setVersoes] = useState<AppVersoes | null>(null);
+  const [aba, setAba] = useState<AbaDashboard>('kpis');
 
   useEffect(() => {
     api<Dashboard>('/api/admin/dashboard').then(setD).catch(() => setD(null));
@@ -157,16 +167,34 @@ function Conteudo() {
         </div>
       </div>
 
-      <div
-        className="cartao"
-        style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16, borderColor: 'rgba(48,164,108,.4)' }}
-      >
-        <span className="ponto online" style={{ width: 12, height: 12 }} />
-        <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1 }}>{d.online}</div>
-        <div style={{ color: 'var(--texto-suave)', fontSize: 14 }}>
-          online agora · ativos nos últimos {d.minOnline} min
+      <div className="filtros" style={{ marginBottom: 16 }}>
+        <div className="filtro-grupo">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              className={`filtro-chip ${aba === t.id ? 'ativo' : ''}`}
+              onClick={() => setAba(t.id)}
+            >
+              {t.rotulo}
+            </button>
+          ))}
         </div>
       </div>
+
+      {aba === 'kpis' && (
+        <>
+          <Link href="/dashboard/online" style={{ textDecoration: 'none', color: 'inherit' }}>
+            <div
+              className="cartao"
+              style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16, borderColor: 'rgba(48,164,108,.4)', cursor: 'pointer' }}
+            >
+              <span className="ponto online" style={{ width: 12, height: 12 }} />
+              <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1 }}>{d.online}</div>
+              <div style={{ color: 'var(--texto-suave)', fontSize: 14 }}>
+                online agora · ativos nos últimos {d.minOnline} min ›
+              </div>
+            </div>
+          </Link>
 
       {grupos.map((g) =>
         g.cards.length === 0 ? null : (
@@ -231,9 +259,14 @@ function Conteudo() {
         </div>
       )}
 
-      <MapaRegioes />
+        </>
+      )}
 
-      <div className="cabeca-secao" style={{ marginTop: 32 }}>
+      {aba === 'mapa' && <MapaRegioes />}
+
+      {aba === 'graficos' && (
+        <>
+      <div className="cabeca-secao" style={{ marginTop: 8 }}>
         <h2 style={{ margin: 0 }}>Plataformas</h2>
       </div>
       <div className="cartao">
@@ -253,6 +286,10 @@ function Conteudo() {
           <GraficoAcessosHora />
         </div>
       </div>
+        </>
+      )}
+
+      {aba === 'jornadas' && <SecaoJornadas />}
     </>
   );
 }
