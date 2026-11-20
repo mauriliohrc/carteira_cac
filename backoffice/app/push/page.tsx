@@ -17,6 +17,13 @@ const ROTULO_BASE: Record<Base, string> = {
   USUARIO: 'Um usuário',
 };
 
+type AbaPush = 'enviar' | 'habitualidade' | 'historico';
+const TABS: { id: AbaPush; rotulo: string }[] = [
+  { id: 'enviar', rotulo: 'Enviar' },
+  { id: 'habitualidade', rotulo: 'Habitualidade' },
+  { id: 'historico', rotulo: 'Histórico' },
+];
+
 export default function PaginaPush() {
   return (
     <Protegido>
@@ -65,6 +72,7 @@ function Push() {
 
   const [entidades, setEntidades] = useState<Entidade[]>([]);
   const [historico, setHistorico] = useState<EnvioPush[]>([]);
+  const [aba, setAba] = useState<AbaPush>('enviar');
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState('');
   const [resultado, setResultado] = useState<string | null>(null);
@@ -220,9 +228,28 @@ function Push() {
 
   return (
     <>
-      <h1>Enviar push</h1>
-      <p className="subtitulo">Notificação para os usuários do aplicativo.</p>
+      <div className="cabeca-secao">
+        <div>
+          <h1>Push</h1>
+          <p className="subtitulo">Notificação para os usuários do aplicativo.</p>
+        </div>
+      </div>
 
+      <div className="filtros" style={{ marginBottom: 16 }}>
+        <div className="filtro-grupo">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              className={`filtro-chip ${aba === t.id ? 'ativo' : ''}`}
+              onClick={() => setAba(t.id)}
+            >
+              {t.rotulo}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {aba === 'enviar' && (
       <div className="cartao">
         <div className="campo">
           <label>Título *</label>
@@ -421,12 +448,15 @@ function Push() {
           {enviando ? 'Enviando…' : 'Enviar push'}
         </button>
       </div>
+      )}
 
-      <h2>Lembrete de habitualidade</h2>
+      {aba === 'habitualidade' && (
+      <>
+      <h2 style={{ marginTop: 0 }}>Lembrete de habitualidade</h2>
       <p className="subtitulo">
         Push personalizado: cada usuário recebe quantas habitualidades faltam para ficar em dia nos
-        últimos 12 meses. Usa o <strong>mesmo público selecionado acima</strong> (quem não é atirador
-        é ignorado automaticamente).
+        últimos 12 meses. Usa o <strong>mesmo público selecionado na aba Enviar</strong> (quem não é
+        atirador é ignorado automaticamente).
       </p>
 
       <div className="cartao">
@@ -507,8 +537,12 @@ function Push() {
           </button>
         </div>
       </div>
+      </>
+      )}
 
-      <h2>Histórico</h2>
+      {aba === 'historico' && (
+      <>
+      <h2 style={{ marginTop: 0 }}>Histórico</h2>
       <div className="cartao" style={{ padding: 0 }}>
         {historico.length === 0 ? (
           <div className="vazio">Nenhum envio ainda.</div>
@@ -539,6 +573,8 @@ function Push() {
           </table>
         )}
       </div>
+      </>
+      )}
     </>
   );
 }
