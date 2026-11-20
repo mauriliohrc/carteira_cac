@@ -126,7 +126,24 @@ function Processo() {
 
   const servicoNome = ROTULO_SERVICO_DESPACHANTE[p.tipoServico as keyof typeof ROTULO_SERVICO_DESPACHANTE] ?? p.servicoNome;
   const finais = p.valores.filter((v) => v.final);
+  const internos = p.valores.filter((v) => !v.campoId && !v.final);
   const porCampo = new Map(p.valores.filter((v) => v.campoId).map((v) => [v.campoId!, v]));
+
+  async function enviarArquivoCampo(campoId: string, file: File) {
+    setOcupado(true);
+    try {
+      const { mime, base64, nome } = await lerArquivo(file);
+      await api(`/api/admin/despachante/processos/${id}/campos/${campoId}/arquivo`, {
+        metodo: 'POST',
+        corpo: { nome, mime, dadosBase64: base64 },
+      });
+      await carregar();
+    } catch (e) {
+      alert(e instanceof ErroApi ? e.message : 'Falha ao enviar');
+    } finally {
+      setOcupado(false);
+    }
+  }
 
   return (
     <>
@@ -191,12 +208,39 @@ function Processo() {
             </thead>
             <tbody>
               {p.campos.map((c) => (
-                <LinhaCampo key={c.id} campo={c} valor={porCampo.get(c.id)} onVer={verArquivo} onRevisar={revisar} ocupado={ocupado} />
+                <LinhaCampo key={c.id} campo={c} valor={porCampo.get(c.id)} onVer={verArquivo} onRevisar={revisar} onEnviarArquivo={enviarArquivoCampo} ocupado={ocupado} />
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      {/* Documentos internos (certidões etc.) — só o backoffice vê. */}
+      <h2 style={{ marginTop: 24 }}>Documentos internos</h2>
+      <div className="cartao">
+        <p className="subtitulo" style={{ marginTop: 0 }}>
+          Documentos de trabalho do despachante (ex.: certidões obtidas por consulta). Ficam só aqui
+          — não aparecem para o cliente.
+        </p>
+        {internos.length === 0 ? (
+          <p className="subtitulo" style={{ marginTop: 0 }}>Nenhum documento interno ainda.</p>
+        ) : (
+          <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+            {internos.map((v) => (
+              <div key={v.id} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <span style={{ flex: 1 }}>{v.nome}</span>
+                <button className="secundario pequeno" onClick={() => verArquivo(v.id)}>Ver</button>
+                <button className="perigo pequeno" disabled={ocupado} onClick={async () => {
+                  if (!confirm('Remover este documento interno?')) return;
+                  await api(`/api/admin/despachante/processos/${id}/valores/${v.id}`, { metodo: 'DELETE' });
+                  carregar();
+                }}>Remover</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <AnexarArquivo id={p.id} rota="interno" rotulo="+ Anexar documento interno" aoAnexar={carregar} />
+      </div>
 
       {/* Documentos finais */}
       <h2 style={{ marginTop: 24 }}>Documentos finais (entregues ao cliente)</h2>
@@ -218,7 +262,7 @@ function Processo() {
             ))}
           </div>
         )}
-        <AnexarFinal id={p.id} aoAnexar={carregar} />
+        <AnexarArquivo id={p.id} rota="final" rotulo="+ Anexar documento final" aoAnexar={carregar} />
       </div>
 
       <h2 style={{ marginTop: 24 }}>Encerrar</h2>
@@ -261,12 +305,14 @@ function LinhaCampo({
   valor,
   onVer,
   onRevisar,
+  onEnviarArquivo,
   ocupado,
 }: {
   campo: CampoDespachante;
   valor?: ValorCampoDespachante;
   onVer: (id: string) => void;
   onRevisar: (id: string, aprovar: boolean) => void;
+  onEnviarArquivo: (campoId: string, file: File) => void;
   ocupado: boolean;
 }) {
   const preenchido = valor?.preenchido ?? false;
@@ -292,12 +338,29 @@ function LinhaCampo({
         )}
       </td>
       <td style={{ whiteSpace: 'nowrap' }}>
-        {valor && preenchido && (
-          <>
-            <button className="secundario pequeno" disabled={ocupado} onClick={() => onRevisar(valor.id, true)}>✓</button>
-            <button className="perigo pequeno" disabled={ocupado} onClick={() => onRevisar(valor.id, false)} style={{ marginLeft: 4 }}>✕</button>
-          </>
-        )}
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'flex-end' }}>
+          {campo.tipo === 'ARQUIVO' && (
+            <label className="secundario pequeno" style={{ cursor: ocupado ? 'default' : 'pointer' }} title="Enviar o documento pelo despachante">
+              {valor?.temArquivo ? 'Trocar' : 'Enviar'}
+              <input
+                type="file"
+                disabled={ocupado}
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (f) onEnviarArquivo(campo.id, f);
+                }}
+              />
+            </label>
+          )}
+          {valor && preenchido && (
+            <>
+              <button className="secundario pequeno" disabled={ocupado} onClick={() => onRevisar(valor.id, true)}>✓</button>
+              <button className="perigo pequeno" disabled={ocupado} onClick={() => onRevisar(valor.id, false)}>✕</button>
+            </>
+          )}
+        </div>
       </td>
     </tr>
   );
@@ -354,7 +417,7 @@ function ObservacaoInterna({ id, inicial }: { id: string; inicial: string }) {
   );
 }
 
-function AnexarFinal({ id, aoAnexar }: { id: string; aoAnexar: () => void }) {
+function AnexarArquivo({ id, rota, rotulo, aoAnexar }: { id: string; rota: 'final' | 'interno'; rotulo: string; aoAnexar: () => void }) {
   const [enviando, setEnviando] = useState(false);
   async function escolher(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -363,7 +426,7 @@ function AnexarFinal({ id, aoAnexar }: { id: string; aoAnexar: () => void }) {
     setEnviando(true);
     try {
       const { mime, base64, nome } = await lerArquivo(file);
-      await api(`/api/admin/despachante/processos/${id}/final`, { metodo: 'POST', corpo: { nome, mime, dadosBase64: base64 } });
+      await api(`/api/admin/despachante/processos/${id}/${rota}`, { metodo: 'POST', corpo: { nome, mime, dadosBase64: base64 } });
       aoAnexar();
     } catch (err) {
       alert(err instanceof ErroApi ? err.message : 'Falha ao anexar');
@@ -373,7 +436,7 @@ function AnexarFinal({ id, aoAnexar }: { id: string; aoAnexar: () => void }) {
   }
   return (
     <label className="secundario pequeno" style={{ cursor: 'pointer', display: 'inline-block' }}>
-      {enviando ? 'Enviando…' : '+ Anexar documento final'}
+      {enviando ? 'Enviando…' : rotulo}
       <input type="file" onChange={escolher} disabled={enviando} style={{ display: 'none' }} />
     </label>
   );

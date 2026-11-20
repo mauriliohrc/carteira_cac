@@ -163,7 +163,9 @@ export async function rotasDespachanteAppV1(app: FastifyInstance) {
         atualizadoEm: p.atualizadoEm.toISOString(),
         progresso: servico ? calcularProgresso(servico.campos, p.valores) : null,
         campos: servico ? apresentarServico(servico).campos : [],
-        valores: (p.valores as ValorRow[]).map(apresentarValor),
+        // Mostra só os campos do usuário e os documentos FINAIS — os documentos
+        // internos (certidões do despachante) nunca vão para o app.
+        valores: (p.valores as ValorRow[]).filter((v) => v.campoId || v.final).map(apresentarValor),
       });
     }
     return { processos: itens };
@@ -390,7 +392,8 @@ export async function rotasDespachanteAppV1(app: FastifyInstance) {
     const { id, valorId } = req.params as { id: string; valorId: string };
     await processoDoUsuario(req, id);
     const valor = await prisma.valorCampoProcessoDespachante.findFirst({
-      where: { id: valorId, processoId: id },
+      // Só campos do usuário (campoId) ou documentos finais — nunca os internos.
+      where: { id: valorId, processoId: id, OR: [{ campoId: { not: null } }, { final: true }] },
     });
     if (!valor || !valor.conteudo) throw naoEncontrado('Arquivo não encontrado');
     reply

@@ -556,6 +556,83 @@ export async function rotasDespachanteAdmin(app: FastifyInstance) {
     return { ok: true, id: valor.id };
   });
 
+  // Despachante ENVIA um documento no lugar do usuário (campo ARQUIVO do form).
+  app.post('/api/admin/despachante/processos/:id/campos/:campoId/arquivo', async (req) => {
+    const { id, campoId } = req.params as { id: string; campoId: string };
+    const { nome, mime, dadosBase64 } = z
+      .object({
+        nome: z.string().trim().max(200).optional(),
+        mime: z.string().trim().max(120).optional(),
+        dadosBase64: z.string().min(1),
+      })
+      .parse(req.body);
+    const processo = await prisma.processoDespachante.findUnique({ where: { id } });
+    if (!processo) throw naoEncontrado('Processo não encontrado');
+    const campo = await prisma.campoServicoDespachante.findUnique({ where: { id: campoId } });
+    if (!campo) throw naoEncontrado('Campo não encontrado');
+    if (campo.tipo !== 'ARQUIVO') throw invalido('Este campo não é de arquivo');
+    const conteudo = Buffer.from(dadosBase64, 'base64');
+    if (conteudo.length === 0) throw invalido('Arquivo vazio');
+    if (conteudo.length > LIMITE_ARQUIVO) throw invalido('Arquivo muito grande (máx. 10 MB)');
+    await prisma.valorCampoProcessoDespachante.upsert({
+      where: { processoId_campoId: { processoId: id, campoId } },
+      create: {
+        processoId: id,
+        campoId,
+        tipo: 'ARQUIVO',
+        nome: nome ?? campo.nome,
+        mime: mime ?? 'application/octet-stream',
+        tamanho: conteudo.length,
+        conteudo,
+        origem: 'DESPACHANTE',
+        status: 'APROVADO',
+      },
+      update: {
+        nome: nome ?? campo.nome,
+        mime: mime ?? 'application/octet-stream',
+        tamanho: conteudo.length,
+        conteudo,
+        origem: 'DESPACHANTE',
+        status: 'APROVADO',
+        motivo: null,
+      },
+    });
+    return { ok: true };
+  });
+
+  // Documento INTERNO do processo (ex.: certidões obtidas por consulta). Fica só
+  // no backoffice — não é campo do usuário nem documento final entregue.
+  app.post('/api/admin/despachante/processos/:id/interno', async (req) => {
+    const { id } = req.params as { id: string };
+    const { nome, mime, dadosBase64 } = z
+      .object({
+        nome: z.string().trim().min(1).max(200),
+        mime: z.string().trim().max(120).optional(),
+        dadosBase64: z.string().min(1),
+      })
+      .parse(req.body);
+    const processo = await prisma.processoDespachante.findUnique({ where: { id } });
+    if (!processo) throw naoEncontrado('Processo não encontrado');
+    const conteudo = Buffer.from(dadosBase64, 'base64');
+    if (conteudo.length === 0) throw invalido('Arquivo vazio');
+    if (conteudo.length > LIMITE_ARQUIVO) throw invalido('Arquivo muito grande (máx. 10 MB)');
+    const valor = await prisma.valorCampoProcessoDespachante.create({
+      data: {
+        processoId: id,
+        campoId: null,
+        tipo: 'ARQUIVO',
+        nome,
+        mime: mime ?? 'application/octet-stream',
+        tamanho: conteudo.length,
+        conteudo,
+        origem: 'DESPACHANTE',
+        final: false,
+        status: 'APROVADO',
+      },
+    });
+    return { ok: true, id: valor.id };
+  });
+
   app.delete('/api/admin/despachante/processos/:id/valores/:valorId', async (req) => {
     const { valorId } = req.params as { id: string; valorId: string };
     const valor = await prisma.valorCampoProcessoDespachante.findUnique({ where: { id: valorId } });
