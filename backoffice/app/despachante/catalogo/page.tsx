@@ -35,6 +35,7 @@ export default function PaginaCatalogo() {
 
 function Catalogo() {
   const [cat, setCat] = useState<CatalogoDespachante | null>(null);
+  const [aba, setAba] = useState<'servicos' | 'status'>('servicos');
 
   const carregar = useCallback(async () => {
     const r = await api<CatalogoDespachante>('/api/admin/despachante/catalogo');
@@ -61,21 +62,39 @@ function Catalogo() {
         </Link>
       </div>
 
-      <h2 style={{ marginTop: 8 }}>Status do processo</h2>
-      <p className="subtitulo" style={{ marginTop: -8 }}>
-        A cor pinta a bolinha/etiqueta. O “papel” define a automação (pago, aguardando documentação,
-        final…). Status novos aparecem para apps antigos como o andamento equivalente.
-      </p>
-      <SecaoStatus status={cat.status} aoMudar={carregar} />
+      <div className="filtros" style={{ marginBottom: 16 }}>
+        <div className="filtro-grupo">
+          <button className={`filtro-chip ${aba === 'servicos' ? 'ativo' : ''}`} onClick={() => setAba('servicos')}>
+            Serviços
+          </button>
+          <button className={`filtro-chip ${aba === 'status' ? 'ativo' : ''}`} onClick={() => setAba('status')}>
+            Status
+          </button>
+        </div>
+      </div>
 
-      <h2 style={{ marginTop: 28 }}>Serviços</h2>
-      <p className="subtitulo" style={{ marginTop: -8 }}>
-        Cada serviço tem textos, preço, ícone e um formulário de documentos que o usuário preenche.
-      </p>
-      <ServicoNovo aoMudar={carregar} />
-      {cat.servicos.map((s) => (
-        <ServicoCard key={s.id} servico={s} aoMudar={carregar} />
-      ))}
+      {aba === 'status' && (
+        <>
+          <p className="subtitulo" style={{ marginTop: 0 }}>
+            A cor pinta a bolinha/etiqueta. O “papel” define a automação (pago, aguardando
+            documentação, final…). Status novos aparecem para apps antigos como o andamento
+            equivalente.
+          </p>
+          <SecaoStatus status={cat.status} aoMudar={carregar} />
+        </>
+      )}
+
+      {aba === 'servicos' && (
+        <>
+          <p className="subtitulo" style={{ marginTop: 0 }}>
+            Cada serviço tem textos, preço, ícone e um formulário de documentos que o usuário preenche.
+          </p>
+          <ServicoNovo aoMudar={carregar} />
+          {cat.servicos.map((s) => (
+            <ServicoCard key={s.id} servico={s} aoMudar={carregar} />
+          ))}
+        </>
+      )}
     </>
   );
 }
