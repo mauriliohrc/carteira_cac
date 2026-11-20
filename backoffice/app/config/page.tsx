@@ -1,38 +1,57 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { api, ErroApi } from '@/lib/api';
 import type { ConfigAsaasAdmin } from '@/lib/tipos';
 import { Protegido } from '../componentes/Protegido';
 import { SecaoLiga } from '../componentes/SecaoLiga';
 
+type AbaAjustes = 'whatsapp' | 'asaas' | 'liga';
+const TABS: { id: AbaAjustes; rotulo: string }[] = [
+  { id: 'whatsapp', rotulo: 'WhatsApp' },
+  { id: 'asaas', rotulo: 'Asaas' },
+  { id: 'liga', rotulo: 'Liga' },
+];
+
 export default function PaginaConfig() {
   return (
     <Protegido>
+      <Ajustes />
+    </Protegido>
+  );
+}
+
+function Ajustes() {
+  const [aba, setAba] = useState<AbaAjustes>('whatsapp');
+  return (
+    <>
       <div className="cabeca-secao">
         <div>
-          <h1>Gestão</h1>
+          <h1>Ajustes</h1>
           <p className="subtitulo">
-            Central de gestão do negócio: cada frente (serviços, pagamentos e liga) num bloco próprio.
-            As alterações valem na hora, sem atualizar o app.
+            Configurações do negócio por tema. As alterações valem na hora, sem atualizar o app.
           </p>
         </div>
       </div>
-      <AuxilioJuridico />
-      <IntegracaoAsaas />
-      <div className="cartao" style={{ marginBottom: 16 }}>
-        <strong>Serviços do despachante</strong>
-        <p className="subtitulo" style={{ marginTop: 4, marginBottom: 10 }}>
-          Serviços, preços, formulários de documentos e status do processo agora são gerenciados no
-          catálogo dinâmico.
-        </p>
-        <Link href="/despachante/catalogo" className="secundario pequeno" style={{ textDecoration: 'none' }}>
-          Abrir catálogo do despachante →
-        </Link>
+
+      <div className="filtros" style={{ marginBottom: 16 }}>
+        <div className="filtro-grupo">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              className={`filtro-chip ${aba === t.id ? 'ativo' : ''}`}
+              onClick={() => setAba(t.id)}
+            >
+              {t.rotulo}
+            </button>
+          ))}
+        </div>
       </div>
-      <SecaoLiga />
-    </Protegido>
+
+      {aba === 'whatsapp' && <AuxilioJuridico />}
+      {aba === 'asaas' && <IntegracaoAsaas />}
+      {aba === 'liga' && <SecaoLiga />}
+    </>
   );
 }
 

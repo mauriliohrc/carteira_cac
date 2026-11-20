@@ -27,7 +27,7 @@ const DESPACHANTE_MENU: ItemMenu[] = [
 
 // Submenu "Configurações" — gestão do negócio e canais.
 const CONFIG_MENU: ItemMenu[] = [
-  { href: '/config', rotulo: 'Gestão' },
+  { href: '/config', rotulo: 'Ajustes' },
   { href: '/whatsapp', rotulo: 'WhatsApp' },
   { href: '/automacoes', rotulo: 'Automações' },
   { href: '/cupons', rotulo: 'Cupons' },
