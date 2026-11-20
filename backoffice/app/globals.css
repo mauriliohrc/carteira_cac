@@ -47,12 +47,21 @@ html, body {
   line-height: 1.5;
 }
 
-/* Imagem de fundo de TODAS as telas, fixa e a 25% de opacidade (sobre a cor do tema). */
+/* Imagem de fundo de TODAS as telas: a imagem fica VISÍVEL atrás de tudo e um
+   véu de 25% da cor do tema passa por cima (contraste/legibilidade). */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   background: url('/bg.jpg') center / cover no-repeat;
+  z-index: -2;
+  pointer-events: none;
+}
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: var(--fundo);
   opacity: 0.25;
   z-index: -1;
   pointer-events: none;
