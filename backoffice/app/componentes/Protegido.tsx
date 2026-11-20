@@ -25,23 +25,23 @@ const DESPACHANTE_MENU: ItemMenu[] = [
   { href: '/despachante/catalogo', rotulo: 'Status' },
 ];
 
-// Submenu "Configurações" — gestão do negócio e canais.
+// Submenu "Configurações" — gestão do negócio e canais (ordem alfabética).
 const CONFIG_MENU: ItemMenu[] = [
   { href: '/config', rotulo: 'Ajustes' },
-  { href: '/whatsapp', rotulo: 'WhatsApp' },
   { href: '/automacoes', rotulo: 'Automações' },
+  { href: '/despachante/catalogo', rotulo: 'Catálogo Despachante' },
   { href: '/cupons', rotulo: 'Cupons' },
-  { href: '/push', rotulo: 'Push' },
   { href: '/entidades', rotulo: 'Entidades' },
+  { href: '/push', rotulo: 'Push' },
+  { href: '/whatsapp', rotulo: 'WhatsApp' },
 ];
 
-// Submenu "Recursos" — menus menos frequentes, agrupados para enxugar a barra.
+// Submenu "Recursos" — menus menos frequentes (ordem alfabética).
 const OUTROS: ItemMenu[] = [
   { href: '/notificacoes', rotulo: 'Auditoria' },
-  { href: '/despachante/catalogo', rotulo: 'Catálogo de serviços' },
-  { href: '/marketplace', rotulo: 'Marketplace' },
   { href: '/churn', rotulo: 'Churn' },
   { href: '/contatos', rotulo: 'Contatos' },
+  { href: '/marketplace', rotulo: 'Marketplace' },
 ];
 
 /** Envolve páginas internas: redireciona para /login se não houver admin. */
