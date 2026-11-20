@@ -264,6 +264,7 @@ function ServicoCard({ servico, aoMudar }: { servico: ServicoDespachanteAdmin; a
   const [msg, setMsg] = useState(servico.mensagemWhatsappInicio ?? '');
   const [termo, setTermo] = useState(servico.termoAceite ?? '');
   const [salvando, setSalvando] = useState(false);
+  const [aberto, setAberto] = useState(false);
 
   async function salvar() {
     setSalvando(true);
@@ -307,12 +308,24 @@ function ServicoCard({ servico, aoMudar }: { servico: ServicoDespachanteAdmin; a
   const total = paraCentavos(gru) + paraCentavos(serv);
 
   return (
-    <div className="cartao" style={{ marginBottom: 16, opacity: ativo ? 1 : 0.6 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <strong style={{ fontSize: 16 }}>{servico.nome}</strong>
-        <span className="etiqueta" style={{ fontFamily: 'monospace' }}>{servico.codigo}</span>
+    <div className="cartao" style={{ marginBottom: 12, opacity: servico.ativo ? 1 : 0.6 }}>
+      <div
+        onClick={() => setAberto((v) => !v)}
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', cursor: 'pointer' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <span style={{ color: 'var(--texto-suave)' }}>{aberto ? '▾' : '▸'}</span>
+          <strong style={{ fontSize: 16 }}>{servico.nome}</strong>
+          <span className="etiqueta" style={{ fontFamily: 'monospace' }}>{servico.codigo}</span>
+          {!servico.ativo && <span className="etiqueta inativo">inativo</span>}
+        </div>
+        <span style={{ color: 'var(--texto-suave)', fontSize: 13, whiteSpace: 'nowrap' }}>
+          R$ {reais(servico.precoCentavos)} · {servico.campos.length} campo(s)
+        </span>
       </div>
 
+      {aberto && (
+      <>
       <div className="grade cols-2" style={{ marginTop: 10 }}>
         <div className="campo"><label>Nome (título)</label><input value={nome} onChange={(e) => setNome(e.target.value)} /></div>
         <div className="campo"><label>Subtítulo (card)</label><input value={subtitulo} onChange={(e) => setSubtitulo(e.target.value)} /></div>
@@ -353,6 +366,8 @@ function ServicoCard({ servico, aoMudar }: { servico: ServicoDespachanteAdmin; a
       </div>
 
       <CamposServico servicoId={servico.id} campos={servico.campos} aoMudar={aoMudar} />
+      </>
+      )}
     </div>
   );
 }
