@@ -50,13 +50,21 @@ html, body {
 html { background: var(--fundo); }
 body { background: transparent; }
 
-/* Imagem de fundo de TODAS as telas, a 0.8 de opacidade (sobre a cor do tema no
-   html, que aparece nos 20% restantes). */
+/* Fundo bem escuro: a imagem fica atrás e a COR do tema passa por cima a 80%
+   de opacidade — deixando só ~20% da imagem visível. */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   background: url('/bg.jpg') center / cover no-repeat;
+  z-index: -2;
+  pointer-events: none;
+}
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: var(--fundo);
   opacity: 0.8;
   z-index: -1;
   pointer-events: none;
