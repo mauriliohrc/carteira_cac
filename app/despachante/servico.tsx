@@ -75,13 +75,7 @@ export default function ServicoDespachanteTela() {
         <>
           <View style={p.coroa}>
             <Ionicons
-              name={
-                tipoParam === 'RENOVACAO_CRAF'
-                  ? 'refresh-circle-outline'
-                  : tipoParam === 'EMISSAO_GUIA'
-                    ? 'document-text-outline'
-                    : 'briefcase-outline'
-              }
+              name={(servico?.icone ?? 'briefcase-outline') as keyof typeof Ionicons.glyphMap}
               size={28}
               color={c.primario}
             />
@@ -96,14 +90,20 @@ export default function ServicoDespachanteTela() {
             </View>
           ) : null}
 
-          <View style={p.passos}>
-            {passos.map((it) => (
-              <View key={it.texto} style={p.passo}>
-                <Ionicons name={it.icone} size={20} color={c.primario} />
-                <Text style={p.passoTexto}>{it.texto}</Text>
-              </View>
-            ))}
-          </View>
+          {servico?.comoFunciona ? (
+            <View style={p.passos}>
+              <Text style={p.passoTexto}>{servico.comoFunciona}</Text>
+            </View>
+          ) : (
+            <View style={p.passos}>
+              {passos.map((it) => (
+                <View key={it.texto} style={p.passo}>
+                  <Ionicons name={it.icone} size={20} color={c.primario} />
+                  <Text style={p.passoTexto}>{it.texto}</Text>
+                </View>
+              ))}
+            </View>
+          )}
 
           <View style={p.termos}>
             <Text style={p.termosTitulo}>Antes de contratar, fique ciente:</Text>

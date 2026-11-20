@@ -8,54 +8,22 @@ import { useApp } from '@/estado/AppContext';
 import { Secao, Tela, TituloTela } from '@/ui/base';
 import { AcoesCabecalho } from '@/ui/AcoesCabecalho';
 import { avisar } from '@/ui/dialogo';
-import { listarServicos } from '@/despachante/api';
-import type { TipoServicoDespachante } from '@/domain/tipos';
-
-/** Serviços oferecidos — rótulos de vitrine. Preço/nota de GRU vêm do servidor
- *  (GET /despachante/servicos), exibidos no onboarding de cada serviço. */
-const SERVICOS: {
-  tipo: TipoServicoDespachante;
-  icone: keyof typeof Ionicons.glyphMap;
-  titulo: string;
-  sub: string;
-}[] = [
-  {
-    tipo: 'CADASTRO_RENOVACAO_IBAMA',
-    icone: 'leaf-outline',
-    titulo: 'Cadastro / Renovação IBAMA',
-    sub: 'Cuidamos do seu cadastro ou renovação no IBAMA (CTF).',
-  },
-  {
-    tipo: 'AQUISICAO_TRANSFERENCIA',
-    icone: 'swap-horizontal-outline',
-    titulo: 'Aquisição / Transferência de Equipamento (CAC)',
-    sub: 'Conduzimos a aquisição ou transferência do seu armamento.',
-  },
-  {
-    tipo: 'POSSE_PF',
-    icone: 'home-outline',
-    titulo: 'Posse - Polícia Federal',
-    sub: 'Tocamos o seu processo de posse junto à Polícia Federal.',
-  },
-  {
-    tipo: 'PORTE_PF',
-    icone: 'shield-checkmark-outline',
-    titulo: 'Porte - Polícia Federal',
-    sub: 'Tocamos o seu processo de porte junto à Polícia Federal.',
-  },
-];
+import { listarServicos, type ServicoDespachante } from '@/despachante/api';
 
 export default function Despachante() {
   const c = useCores();
   const s = useEstilos(folha);
   const { processos } = useApp();
   const [whatsappJuridico, setWhatsappJuridico] = useState('');
+  const [servicos, setServicos] = useState<ServicoDespachante[]>([]);
 
   useEffect(() => {
     let vivo = true;
     listarServicos()
       .then((cat) => {
-        if (vivo) setWhatsappJuridico(cat.whatsappJuridico ?? '');
+        if (!vivo) return;
+        setWhatsappJuridico(cat.whatsappJuridico ?? '');
+        setServicos(cat.servicos ?? []);
       })
       .catch(() => {});
     return () => {
@@ -84,24 +52,26 @@ export default function Despachante() {
 
       <Secao titulo="Serviços">
         <View style={s.listaCards}>
-        {SERVICOS.map((srv) => (
-          <Pressable
-            key={srv.tipo}
-            onPress={() =>
-              router.push({ pathname: '/despachante/servico', params: { tipo: srv.tipo } })
-            }
-            style={s.card}
-          >
-            <View style={s.icone}>
-              <Ionicons name={srv.icone} size={24} color={c.primario} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.cardTitulo}>{srv.titulo}</Text>
-              <Text style={s.cardSub}>{srv.sub}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={c.textoFraco} />
-          </Pressable>
-        ))}
+        {servicos.map((srv) => {
+          const codigo = srv.codigo ?? srv.tipo;
+          const icone = (srv.icone ?? 'briefcase-outline') as keyof typeof Ionicons.glyphMap;
+          return (
+            <Pressable
+              key={codigo}
+              onPress={() => router.push({ pathname: '/despachante/servico', params: { tipo: codigo } })}
+              style={s.card}
+            >
+              <View style={s.icone}>
+                <Ionicons name={icone} size={24} color={c.primario} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.cardTitulo}>{srv.nome}</Text>
+                <Text style={s.cardSub}>{srv.subtitulo ?? srv.descricao}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={c.textoFraco} />
+            </Pressable>
+          );
+        })}
 
           {/* Auxílio Jurídico — não é um serviço pago; abre o WhatsApp do Carteira CAC. */}
           <Pressable

@@ -1,9 +1,24 @@
+import * as FS from 'expo-file-system/legacy';
+
 import { apiApp } from '@/conta/api';
+import { API_APP } from '@/conta/config';
 import { lerToken } from '@/conta/armazenamento';
 import type { Processo, TipoServicoDespachante } from '@/domain/tipos';
 
+/** Tipo de um campo do formulário de documentos de um serviço. */
+export type TipoCampoDespachante = 'ARQUIVO' | 'TEXTO' | 'CHECKBOX' | 'SENHA_GOV';
+
+export interface CampoDespachante {
+  id: string;
+  tipo: TipoCampoDespachante;
+  nome: string;
+  descricao: string | null;
+  obrigatorio: boolean;
+  ordem: number;
+}
+
 export interface ServicoDespachante {
-  tipo: TipoServicoDespachante;
+  tipo: TipoServicoDespachante | string;
   nome: string;
   descricao: string;
   /** GRU (taxa do órgão) em centavos, por item. */
@@ -14,14 +29,81 @@ export interface ServicoDespachante {
   precoCentavos: number;
   /** Unidade de cobrança, para a UI ("por CRAF", "por guia"). */
   unidade: string;
+  // Aditivos (catálogo dinâmico) — ausentes no fallback offline.
+  codigo?: string;
+  subtitulo?: string | null;
+  comoFunciona?: string | null;
+  /** Nome do ícone (Ionicons). */
+  icone?: string;
+  ordem?: number;
+  /** Campos de documento que o usuário preenche depois de pagar. */
+  campos?: CampoDespachante[];
+}
+
+/** Status dinâmico do processo (label/cor/ícone vêm do servidor). */
+export interface StatusDespachante {
+  codigo: string;
+  label: string;
+  cor: string;
+  icone: string | null;
+  papel: string;
 }
 
 export interface CatalogoDespachante {
   servicos: ServicoDespachante[];
+  /** Status configurados (app novo pinta a etiqueta dinâmica). */
+  status?: StatusDespachante[];
   /** Nota explicando a composição do valor (GRU + serviço). */
   gruNota: string;
   /** Número do Carteira CAC para o botão "Auxílio Jurídico" (só dígitos). */
   whatsappJuridico?: string;
+}
+
+export interface ProgressoDespachante {
+  totalObrigatorios: number;
+  preenchidosObrigatorios: number;
+  completo: boolean;
+  faltantes: { id: string; nome: string; tipo: string }[];
+}
+
+export interface ValorCampoProcesso {
+  id: string;
+  campoId: string | null;
+  tipo: string;
+  nome: string | null;
+  mime: string | null;
+  tamanho: number | null;
+  temArquivo: boolean;
+  valorTexto: string | null;
+  valorCpf: string | null;
+  preenchido: boolean;
+  origem: string;
+  final: boolean;
+  status: string;
+  motivo: string | null;
+  criadoEm: string;
+}
+
+/** Processo com status rico, progresso, campos e documentos (API, não sync). */
+export interface ProcessoDetalhe {
+  id: string;
+  tipoServico: string;
+  servicoNome: string;
+  status: string;
+  statusLabel: string;
+  statusCor: string;
+  statusIcone: string | null;
+  armaId: string | null;
+  armaNome: string | null;
+  valorCentavos: number;
+  quantidade: number;
+  asaasPaymentId: string | null;
+  invoiceUrl: string | null;
+  criadoEm: string;
+  atualizadoEm: string;
+  progresso: ProgressoDespachante | null;
+  campos: CampoDespachante[];
+  valores: ValorCampoProcesso[];
 }
 
 /**
@@ -131,4 +213,57 @@ export async function criarPedido(dados: {
 export async function excluirPedido(id: string): Promise<void> {
   const token = await lerToken();
   await apiApp(`/despachante/pedidos/${id}`, { metodo: 'DELETE', token });
+}
+
+/** Processos do usuário com status rico, progresso e documentos (via API). */
+export async function listarPedidos(): Promise<ProcessoDetalhe[]> {
+  const token = await lerToken();
+  const r = await apiApp<{ processos: ProcessoDetalhe[] }>('/despachante/pedidos', { token });
+  return r?.processos ?? [];
+}
+
+/** Preenche um campo de TEXTO / CHECKBOX / SENHA_GOV. */
+export async function enviarCampo(
+  processoId: string,
+  campoId: string,
+  valor: { valorTexto?: string | null; valorCpf?: string | null; checkbox?: boolean }
+): Promise<void> {
+  const token = await lerToken();
+  await apiApp(`/despachante/pedidos/${processoId}/campos/${campoId}`, {
+    metodo: 'POST',
+    token,
+    corpo: valor,
+  });
+}
+
+/** Faz upload de um documento (campo ARQUIVO) a partir de um arquivo local. */
+export async function enviarArquivoCampo(
+  processoId: string,
+  campoId: string,
+  arquivo: { uri: string; nome: string; mime: string | null }
+): Promise<void> {
+  const token = await lerToken();
+  const dadosBase64 = await FS.readAsStringAsync(arquivo.uri, { encoding: FS.EncodingType.Base64 });
+  await apiApp(`/despachante/pedidos/${processoId}/campos/${campoId}/arquivo`, {
+    metodo: 'POST',
+    token,
+    corpo: { nome: arquivo.nome, mime: arquivo.mime, dadosBase64 },
+  });
+}
+
+/**
+ * Baixa um arquivo do processo (documento final ou enviado) para um arquivo
+ * local, com o token no header. Devolve o uri local para abrir/compartilhar.
+ */
+export async function baixarArquivoProcesso(
+  processoId: string,
+  valorId: string,
+  nome: string
+): Promise<string> {
+  const token = await lerToken();
+  const destino = `${FS.cacheDirectory ?? ''}${nome.replace(/[^\w.\-]+/g, '_')}`;
+  const r = await FS.downloadAsync(`${API_APP}/despachante/pedidos/${processoId}/arquivo/${valorId}`, destino, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  return r.uri;
 }

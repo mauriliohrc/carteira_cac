@@ -157,17 +157,13 @@ export async function aoCriarProcesso(processo: ProcessoDespachante, servicoNome
 }
 
 /**
- * Ao confirmar o PAGAMENTO (webhook): escolhe o próximo status — se o serviço
- * tem campos obrigatórios a preencher, vai para "aguardando documentação"; senão
- * "pago". Dispara a mensagem de início (WhatsApp por serviço).
+ * Ao confirmar o PAGAMENTO (webhook): o processo vai SEMPRE para "aguardando
+ * documentação" (fallback "pago" só se esse status não existir). Dispara a
+ * mensagem de início (WhatsApp por serviço).
  */
 export async function aoPagarProcesso(processo: ProcessoDespachante): Promise<void> {
-  const servico = await resolverServicoDinamico(processo.tipoServico);
-  const temCampos = (servico?.campos.length ?? 0) > 0;
-  const alvo = temCampos
-    ? (await statusPorPapel('AGUARDANDO_DOC')) ?? (await statusPorPapel('PAGO'))
-    : await statusPorPapel('PAGO');
-  await mudarStatusProcesso(processo, alvo?.codigo ?? 'pago');
+  const alvo = (await statusPorPapel('AGUARDANDO_DOC')) ?? (await statusPorPapel('PAGO'));
+  await mudarStatusProcesso(processo, alvo?.codigo ?? 'aguardando_documentacao');
 }
 
 /**
