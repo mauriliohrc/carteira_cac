@@ -260,19 +260,34 @@ export async function rotasDespachanteAppV1(app: FastifyInstance) {
     };
   });
 
-  // Exclui um processo ainda NÃO pago.
+  // Cancela um pedido ainda NÃO pago (o pedido inteiro — todos os irmãos que
+  // compartilham a cobrança) e remove a cobrança no Asaas.
   app.delete('/app/despachante/pedidos/:id', async (req) => {
     const { id } = req.params as { id: string };
     const processo = await prisma.processoDespachante.findFirst({
       where: { id, usuarioId: req.usuario!.id },
     });
     if (!processo) throw naoAutorizado();
-    if (processo.status !== 'aguardando_pagamento') {
-      throw invalido('Só é possível excluir um processo que ainda não foi pago.');
+
+    const irmaos = processo.asaasPaymentId
+      ? await prisma.processoDespachante.findMany({
+          where: { asaasPaymentId: processo.asaasPaymentId, usuarioId: req.usuario!.id },
+        })
+      : [processo];
+    if (irmaos.some((p) => p.status !== 'aguardando_pagamento')) {
+      throw invalido('Este pedido já foi pago e não pode ser cancelado pelo app.');
     }
-    if (processo.asaasPaymentId) await cancelarCobranca(processo.asaasPaymentId);
-    await prisma.processoDespachante.delete({ where: { id: processo.id } });
-    await removerProcessoDoSync(processo.usuarioId, processo.id);
+    if (processo.asaasPaymentId) {
+      try {
+        await cancelarCobranca(processo.asaasPaymentId);
+      } catch {
+        /* cobrança pode já ter sido removida */
+      }
+    }
+    for (const p of irmaos) {
+      await prisma.processoDespachante.delete({ where: { id: p.id } });
+      await removerProcessoDoSync(p.usuarioId, p.id);
+    }
     return { ok: true };
   });
 

@@ -9,9 +9,11 @@ import {
   garantirCatalogoDespachante,
   listarStatus,
   resolverServicoDinamico,
+  statusPorPapel,
 } from '../dominio/despachanteCatalogo.js';
 import { mudarStatusProcesso } from '../dominio/despachanteNotificacoes.js';
-import { refletirProcessoNoSync } from '../dominio/despachanteSync.js';
+import { refletirProcessoNoSync, removerProcessoDoSync } from '../dominio/despachanteSync.js';
+import { cancelarCobranca } from '../integracoes/asaas.js';
 import { precoTotal } from '../dominio/despachante.js';
 import { resolverConfigAsaas, urlWebhookAsaas } from '../dominio/asaasConfig.js';
 import { lerTexto, gravarTexto, CHAVE_WHATSAPP_JURIDICO } from '../config/configStore.js';
@@ -455,6 +457,54 @@ export async function rotasDespachanteAdmin(app: FastifyInstance) {
       await mudarStatusProcesso(processo, status);
     }
     return { ok: true };
+  });
+
+  // Processos do mesmo pedido (compartilham a cobrança). Sozinho se não houver.
+  async function irmaos(processo: { id: string; asaasPaymentId: string | null }) {
+    if (!processo.asaasPaymentId) return prisma.processoDespachante.findMany({ where: { id: processo.id } });
+    return prisma.processoDespachante.findMany({ where: { asaasPaymentId: processo.asaasPaymentId } });
+  }
+
+  // Cancela o pedido (status cancelado em todos os irmãos) + remove a cobrança
+  // no Asaas. Admin pode cancelar a qualquer momento.
+  app.post('/api/admin/despachante/processos/:id/cancelar', async (req) => {
+    const { id } = req.params as { id: string };
+    const processo = await prisma.processoDespachante.findUnique({ where: { id } });
+    if (!processo) throw naoEncontrado('Processo não encontrado');
+    if (processo.asaasPaymentId) {
+      try {
+        await cancelarCobranca(processo.asaasPaymentId);
+      } catch {
+        /* cobrança já paga/removida — segue cancelando o processo */
+      }
+    }
+    const grupo = await irmaos(processo);
+    const canc = await statusPorPapel('CANCELADO');
+    for (let i = 0; i < grupo.length; i++) {
+      await mudarStatusProcesso(grupo[i]!, canc?.codigo ?? 'cancelado', { notificar: i === 0 });
+    }
+    return { ok: true, afetados: grupo.length };
+  });
+
+  // Exclui o pedido de vez (remove do banco + tombstone no sync) + remove a
+  // cobrança no Asaas. Admin pode excluir a qualquer momento.
+  app.delete('/api/admin/despachante/processos/:id', async (req) => {
+    const { id } = req.params as { id: string };
+    const processo = await prisma.processoDespachante.findUnique({ where: { id } });
+    if (!processo) throw naoEncontrado('Processo não encontrado');
+    if (processo.asaasPaymentId) {
+      try {
+        await cancelarCobranca(processo.asaasPaymentId);
+      } catch {
+        /* best-effort */
+      }
+    }
+    const grupo = await irmaos(processo);
+    for (const p of grupo) {
+      await prisma.processoDespachante.delete({ where: { id: p.id } });
+      await removerProcessoDoSync(p.usuarioId, p.id);
+    }
+    return { ok: true, afetados: grupo.length };
   });
 
   // Aprovar / rejeitar um documento enviado pelo usuário.

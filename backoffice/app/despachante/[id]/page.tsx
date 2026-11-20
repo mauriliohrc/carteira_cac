@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { api, ErroApi } from '@/lib/api';
 import {
   ROTULO_SERVICO_DESPACHANTE,
@@ -41,6 +41,7 @@ export default function PaginaProcesso() {
 
 function Processo() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [p, setP] = useState<ProcessoDespachanteDetalhe | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
@@ -92,6 +93,31 @@ function Processo() {
     } catch (e) {
       alert(e instanceof ErroApi ? e.message : 'Falha ao revisar');
     } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function cancelar() {
+    if (!confirm('Cancelar este processo? A cobrança no Asaas será removida e o usuário será notificado.')) return;
+    setOcupado(true);
+    try {
+      await api(`/api/admin/despachante/processos/${id}/cancelar`, { metodo: 'POST' });
+      await carregar();
+    } catch (e) {
+      alert(e instanceof ErroApi ? e.message : 'Falha ao cancelar');
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function excluir() {
+    if (!confirm('Excluir DEFINITIVAMENTE este processo? Remove do sistema e cancela a cobrança no Asaas. Não pode ser desfeito.')) return;
+    setOcupado(true);
+    try {
+      await api(`/api/admin/despachante/processos/${id}`, { metodo: 'DELETE' });
+      router.push('/despachante');
+    } catch (e) {
+      alert(e instanceof ErroApi ? e.message : 'Falha ao excluir');
       setOcupado(false);
     }
   }
@@ -193,6 +219,23 @@ function Processo() {
           </div>
         )}
         <AnexarFinal id={p.id} aoAnexar={carregar} />
+      </div>
+
+      <h2 style={{ marginTop: 24 }}>Encerrar</h2>
+      <div className="cartao" style={{ borderColor: 'rgba(208,88,90,.4)' }}>
+        <p className="subtitulo" style={{ marginTop: 0 }}>
+          Cancelar marca o processo como cancelado e remove a cobrança no Asaas (o usuário é
+          notificado). Excluir remove o processo do sistema. Em pedidos por arma, a ação vale para
+          todos os equipamentos do mesmo pedido.
+        </p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="secundario" disabled={ocupado} onClick={cancelar}>
+            Cancelar processo
+          </button>
+          <button className="perigo" disabled={ocupado} onClick={excluir}>
+            Excluir processo
+          </button>
+        </div>
       </div>
     </>
   );

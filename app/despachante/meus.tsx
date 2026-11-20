@@ -47,9 +47,9 @@ export default function MeusProcessos() {
 
   async function excluir(proc: ProcessoDetalhe) {
     const ok = await confirmar({
-      titulo: 'Excluir processo?',
-      mensagem: 'Este processo ainda não foi pago. A cobrança será cancelada e ele sairá da lista.',
-      rotuloConfirmar: 'Excluir',
+      titulo: 'Cancelar pedido?',
+      mensagem: 'O pedido ainda não foi pago. A cobrança será cancelada e ele sairá da lista.',
+      rotuloConfirmar: 'Cancelar pedido',
       destrutivo: true,
     });
     if (!ok) return;
@@ -121,17 +121,23 @@ function Grupo({ procs, aoExcluir }: { procs: ProcessoDetalhe[]; aoExcluir: (p: 
         ))}
       </View>
 
-      {aguardandoPagamento && invoiceUrl ? (
+      {aguardandoPagamento ? (
         <View style={p.acoes}>
-          <Botao
-            titulo="Pagar agora"
-            icone="card-outline"
-            compacto
-            aoTocar={() => router.push({ pathname: '/despachante/checkout', params: { url: invoiceUrl } })}
-          />
-          {!porArma ? (
-            <Botao titulo="Excluir" icone="trash-outline" variante="fantasma" compacto aoTocar={() => aoExcluir(primeiro)} />
+          {invoiceUrl ? (
+            <Botao
+              titulo="Pagar agora"
+              icone="card-outline"
+              compacto
+              aoTocar={() => router.push({ pathname: '/despachante/checkout', params: { url: invoiceUrl } })}
+            />
           ) : null}
+          <Botao
+            titulo="Cancelar pedido"
+            icone="close-circle-outline"
+            variante="fantasma"
+            compacto
+            aoTocar={() => aoExcluir(primeiro)}
+          />
         </View>
       ) : null}
     </View>
