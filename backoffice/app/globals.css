@@ -50,22 +50,14 @@ html, body {
 html { background: var(--fundo); }
 body { background: transparent; }
 
-/* Imagem de fundo de TODAS as telas: a imagem fica VISÍVEL atrás de tudo e um
-   véu de 25% da cor do tema passa por cima (contraste/legibilidade). */
+/* Imagem de fundo de TODAS as telas, a 0.8 de opacidade (sobre a cor do tema no
+   html, que aparece nos 20% restantes). */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   background: url('/bg.jpg') center / cover no-repeat;
-  z-index: -2;
-  pointer-events: none;
-}
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: var(--fundo);
-  opacity: 0.25;
+  opacity: 0.8;
   z-index: -1;
   pointer-events: none;
 }
