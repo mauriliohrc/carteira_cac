@@ -5,11 +5,13 @@ import { ambiente } from '../../config/ambiente.js';
 import { conferirSenha, gerarHash } from '../../auth/senha.js';
 import { assinarTokenApp } from '../../auth/token.js';
 import { prisma } from '../../db/cliente.js';
+import { limitarTaxa } from '../../http/rateLimit.js';
 import {
   alterarSenhaSchema,
   atualizarPerfilAppSchema,
   cadastroAppSchema,
   confirmarEmailSchema,
+  enviarEmailSchema,
   esqueciSenhaSchema,
   loginSchema,
   redefinirSenhaSchema,
@@ -45,7 +47,10 @@ function gerarCodigo(): string {
  */
 export async function rotasAppV1(app: FastifyInstance) {
   // ------------------------------------------------------------- cadastro
-  app.post('/app/auth/cadastro', async (req, reply) => {
+  app.post(
+    '/app/auth/cadastro',
+    { preHandler: limitarTaxa({ nome: 'cadastro', max: 10, janelaMs: 60 * 60 * 1000 }) },
+    async (req, reply) => {
     const { nome, cpf, email, senha, celular } = cadastroAppSchema.parse(req.body);
     const senhaHash = await gerarHash(senha);
     try {
@@ -96,7 +101,10 @@ export async function rotasAppV1(app: FastifyInstance) {
   });
 
   // ---------------------------------------------------------------- login
-  app.post('/app/auth/login', async (req) => {
+  app.post(
+    '/app/auth/login',
+    { preHandler: limitarTaxa({ nome: 'login-app', max: 20, janelaMs: 10 * 60 * 1000 }) },
+    async (req) => {
     const { email, senha } = loginSchema.parse(req.body);
     const usuario = await prisma.usuarioApp.findUnique({ where: { email } });
     if (!usuario || !usuario.ativo || !(await conferirSenha(senha, usuario.senhaHash))) {
@@ -139,11 +147,29 @@ export async function rotasAppV1(app: FastifyInstance) {
 
   // -------------------------------------------- confirmação de e-mail (envio)
   // Gera um código de 6 dígitos e envia por e-mail. Exige sessão: o usuário
-  // confirma o e-mail da própria conta. Invalida códigos pendentes anteriores.
+  // confirma o e-mail da própria conta.
+  //
+  // Idempotência: a tela de verificação dispara este envio toda vez que abre.
+  // Se o usuário recebe o código, sai do app para lê-lo e volta, a tela remonta
+  // e reenviaria — invalidando o código que ele acabou de receber. Por isso, na
+  // abertura automática (forcar=false) reaproveitamos um código pendente ainda
+  // válido em vez de gerar outro. Só o reenvio manual (forcar=true) gera um novo.
   app.post('/app/auth/email/enviar', { preHandler: exigirApp() }, async (req) => {
+    const { forcar } = enviarEmailSchema.parse(req.body ?? {});
     const usuario = await prisma.usuarioApp.findUnique({ where: { id: req.usuario!.id } });
     if (!usuario || !usuario.ativo) throw naoAutorizado();
     if (usuario.emailVerificado) return { ok: true, jaVerificado: true };
+
+    if (!forcar) {
+      const pendente = await prisma.tokenEmail.findFirst({
+        where: { usuarioId: usuario.id, usadoEm: null, expiraEm: { gt: new Date() } },
+        orderBy: { criadoEm: 'desc' },
+      });
+      // Código vivo e ainda utilizável: mantém o que já foi enviado.
+      if (pendente && pendente.tentativas < MAX_TENTATIVAS) {
+        return { ok: true, enviado: true, reaproveitado: true };
+      }
+    }
 
     const codigo = gerarCodigo();
     await prisma.$transaction([
@@ -213,7 +239,10 @@ export async function rotasAppV1(app: FastifyInstance) {
   });
 
   // --------------------------------------------------- esqueci minha senha
-  app.post('/app/auth/senha/esqueci', async (req) => {
+  app.post(
+    '/app/auth/senha/esqueci',
+    { preHandler: limitarTaxa({ nome: 'esqueci', max: 5, janelaMs: 60 * 60 * 1000 }) },
+    async (req) => {
     const { email } = esqueciSenhaSchema.parse(req.body);
     const usuario = await prisma.usuarioApp.findUnique({ where: { email } });
 
@@ -244,7 +273,10 @@ export async function rotasAppV1(app: FastifyInstance) {
   });
 
   // ----------------------------------------------------- redefinir a senha
-  app.post('/app/auth/senha/redefinir', async (req) => {
+  app.post(
+    '/app/auth/senha/redefinir',
+    { preHandler: limitarTaxa({ nome: 'redefinir', max: 10, janelaMs: 15 * 60 * 1000 }) },
+    async (req) => {
     const { email, codigo, senha } = redefinirSenhaSchema.parse(req.body);
     const usuario = await prisma.usuarioApp.findUnique({ where: { email } });
     if (!usuario) throw naoAutorizado('Código inválido ou expirado');

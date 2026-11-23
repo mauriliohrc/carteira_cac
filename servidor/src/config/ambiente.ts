@@ -8,6 +8,21 @@ function obrigatorio(chave: string, valorPadrao?: string): string {
   return v;
 }
 
+/**
+ * Segredo de produção com fail-closed: em produção NUNCA cai no default — se a
+ * env estiver ausente, o servidor se recusa a subir. Em dev, aceita o default
+ * só por conveniência local. Evita assinar/verificar JWT (ou autenticar webhooks)
+ * com um segredo público versionado no repositório caso a env suma num deploy.
+ */
+function segredoProducao(chave: string, padraoDev: string): string {
+  const v = process.env[chave];
+  if (v != null && v !== '') return v;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(`Segredo de produção ausente (obrigatório): ${chave}`);
+  }
+  return padraoDev;
+}
+
 export const ambiente = {
   porta: Number(process.env.PORTA ?? 3333),
   backofficeOrigem: process.env.BACKOFFICE_ORIGEM ?? 'http://localhost:3000',
@@ -18,12 +33,21 @@ export const ambiente = {
    */
   apiPublicaUrl: (process.env.API_PUBLICA_URL ?? '').replace(/\/$/, ''),
   jwt: {
-    segredoAdmin: obrigatorio('JWT_SEGREDO_ADMIN', 'dev-segredo-admin'),
-    segredoEntidade: obrigatorio('JWT_SEGREDO_ENTIDADE', 'dev-segredo-entidade'),
-    segredoApp: obrigatorio('JWT_SEGREDO_APP', 'dev-segredo-app'),
+    segredoAdmin: segredoProducao('JWT_SEGREDO_ADMIN', 'dev-segredo-admin'),
+    segredoEntidade: segredoProducao('JWT_SEGREDO_ENTIDADE', 'dev-segredo-entidade'),
+    segredoApp: segredoProducao('JWT_SEGREDO_APP', 'dev-segredo-app'),
     expiracao: process.env.JWT_EXPIRACAO ?? '12h',
     /** Sessão do usuário do app dura bem mais que a do backoffice. */
     expiracaoApp: process.env.JWT_EXPIRACAO_APP ?? '60d',
+  },
+  /**
+   * Chave mestra para cifrar segredos sensíveis em repouso (senha gov.br, chave
+   * do Asaas, senha de parceiro Shooting House). 32 bytes em hex (64 chars) ou
+   * base64. Gere com `openssl rand -hex 32`. Fail-closed em produção: sem a
+   * chave o servidor não sobe (dados cifrados ficariam ilegíveis).
+   */
+  cripto: {
+    chave: segredoProducao('APP_CRYPTO_KEY', 'dev-chave-cripto-insegura-troque-em-producao'),
   },
   /**
    * SMTP para e-mails transacionais (verificação de conta, reset de senha).

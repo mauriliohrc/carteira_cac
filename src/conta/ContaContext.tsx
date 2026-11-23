@@ -47,8 +47,12 @@ interface Conta {
   /** Pede o reset; em dev o servidor devolve o código para teste. */
   pedirResetSenha: (email: string) => Promise<{ codigoDev?: string }>;
   redefinirSenha: (email: string, codigo: string, senha: string) => Promise<void>;
-  /** Dispara o e-mail com o código de confirmação da conta logada. */
-  enviarCodigoEmail: () => Promise<{ codigoDev?: string; jaVerificado?: boolean }>;
+  /**
+   * Dispara o e-mail com o código de confirmação da conta logada. `forcar=true`
+   * (reenvio manual) sempre gera um novo código; caso contrário, o servidor
+   * reaproveita um código pendente ainda válido para não invalidá-lo.
+   */
+  enviarCodigoEmail: (forcar?: boolean) => Promise<{ codigoDev?: string; jaVerificado?: boolean }>;
   /** Confirma o e-mail com o código; atualiza o usuário em memória/cache. */
   confirmarEmail: (codigo: string) => Promise<void>;
   /** Troca a senha do usuário logado (exige a senha atual). */
@@ -203,11 +207,11 @@ export function ContaProvider({ children }: { children: React.ReactNode }) {
     await apiApp('/auth/senha/redefinir', { metodo: 'POST', corpo: { email, codigo, senha } });
   }, []);
 
-  const enviarCodigoEmail = useCallback<Conta['enviarCodigoEmail']>(async () => {
+  const enviarCodigoEmail = useCallback<Conta['enviarCodigoEmail']>(async (forcar = false) => {
     const token = await lerToken();
     const r = await apiApp<{ ok: true; enviado: boolean; codigo?: string; jaVerificado?: boolean }>(
       '/auth/email/enviar',
-      { metodo: 'POST', token }
+      { metodo: 'POST', token, corpo: { forcar } }
     );
     return { codigoDev: r.codigo, jaVerificado: r.jaVerificado };
   }, []);

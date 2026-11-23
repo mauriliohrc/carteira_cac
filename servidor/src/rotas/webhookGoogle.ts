@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { ambiente } from '../config/ambiente.js';
 import { processarAssinaturaAndroid } from '../dominio/assinaturaServico.js';
+import { comparaSegura } from '../dominio/cripto.js';
 
 /**
  * Webhook do Google Play — Real-time Developer Notifications (RTDN) via Pub/Sub
@@ -38,7 +39,7 @@ export async function rotasWebhookGoogle(app: FastifyInstance) {
     // assinado). Quando GOOGLE_PUBSUB_TOKEN está definido, é obrigatório.
     if (ambiente.google.pubsubToken) {
       const q = (req.query ?? {}) as { token?: string };
-      if (q.token !== ambiente.google.pubsubToken) {
+      if (!comparaSegura(q.token, ambiente.google.pubsubToken)) {
         reply.code(401);
         return { ok: false };
       }

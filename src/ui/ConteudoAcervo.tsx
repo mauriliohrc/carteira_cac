@@ -243,7 +243,7 @@ function LinhaArma({
       style={({ pressed }) => [s.linha, selecionado ? s.linhaSel : null, pressed && { opacity: 0.7 }]}
     >
       {capa && !bloqueado ? (
-        <Image source={{ uri: capa }} style={s.linhaCapa} />
+        <Image source={{ uri: capa }} style={s.linhaCapa} resizeMethod="resize" />
       ) : (
         <View style={s.linhaIcone}>
           <Ionicons

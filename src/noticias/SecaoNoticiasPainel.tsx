@@ -65,7 +65,7 @@ function CartaoResumo({ noticia, aoTocar }: { noticia: Noticia; aoTocar: () => v
       style={({ pressed }) => [p.cartao, pressed ? { opacity: 0.7 } : null]}
     >
       {noticia.imagemUrl ? (
-        <Image source={{ uri: noticia.imagemUrl }} style={p.miniatura} resizeMode="cover" />
+        <Image source={{ uri: noticia.imagemUrl }} style={p.miniatura} resizeMode="cover" resizeMethod="resize" />
       ) : (
         <View style={[p.miniatura, p.miniaturaVazia]}>
           <Ionicons name="newspaper-outline" size={18} color={c.textoFraco} />

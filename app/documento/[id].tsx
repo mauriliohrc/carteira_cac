@@ -325,7 +325,7 @@ function ItemArquivo({ arquivo, aoRemover }: { arquivo: Arquivo; aoRemover: () =
     <View style={v.arquivo}>
       <Pressable onPress={abrir} style={v.arquivoToque}>
         {imagem && existe ? (
-          <Image source={{ uri: arquivo.uri }} style={v.miniatura} />
+          <Image source={{ uri: arquivo.uri }} style={v.miniatura} resizeMethod="resize" />
         ) : (
           <View style={[v.miniatura, v.miniaturaIcone]}>
             <Ionicons

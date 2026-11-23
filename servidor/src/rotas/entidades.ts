@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { Prisma } from '@prisma/client';
 import { gerarHash } from '../auth/senha.js';
 import { prisma } from '../db/cliente.js';
+import { cifrar } from '../dominio/cripto.js';
 import {
   atualizarEntidadeSchema,
   atualizarUsuarioEntidadeSchema,
@@ -78,6 +79,8 @@ export async function rotasEntidades(app: FastifyInstance) {
     try {
       // Subdomínio: o que o admin digitou vale; vazio, o servidor gera do nome.
       const subdominio = dados.subdominio ?? (await escolherSubdominioLivre(dados.nome));
+      // Senha do parceiro SH cifrada em repouso.
+      if (dados.shSenha) dados.shSenha = cifrar(dados.shSenha);
       const e = await prisma.entidadeTiro.create({ data: { ...dados, subdominio } });
       reply.code(201);
       return { entidade: apresentarEntidade(e) };
@@ -92,7 +95,9 @@ export async function rotasEntidades(app: FastifyInstance) {
   app.patch('/api/admin/entidades/:id', async (req) => {
     const { id } = req.params as { id: string };
     await acharEntidade(id);
-    const dados = limpar(atualizarEntidadeSchema.parse(req.body));
+    const dados = limpar(atualizarEntidadeSchema.parse(req.body)) as Record<string, unknown>;
+    // Senha do parceiro SH cifrada em repouso (só quando o admin reenvia).
+    if (typeof dados.shSenha === 'string' && dados.shSenha) dados.shSenha = cifrar(dados.shSenha);
     try {
       const e = await prisma.entidadeTiro.update({ where: { id }, data: dados });
       return { entidade: apresentarEntidade(e) };

@@ -14,3 +14,5 @@ export const proibido = (msg = 'Acesso negado') => new ErroHttp(403, msg);
 export const naoEncontrado = (msg = 'Não encontrado') => new ErroHttp(404, msg);
 export const conflito = (msg = 'Conflito') => new ErroHttp(409, msg);
 export const invalido = (msg = 'Requisição inválida') => new ErroHttp(400, msg);
+export const muitasRequisicoes = (msg = 'Muitas tentativas. Tente novamente mais tarde.') =>
+  new ErroHttp(429, msg);

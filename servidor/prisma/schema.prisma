@@ -125,7 +125,7 @@ model EntidadeTiro {
   shBaseUrl         String? @db.Text
   /// Credenciais Basic do parceiro na Shooting House.
   shLogin           String?
-  shSenha           String?
+  shSenha           String? @db.Text
 
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
@@ -421,7 +421,7 @@ model ProcessoDespachante {
   criadoEm       DateTime @default(now())
   atualizadoEm   DateTime @updatedAt
 
-  usuario UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuario UsuarioApp                      @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   valores ValorCampoProcessoDespachante[]
 
   @@index([usuarioId])
@@ -506,15 +506,15 @@ model StatusProcessoDespachante {
 ///   SENHA_GOV — CPF + senha do gov.br (credencial sensível; só o despachante vê)
 /// `descricao` explica o que é / onde conseguir, para guiar o usuário.
 model CampoServicoDespachante {
-  id          String   @id @default(cuid())
-  servicoId   String
-  tipo        String   @default("ARQUIVO")
-  nome        String
-  descricao   String?  @db.Text
-  obrigatorio Boolean  @default(true)
-  ordem       Int      @default(0)
-  ativo       Boolean  @default(true)
-  criadoEm    DateTime @default(now())
+  id           String   @id @default(cuid())
+  servicoId    String
+  tipo         String   @default("ARQUIVO")
+  nome         String
+  descricao    String?  @db.Text
+  obrigatorio  Boolean  @default(true)
+  ordem        Int      @default(0)
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
   servico ServicoDespachante @relation(fields: [servicoId], references: [id], onDelete: Cascade)
@@ -566,7 +566,7 @@ model ConfiguracaoAsaas {
   /// sandbox | producao
   ambiente     String   @default("sandbox")
   apiKey       String?  @db.Text
-  webhookToken String?
+  webhookToken String?  @db.Text
   atualizadoEm DateTime @updatedAt
 
   @@map("configuracao_asaas")
@@ -579,15 +579,15 @@ model ConfiguracaoAsaas {
 /// O app recebe o espelho via sync (RegistroSync tipo 'filiacoes'). ADITIVO:
 /// apps antigos ignoram o tipo de sync desconhecido, nada quebra.
 model FiliacaoLiga {
-  id                   String   @id @default(cuid())
-  usuarioId            String
+  id             String  @id @default(cuid())
+  usuarioId      String
   /// Número de registro público da filiação (ex. "2026-000123"). Atribuído ao
   /// ativar (pagamento confirmado / migração). Null enquanto pendente. Único.
-  numeroFiliacao       String?  @unique
+  numeroFiliacao String? @unique
   /// pendente_pagamento | ativa | suspensa | vencida | cancelada
-  status               String   @default("pendente_pagamento")
+  status         String  @default("pendente_pagamento")
   /// ASAAS | CORTESIA_MIGRACAO (legado anual IAP migrado por 12 meses)
-  origem               String   @default("ASAAS")
+  origem         String  @default("ASAAS")
 
   // Dados do filiado (snapshot no momento da filiação).
   nomeCompleto         String
@@ -603,16 +603,16 @@ model FiliacaoLiga {
   docTipo              String?
   /// registroId do ArquivoSync com a imagem/PDF do documento de identificação.
   docArquivoId         String?
-  documentacaoCompleta Boolean  @default(false)
+  documentacaoCompleta Boolean @default(false)
 
   // Pagamento (Asaas, assinatura recorrente anual).
-  asaasSubscriptionId  String?  @unique
-  invoiceUrl           String?
-  valorCentavos        Int
+  asaasSubscriptionId String?  @unique
+  invoiceUrl          String?
+  valorCentavos       Int
   /// Até quando a filiação é válida (vínculo de 1 ano). Renovações estendem.
-  vigenteAte           DateTime
-  criadoEm             DateTime @default(now())
-  atualizadoEm         DateTime @updatedAt
+  vigenteAte          DateTime
+  criadoEm            DateTime @default(now())
+  atualizadoEm        DateTime @updatedAt
 
   usuario UsuarioApp @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 

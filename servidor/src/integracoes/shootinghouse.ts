@@ -1,6 +1,7 @@
 // Cliente da API de parceiros da Shooting House.
 // Doc: https://app.swaggerhub.com/apis-docs/shootinghouse/Parceiros/1.0.1
 // Auth: HTTP Basic (login/senha do parceiro). Endpoint de habitualidades por CPF.
+import { decifrar } from '../dominio/cripto.js';
 
 const BASE_PADRAO = 'https://apibeta.shootinghouse.com.br/v1/partners';
 
@@ -279,7 +280,8 @@ export async function buscarCR(
 ): Promise<{ numero: string; validade: string } | null> {
   const base = (creds.baseUrl || BASE_PADRAO).replace(/\/$/, '');
   const url = `${base}/registers/shooters/${cpf}?searchBy=cpf`;
-  const auth = Buffer.from(`${creds.login}:${creds.senha}`).toString('base64');
+  // A senha do parceiro fica cifrada em repouso; decifrar é passthrough p/ legado.
+  const auth = Buffer.from(`${creds.login}:${decifrar(creds.senha) ?? ''}`).toString('base64');
   let resp: Response;
   try {
     resp = await fetch(url, { headers: { Authorization: `Basic ${auth}`, Accept: 'application/json' } });
@@ -306,7 +308,8 @@ export async function buscarArmas(
 ): Promise<{ status: StatusSH; armas: ArmaImportada[] }> {
   const base = (creds.baseUrl || BASE_PADRAO).replace(/\/$/, '');
   const url = `${base}/registers/shooters/weapon/${cpf}?searchBy=cpf`;
-  const auth = Buffer.from(`${creds.login}:${creds.senha}`).toString('base64');
+  // A senha do parceiro fica cifrada em repouso; decifrar é passthrough p/ legado.
+  const auth = Buffer.from(`${creds.login}:${decifrar(creds.senha) ?? ''}`).toString('base64');
 
   let resp: Response;
   try {
@@ -372,7 +375,8 @@ interface ShooterSH {
 export async function verificarParceiro(creds: CredenciaisSH, cpf: string): Promise<VerificacaoParceiro> {
   const base = (creds.baseUrl || BASE_PADRAO).replace(/\/$/, '');
   const url = `${base}/registers/shooters/${cpf}?searchBy=cpf`;
-  const auth = Buffer.from(`${creds.login}:${creds.senha}`).toString('base64');
+  // A senha do parceiro fica cifrada em repouso; decifrar é passthrough p/ legado.
+  const auth = Buffer.from(`${creds.login}:${decifrar(creds.senha) ?? ''}`).toString('base64');
 
   const vazio: VerificacaoParceiro = { status: 'NAO_MEMBRO', membro: false, ativo: false, adimplente: false };
 
@@ -445,7 +449,8 @@ export async function buscarHabitualidades(creds: CredenciaisSH, cpf: string): P
   const inicio = inicioUmAno();
   const fim = new Date().toISOString().slice(0, 10);
   const url = `${base}/registers/habitualities/${cpf}?startDate=${inicio}&endDate=${fim}`;
-  const auth = Buffer.from(`${creds.login}:${creds.senha}`).toString('base64');
+  // A senha do parceiro fica cifrada em repouso; decifrar é passthrough p/ legado.
+  const auth = Buffer.from(`${creds.login}:${decifrar(creds.senha) ?? ''}`).toString('base64');
 
   let resp: Response;
   try {

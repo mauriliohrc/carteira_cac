@@ -7,10 +7,14 @@ import type { PapelAdmin, PapelEntidade } from '../dominio/tipos.js';
 import { apresentarAdmin, apresentarUsuarioEntidade } from '../http/apresentadores.js';
 import { naoAutorizado } from '../http/erros.js';
 import { exigirAdmin, exigirEntidade } from '../http/guardas.js';
+import { limitarTaxa } from '../http/rateLimit.js';
 
 export async function rotasAutenticacao(app: FastifyInstance) {
   // ---------------------------------------------------- Admin do aplicativo
-  app.post('/api/admin/auth/login', async (req) => {
+  app.post(
+    '/api/admin/auth/login',
+    { preHandler: limitarTaxa({ nome: 'login-admin', max: 20, janelaMs: 10 * 60 * 1000 }) },
+    async (req) => {
     const { email, senha } = loginSchema.parse(req.body);
     const admin = await prisma.usuarioAdmin.findUnique({ where: { email } });
     if (!admin || !admin.ativo || !(await conferirSenha(senha, admin.senhaHash))) {
@@ -27,7 +31,10 @@ export async function rotasAutenticacao(app: FastifyInstance) {
   });
 
   // -------------------------------------------------- Usuário de entidade
-  app.post('/api/entidade/auth/login', async (req) => {
+  app.post(
+    '/api/entidade/auth/login',
+    { preHandler: limitarTaxa({ nome: 'login-entidade', max: 20, janelaMs: 10 * 60 * 1000 }) },
+    async (req) => {
     const { email, senha } = loginSchema.parse(req.body);
     // E-mail pode repetir entre entidades; pega todos e confere a senha.
     const candidatos = await prisma.usuarioEntidade.findMany({ where: { email } });

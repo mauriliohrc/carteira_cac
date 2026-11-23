@@ -7,6 +7,11 @@ import { Botao, Tela, TituloTela } from '@/ui/base';
 import { Campo } from '@/ui/formulario';
 import { useConta } from '@/conta/ContaContext';
 import { ErroConta } from '@/conta/api';
+import {
+  codigoEmailFoiEnviado,
+  limparCodigoEmailEnviado,
+  marcarCodigoEmailEnviado,
+} from '@/conta/armazenamento';
 
 /**
  * Confirmação do e-mail da conta por código de 6 dígitos.
@@ -29,11 +34,14 @@ export default function Verificar() {
     if (manual) setReenviando(true);
     setErro(null);
     try {
-      const { codigoDev, jaVerificado } = await enviarCodigoEmail();
+      const { codigoDev, jaVerificado } = await enviarCodigoEmail(manual);
       if (jaVerificado) {
         router.back();
         return;
       }
+      // Marca que este usuário já recebeu um código: reabrir o app não vai
+      // mais disparar outro automaticamente (só o botão "Reenviar").
+      if (usuario?.id) await marcarCodigoEmailEnviado(usuario.id);
       if (codigoDev) setCodigo(codigoDev); // só em desenvolvimento
     } catch (e) {
       setErro(e instanceof ErroConta ? e.message : 'Não foi possível enviar o código.');
@@ -42,11 +50,17 @@ export default function Verificar() {
     }
   }
 
-  // Dispara o envio uma única vez ao abrir a tela.
+  // Dispara o PRIMEIRO envio ao chegar na verificação. Se um código já foi
+  // enviado a este usuário (mesmo em sessão anterior), NÃO reenvia: o usuário
+  // aguarda o código que já recebeu; um novo só sai pelo botão "Reenviar".
+  // Evita qualquer loop de "abriu o app → gerou código novo".
   useEffect(() => {
     if (jaDisparou.current) return;
     jaDisparou.current = true;
-    void enviar(false);
+    void (async () => {
+      if (usuario?.id && (await codigoEmailFoiEnviado(usuario.id))) return;
+      await enviar(false);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -55,6 +69,9 @@ export default function Verificar() {
     setEnviando(true);
     try {
       await confirmarEmail(codigo.trim());
+      // Verificado: limpa o marcador para que uma eventual futura verificação
+      // (outra conta/reinstalação) volte a auto-enviar normalmente.
+      await limparCodigoEmailEnviado();
       // Conta confirmada: volta direto (o estado já reflete "verificado").
       // Nada de diálogo bloqueante aqui — ele deixaria o botão travado se não
       // renderizasse. router.back() encerra a tela.

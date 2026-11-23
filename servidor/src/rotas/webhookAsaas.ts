@@ -4,6 +4,7 @@ import { aoPagarProcesso, mudarStatusProcesso } from '../dominio/despachanteNoti
 import { statusPorPapel } from '../dominio/despachanteCatalogo.js';
 import { ativarFiliacao, encerrarFiliacao } from '../dominio/filiacao.js';
 import { resolverConfigAsaas } from '../dominio/asaasConfig.js';
+import { comparaSegura } from '../dominio/cripto.js';
 
 /** Eventos do Asaas que confirmam o pagamento → processo vira 'pago'. */
 const EVENTOS_PAGO = new Set(['PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED']);
@@ -36,12 +37,12 @@ export async function rotasWebhookAsaas(app: FastifyInstance) {
       (req.headers['asaas-access-token'] as string | undefined) ??
       (req.headers['asaas-webhook-token'] as string | undefined) ??
       (req.headers['access-token'] as string | undefined);
-    if (!cfg.webhookToken || token !== cfg.webhookToken) {
+    if (!cfg.webhookToken || !comparaSegura(token, cfg.webhookToken)) {
+      // Não logamos o token recebido (nem fragmento) para não vazar em logs.
       req.log.warn(
         {
           headers: Object.keys(req.headers),
-          tokenRecebido: typeof token === 'string' ? `len=${token.length}…${token.slice(-4)}` : null,
-          tokenEsperadoLen: cfg.webhookToken.length,
+          tokenPresente: typeof token === 'string' && token.length > 0,
           evento: (req.body as { event?: string } | undefined)?.event,
         },
         '[asaas webhook] 401 — token não confere'

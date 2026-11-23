@@ -62,7 +62,9 @@ const SEGREDO: Record<EscopoAutenticacao, string> = {
  * Segredos distintos garantem que um token de um público nunca valha em outro.
  */
 export function verificarToken(token: string, escopo: EscopoAutenticacao): Autenticado {
-  const decodificado = jwt.verify(token, SEGREDO[escopo]) as Payload;
+  // Fixa o algoritmo (HS256) na verificação: impede ataques de confusão de
+  // algoritmo (ex.: `alg: none` ou troca para outro esquema).
+  const decodificado = jwt.verify(token, SEGREDO[escopo], { algorithms: ['HS256'] }) as Payload;
 
   if (decodificado.escopo !== escopo) {
     throw new Error('Escopo do token não corresponde');

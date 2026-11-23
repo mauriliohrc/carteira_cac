@@ -87,7 +87,7 @@ export function CartaoArma({
       <View style={{ flex: 1, padding: espaco.lg }}>
         <View style={e.topoArma}>
           {capa ? (
-            <Image source={{ uri: capa }} style={e.capa} resizeMode="cover" />
+            <Image source={{ uri: capa }} style={e.capa} resizeMode="cover" resizeMethod="resize" />
           ) : null}
           <View style={{ flex: 1 }}>
             <Text style={e.nomeArma} numberOfLines={1}>

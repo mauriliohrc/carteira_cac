@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../db/cliente.js';
 import { exigirAdmin } from '../http/guardas.js';
 import { conflito, invalido, naoEncontrado } from '../http/erros.js';
+import { cifrar, decifrar } from '../dominio/cripto.js';
 import {
   calcularProgresso,
   campoPreenchido,
@@ -117,8 +118,10 @@ function apresentarValor(v: {
     mime: v.mime,
     tamanho: v.tamanho,
     // Texto/checkbox/senha: o admin vê o valor (inclui a senha do gov.br).
-    valorTexto: v.valorTexto,
-    valorCpf: v.valorCpf,
+    // A senha gov.br fica cifrada em repouso; decifrar é passthrough p/ os
+    // demais tipos (texto/checkbox não são cifrados).
+    valorTexto: decifrar(v.valorTexto),
+    valorCpf: decifrar(v.valorCpf),
     temArquivo: v.tipo === 'ARQUIVO' && (v.tamanho ?? 0) > 0,
     preenchido: campoPreenchido(v.tipo, v),
     origem: v.origem,
@@ -330,8 +333,9 @@ export async function rotasDespachanteAdmin(app: FastifyInstance) {
   app.put('/api/admin/despachante/asaas', async (req) => {
     const { ambiente, apiKey, webhookToken } = configAsaasSchema.parse(req.body);
     const atual = await prisma.configuracaoAsaas.findUnique({ where: { id: 'unico' } });
-    const novaApiKey = apiKey && apiKey.trim() ? apiKey.trim() : atual?.apiKey ?? null;
-    const novoToken = webhookToken && webhookToken.trim() ? webhookToken.trim() : atual?.webhookToken ?? null;
+    // Cifra em repouso; se o admin não reenviar, mantém o valor já cifrado.
+    const novaApiKey = apiKey && apiKey.trim() ? cifrar(apiKey.trim()) : atual?.apiKey ?? null;
+    const novoToken = webhookToken && webhookToken.trim() ? cifrar(webhookToken.trim()) : atual?.webhookToken ?? null;
     await prisma.configuracaoAsaas.upsert({
       where: { id: 'unico' },
       create: { id: 'unico', ambiente, apiKey: novaApiKey, webhookToken: novoToken },

@@ -48,6 +48,7 @@ export async function rotasUploads(app: FastifyInstance) {
     if (!up) throw naoEncontrado('Arquivo não encontrado');
     reply
       .header('Content-Type', up.mime)
+      .header('X-Content-Type-Options', 'nosniff')
       .header('Cache-Control', 'public, max-age=31536000, immutable');
     return reply.send(up.dados);
   });

@@ -134,7 +134,7 @@ export function GaleriaArma({ armaId }: { armaId: string }) {
               onPress={() => menuFoto(foto, indice)}
               style={({ pressed }) => [g.celula, pressed && { opacity: 0.7 }]}
             >
-              <Image source={{ uri: foto.uri }} style={g.imagem} resizeMode="cover" />
+              <Image source={{ uri: foto.uri }} style={g.imagem} resizeMode="cover" resizeMethod="resize" />
               {indice === 0 ? (
                 <View style={g.selo}>
                   <Text style={g.seloTexto}>CAPA</Text>

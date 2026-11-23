@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -204,14 +204,12 @@ export default function OnboardingFluxo() {
               aoTocar={() => router.push('/conta/entrar')}
               estilo={{ marginTop: espaco.sm }}
             />
-            <Botao
+            <Pular
               titulo="Usar sem conta"
-              variante="fantasma"
               aoTocar={() => {
                 void registrarEvento('onb_pulou', { passo: 'conta' });
                 setPulouConta(true);
               }}
-              estilo={{ marginTop: espaco.xs }}
             />
           </>
         ) : null}
@@ -219,14 +217,12 @@ export default function OnboardingFluxo() {
         {etapa === 'validar' ? (
           <>
             <Botao titulo="Confirmar e-mail agora" icone="mail-open-outline" aoTocar={() => router.push('/conta/verificar')} />
-            <Botao
+            <Pular
               titulo="Agora não"
-              variante="fantasma"
               aoTocar={() => {
                 void registrarEvento('onb_pulou', { passo: 'validar' });
                 setPulouValidar(true);
               }}
-              estilo={{ marginTop: espaco.xs }}
             />
           </>
         ) : null}
@@ -234,14 +230,12 @@ export default function OnboardingFluxo() {
         {etapa === 'cr' ? (
           <>
             <Botao titulo="Enviar documento" icone="scan-outline" aoTocar={enviarCR} carregando={ocupado} />
-            <Botao
+            <Pular
               titulo="Pular por enquanto"
-              variante="fantasma"
               aoTocar={() => {
                 void registrarEvento('onb_pulou', { passo: 'cr' });
                 setPulouCR(true);
               }}
-              estilo={{ marginTop: espaco.xs }}
             />
           </>
         ) : null}
@@ -249,14 +243,12 @@ export default function OnboardingFluxo() {
         {etapa === 'craf' && !jaInseriuCraf ? (
           <>
             <Botao titulo="Enviar CRAF" icone="scan-outline" aoTocar={enviarCRAF} carregando={ocupado} />
-            <Botao
+            <Pular
               titulo="Pular por enquanto"
-              variante="fantasma"
               aoTocar={() => {
                 void registrarEvento('onb_pulou', { passo: 'craf' });
                 setPulouCRAF(true);
               }}
-              estilo={{ marginTop: espaco.xs }}
             />
           </>
         ) : null}
@@ -264,7 +256,7 @@ export default function OnboardingFluxo() {
         {etapa === 'craf' && jaInseriuCraf ? (
           <>
             <Botao titulo="Inserir mais um CRAF" icone="add" aoTocar={enviarCRAF} carregando={ocupado} />
-            <Botao titulo="Não, continuar" variante="fantasma" aoTocar={() => setPulouCRAF(true)} estilo={{ marginTop: espaco.xs }} />
+            <Pular titulo="Não, continuar" aoTocar={() => setPulouCRAF(true)} />
           </>
         ) : null}
 
@@ -288,14 +280,12 @@ export default function OnboardingFluxo() {
               }}
               estilo={{ marginTop: espaco.sm }}
             />
-            <Botao
+            <Pular
               titulo="Continuar grátis com 1 arma"
-              variante="fantasma"
               aoTocar={() => {
                 void registrarEvento('liga_recusou');
                 void concluir();
               }}
-              estilo={{ marginTop: espaco.xs }}
             />
           </>
         ) : null}
@@ -347,9 +337,35 @@ function Passo({
   );
 }
 
+/**
+ * Ação de pular/dispensar um passo. De propósito discreta — texto pequeno e
+ * apagado, quase um link — para não competir com a ação principal e manter o
+ * usuário no caminho que queremos no onboarding.
+ */
+function Pular({ titulo, aoTocar }: { titulo: string; aoTocar: () => void }) {
+  const p = useEstilos(folha);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={aoTocar}
+      hitSlop={espaco.md}
+      style={({ pressed }) => [p.pular, pressed ? { opacity: 0.5 } : null]}
+    >
+      <Text style={p.pularTexto}>{titulo}</Text>
+    </Pressable>
+  );
+}
+
 const folha = (c: Paleta) =>
   StyleSheet.create({
     fundo: { flex: 1, backgroundColor: c.fundo, paddingHorizontal: espaco.xl },
+    pular: { alignSelf: 'center', paddingVertical: espaco.sm, marginTop: espaco.md },
+    pularTexto: {
+      ...tipo.legenda,
+      fontSize: 13,
+      color: c.textoFraco,
+      textDecorationLine: 'underline',
+    },
     conteudo: { flexGrow: 1, justifyContent: 'center', paddingVertical: espaco.xl },
     selo: {
       alignSelf: 'center',

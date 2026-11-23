@@ -54,6 +54,19 @@ function Processo() {
     carregar();
   }, [carregar]);
 
+  // Só estes tipos abrem inline (um blob herda a origem do backoffice; um
+  // documento text/html ou SVG enviado pelo usuário rodaria JS aqui e roubaria
+  // o token de admin). Qualquer outro MIME é baixado como octet-stream, nunca
+  // executado — o próprio MIME vem do upload do usuário, então não é confiável.
+  const MIME_INLINE_SEGURO = new Set([
+    'application/pdf',
+    'image/png',
+    'image/jpeg',
+    'image/jpg',
+    'image/webp',
+    'image/gif',
+  ]);
+
   async function verArquivo(valorId: string) {
     try {
       const r = await api<{ base64: string; mime: string; nome: string }>(
@@ -62,8 +75,21 @@ function Processo() {
       const bin = atob(r.base64);
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      const url = URL.createObjectURL(new Blob([bytes], { type: r.mime }));
-      window.open(url, '_blank');
+      const mime = (r.mime ?? '').toLowerCase().split(';')[0].trim();
+      const seguro = MIME_INLINE_SEGURO.has(mime);
+      const url = URL.createObjectURL(
+        new Blob([bytes], { type: seguro ? mime : 'application/octet-stream' })
+      );
+      if (seguro) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } else {
+        // Força download em vez de abrir na origem do backoffice.
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = r.nome || 'arquivo';
+        a.click();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
     } catch (e) {
       alert(e instanceof ErroApi ? e.message : 'Falha ao abrir');
     }

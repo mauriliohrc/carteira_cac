@@ -86,7 +86,7 @@ function CartaoCompeticao({
       style={({ pressed }) => [p.cartao, pressed ? { opacity: 0.7 } : null]}
     >
       {competicao.bannerUrl ? (
-        <Image source={{ uri: competicao.bannerUrl }} style={p.miniatura} resizeMode="cover" />
+        <Image source={{ uri: competicao.bannerUrl }} style={p.miniatura} resizeMode="cover" resizeMethod="resize" />
       ) : (
         <View style={[p.miniatura, p.miniaturaVazia]}>
           <Ionicons name="trophy-outline" size={18} color={c.latao} />

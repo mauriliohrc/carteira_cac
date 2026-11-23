@@ -5,6 +5,7 @@ import { prisma } from '../../db/cliente.js';
 import { exigirApp } from '../../http/guardas.js';
 import { invalido, naoAutorizado, naoEncontrado } from '../../http/erros.js';
 import { cancelarCobranca, criarCliente, criarCobranca } from '../../integracoes/asaas.js';
+import { cifrar, decifrar } from '../../dominio/cripto.js';
 import { refletirProcessoNoSync, removerProcessoDoSync } from '../../dominio/despachanteSync.js';
 import { GRU_NOTA } from '../../dominio/despachante.js';
 import {
@@ -92,7 +93,7 @@ function apresentarValor(v: ValorRow) {
     temArquivo: v.tipo === 'ARQUIVO' && (v.tamanho ?? 0) > 0,
     // Devolve o texto/checkbox para o usuário rever — exceto SENHA_GOV (sensível).
     valorTexto: v.tipo === 'SENHA_GOV' ? null : v.valorTexto,
-    valorCpf: v.tipo === 'SENHA_GOV' ? v.valorCpf : null,
+    valorCpf: v.tipo === 'SENHA_GOV' ? decifrar(v.valorCpf) : null,
     preenchido: campoPreenchido(v.tipo, v),
     origem: v.origem,
     final: v.final,
@@ -324,8 +325,9 @@ export async function rotasDespachanteAppV1(app: FastifyInstance) {
     if (campo.tipo === 'CHECKBOX') {
       valorTexto = body.checkbox ? 'true' : 'false';
     } else if (campo.tipo === 'SENHA_GOV') {
-      valorCpf = (body.valorCpf ?? '').replace(/\D/g, '') || null;
-      valorTexto = body.valorTexto ?? null; // a senha
+      // CPF e senha do gov.br cifrados em repouso (ativo de maior valor).
+      valorCpf = cifrar((body.valorCpf ?? '').replace(/\D/g, '') || null);
+      valorTexto = cifrar(body.valorTexto ?? null); // a senha
     } else {
       valorTexto = body.valorTexto ?? null;
     }
@@ -396,9 +398,17 @@ export async function rotasDespachanteAppV1(app: FastifyInstance) {
       where: { id: valorId, processoId: id, OR: [{ campoId: { not: null } }, { final: true }] },
     });
     if (!valor || !valor.conteudo) throw naoEncontrado('Arquivo não encontrado');
+    // O MIME vem do upload do usuário: neutraliza tipos que o navegador
+    // executaria na origem da API (HTML/SVG/XML) e impede sniffing.
+    const mime = (valor.mime ?? '').toLowerCase().split(';')[0].trim();
+    const perigoso = /html|svg|xml|xhtml/.test(mime) || mime === '';
     reply
-      .header('Content-Type', valor.mime ?? 'application/octet-stream')
-      .header('Content-Disposition', `inline; filename="${(valor.nome ?? 'arquivo').replace(/"/g, '')}"`);
+      .header('Content-Type', perigoso ? 'application/octet-stream' : mime)
+      .header('X-Content-Type-Options', 'nosniff')
+      .header(
+        'Content-Disposition',
+        `${perigoso ? 'attachment' : 'inline'}; filename="${(valor.nome ?? 'arquivo').replace(/"/g, '')}"`
+      );
     return reply.send(Buffer.from(valor.conteudo));
   });
 }

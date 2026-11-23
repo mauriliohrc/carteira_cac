@@ -10,6 +10,20 @@ import {
 } from './tipos.js';
 import { limparCPF, validarCPF } from './cpf.js';
 import { SUBDOMINIOS_RESERVADOS } from './subdominio.js';
+import { sanitizarHtmlNoticia } from './sanitizarHtml.js';
+
+/** Anti-SSRF: aceita só https e hostname do domínio shootinghouse.com.br. */
+function ehUrlShootingHouse(u: string): boolean {
+  try {
+    const url = new URL(u);
+    return (
+      url.protocol === 'https:' &&
+      (url.hostname === 'shootinghouse.com.br' || url.hostname.endsWith('.shootinghouse.com.br'))
+    );
+  } catch {
+    return false;
+  }
+}
 import { ESTADOS_USO } from './marketplace.js';
 
 const ufBR = z
@@ -49,7 +63,15 @@ export const criarEntidadeSchema = z.object({
   ativo: z.boolean().optional(),
   // Integração Shooting House
   shIntegracaoAtiva: z.boolean().optional(),
-  shBaseUrl: z.string().trim().url('URL inválida').optional().nullable(),
+  // Anti-SSRF: só https e do domínio shootinghouse.com.br (as credenciais Basic
+  // são enviadas a essa URL; sem allowlist, apontaria para IP interno/atacante).
+  shBaseUrl: z
+    .string()
+    .trim()
+    .url('URL inválida')
+    .refine(ehUrlShootingHouse, 'A URL deve ser https e do domínio shootinghouse.com.br')
+    .optional()
+    .nullable(),
   shLogin: z.string().trim().optional().nullable(),
   shSenha: z.string().optional().nullable(),
 });
@@ -250,6 +272,16 @@ export const confirmarEmailSchema = z.object({
   codigo: codigo6,
 });
 
+/**
+ * Envio do código de verificação de e-mail. `forcar` distingue o reenvio
+ * manual (botão "Reenviar código" → sempre gera um novo) da abertura
+ * automática da tela (que deve reaproveitar um código pendente ainda válido,
+ * para não invalidar o que o usuário já recebeu). Corpo opcional.
+ */
+export const enviarEmailSchema = z.object({
+  forcar: z.boolean().optional(),
+});
+
 /** Troca de senha pelo usuário logado (informando a senha atual). */
 export const alterarSenhaSchema = z.object({
   senhaAtual: z.string().min(1, 'Informe a senha atual'),
@@ -267,7 +299,9 @@ export const midiaNoticiaSchema = z.object({
 const noticiaBaseSchema = z.object({
   titulo: z.string().trim().min(3, 'Título muito curto'),
   resumo: z.string().trim().max(300, 'Resumo muito longo').optional().nullable(),
-  conteudo: z.string().trim().min(1, 'Escreva o conteúdo'),
+  // Sanitiza contra XSS armazenado: o conteúdo é HTML rico (TipTap) renderizado
+  // com dangerouslySetInnerHTML no portal e em WebView no app.
+  conteudo: z.string().trim().min(1, 'Escreva o conteúdo').transform(sanitizarHtmlNoticia),
   imagemUrl: z.string().trim().url('URL de imagem inválida').optional().nullable(),
   status: z.enum(STATUS_NOTICIA as [string, ...string[]]).optional(),
   /** Galeria opcional, na ordem em que deve aparecer. */

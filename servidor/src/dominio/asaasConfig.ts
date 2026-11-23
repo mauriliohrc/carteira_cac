@@ -1,5 +1,6 @@
 import { prisma } from '../db/cliente.js';
 import { ambiente } from '../config/ambiente.js';
+import { decifrar } from './cripto.js';
 
 export type AmbienteAsaas = 'sandbox' | 'producao';
 
@@ -33,8 +34,10 @@ export async function resolverConfigAsaas(): Promise<ConfigAsaasResolvida> {
   const ambDb: AmbienteAsaas | null =
     cfg?.ambiente === 'producao' ? 'producao' : cfg?.ambiente === 'sandbox' ? 'sandbox' : null;
 
-  const apiKey = (cfg?.apiKey || ambiente.asaas.apiKey || '').trim();
-  const webhookToken = (cfg?.webhookToken || ambiente.asaas.webhookToken || '').trim();
+  // Valores do banco vêm cifrados (ver cripto.ts); decifrar é passthrough para
+  // legado em texto puro e para os valores de env.
+  const apiKey = (decifrar(cfg?.apiKey) || ambiente.asaas.apiKey || '').trim();
+  const webhookToken = (decifrar(cfg?.webhookToken) || ambiente.asaas.webhookToken || '').trim();
   const ambienteFinal: AmbienteAsaas =
     ambDb ?? (ambiente.asaas.baseUrl.includes('sandbox') ? 'sandbox' : 'producao');
   const baseUrl = ambDb ? BASE_POR_AMBIENTE[ambDb] : ambiente.asaas.baseUrl;
