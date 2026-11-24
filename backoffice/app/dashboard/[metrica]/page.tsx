@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/api';
+import { categoriaPlano } from '@/lib/tipos';
 import type { UsuarioApp } from '@/lib/tipos';
 import { Protegido } from '../../componentes/Protegido';
 import { CabecalhoUsuario, CelulasUsuario } from '../../componentes/ColunasUsuario';
@@ -58,6 +59,45 @@ function Lista() {
   const { metrica: metricaParam } = useParams<{ metrica: string }>();
   const metrica = decodificarMetrica(metricaParam);
   const [usuarios, setUsuarios] = useState<UsuarioLinha[] | null>(null);
+  const [ordenar, setOrdenar] = useState('criado');
+  const [direcao, setDirecao] = useState<'asc' | 'desc'>('desc');
+
+  function aoOrdenar(coluna: string) {
+    if (ordenar === coluna) setDirecao((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else {
+      setOrdenar(coluna);
+      setDirecao('asc');
+    }
+  }
+
+  // Chave de ordenação por coluna (a lista já vem inteira → ordena no cliente).
+  function chaveOrdenacao(u: UsuarioLinha, coluna: string): string | number {
+    switch (coluna) {
+      case 'nome':
+        return (u.nome ?? '').toLowerCase();
+      case 'email':
+        return u.emailVerificado ? 1 : 0;
+      case 'telefone':
+        return u.celular ?? '';
+      case 'plano':
+        return categoriaPlano(u.premium, u.premiumTipo);
+      case 'assinatura':
+        return u.assinaturaEm ? new Date(u.assinaturaEm).getTime() : -1;
+      case 'ultimoAcesso':
+        return u.ultimoAcessoEm ? new Date(u.ultimoAcessoEm).getTime() : -1;
+      case 'entidades':
+        return u.entidades?.length ?? 0;
+      case 'armas':
+        return u.armasSistema ?? 0;
+      case 'dispositivos':
+        return u.dispositivos ?? 0;
+      case 'versao':
+        return u.appVersao ?? '';
+      case 'criado':
+      default:
+        return u.criadoEm ? new Date(u.criadoEm).getTime() : -1;
+    }
+  }
 
   const carregar = useCallback(async () => {
     const r = await api<{ usuarios: UsuarioLinha[] }>(
@@ -72,13 +112,14 @@ function Lista() {
 
   function exportarCsv() {
     if (!usuarios) return;
-    const cab = ['Nome', 'E-mail', 'CPF', 'Celular', 'Plano', 'E-mail confirmado', 'Último acesso', 'Versão', 'Armas', 'Criado em'];
+    const cab = ['Nome', 'E-mail', 'CPF', 'Celular', 'Plano', 'Assinatura', 'E-mail confirmado', 'Último acesso', 'Versão', 'Armas', 'Criado em'];
     const linhas = usuarios.map((u) => [
       u.nome,
       u.email,
       u.cpf,
       u.celular ?? '',
       u.premium ? u.premiumTipo ?? 'Premium' : 'Grátis',
+      u.assinaturaEm ?? '',
       u.emailVerificado ? 'sim' : 'nao',
       u.ultimoAcessoEm ?? '',
       u.appVersao ?? '',
@@ -121,16 +162,26 @@ function Lista() {
             <thead>
               <tr>
                 <th>CPF</th>
-                <CabecalhoUsuario />
+                <CabecalhoUsuario ordenavel ordenar={ordenar} direcao={direcao} aoOrdenar={aoOrdenar} />
               </tr>
             </thead>
             <tbody>
-              {usuarios.map((u) => (
-                <tr key={u.id}>
-                  <td style={{ whiteSpace: 'nowrap' }}>{u.cpf}</td>
-                  <CelulasUsuario u={u} />
-                </tr>
-              ))}
+              {[...usuarios]
+                .sort((a, b) => {
+                  const va = chaveOrdenacao(a, ordenar);
+                  const vb = chaveOrdenacao(b, ordenar);
+                  const c =
+                    typeof va === 'number' && typeof vb === 'number'
+                      ? va - vb
+                      : String(va).localeCompare(String(vb), 'pt-BR');
+                  return direcao === 'asc' ? c : -c;
+                })
+                .map((u) => (
+                  <tr key={u.id}>
+                    <td style={{ whiteSpace: 'nowrap' }}>{u.cpf}</td>
+                    <CelulasUsuario u={u} />
+                  </tr>
+                ))}
             </tbody>
           </table>
         )}

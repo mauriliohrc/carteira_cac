@@ -48,26 +48,67 @@ export function IconePlataforma({ plataforma }: { plataforma: string }) {
   );
 }
 
-/** Cabeçalho (<th>) das colunas padrão de usuário. */
-export function CabecalhoUsuario() {
+/** Colunas padrão, na ordem exata de {@link CelulasUsuario}. `key` é a chave de
+ *  ordenação (usada quando o cabeçalho é ordenável). */
+const COLUNAS: { key: string; label: string; center?: boolean }[] = [
+  { key: 'nome', label: 'Usuário' },
+  { key: 'email', label: 'E-mail', center: true },
+  { key: 'telefone', label: 'Telefone' },
+  { key: 'plano', label: 'Plano' },
+  { key: 'assinatura', label: 'Assinatura' },
+  { key: 'criado', label: 'Criado' },
+  { key: 'ultimoAcesso', label: 'Último acesso' },
+  { key: 'entidades', label: 'Entidades' },
+  { key: 'armas', label: 'Armas' },
+  { key: 'dispositivos', label: 'Disp.' },
+  { key: 'versao', label: 'Versão' },
+];
+
+export interface OrdenacaoUsuario {
+  /** Liga a ordenação por clique no cabeçalho. */
+  ordenavel?: boolean;
+  /** Chave da coluna ativa (uma de {@link COLUNAS}). */
+  ordenar?: string;
+  direcao?: 'asc' | 'desc';
+  aoOrdenar?: (coluna: string) => void;
+}
+
+/**
+ * Cabeçalho (<th>) das colunas padrão de usuário. Sem props = estático (como
+ * sempre). Com `ordenavel`+`aoOrdenar`, cada coluna vira clicável para ordenar.
+ */
+export function CabecalhoUsuario({ ordenavel, ordenar, direcao, aoOrdenar }: OrdenacaoUsuario = {}) {
   return (
     <>
-      <th>Usuário</th>
-      <th style={{ textAlign: 'center' }}>E-mail</th>
-      <th>Telefone</th>
-      <th>Plano</th>
-      <th>Criado</th>
-      <th>Último acesso</th>
-      <th>Entidades</th>
-      <th>Armas</th>
-      <th>Disp.</th>
-      <th>Versão</th>
+      {COLUNAS.map((c) => {
+        if (!ordenavel) {
+          return (
+            <th key={c.key} style={c.center ? { textAlign: 'center' } : undefined}>
+              {c.label}
+            </th>
+          );
+        }
+        const ativa = ordenar === c.key;
+        return (
+          <th
+            key={c.key}
+            onClick={() => aoOrdenar?.(c.key)}
+            style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', ...(c.center ? { textAlign: 'center' } : {}) }}
+            title="Ordenar"
+          >
+            {c.label}
+            <span style={{ opacity: ativa ? 1 : 0.25, marginLeft: 4 }}>
+              {ativa ? (direcao === 'asc' ? '▲' : '▼') : '↕'}
+            </span>
+          </th>
+        );
+      })}
     </>
   );
 }
 
 /** Quantas colunas o cabeçalho/células de usuário ocupam (p/ colSpan de vazio). */
-export const COLUNAS_USUARIO = 10;
+export const COLUNAS_USUARIO = 11;
 
 /**
  * Células (<td>) das colunas padrão de um usuário. Deve ser usada dentro de um
@@ -121,6 +162,12 @@ export function CelulasUsuario({
         ) : (
           <span className={`etiqueta ${meta.classe}`}>{meta.rotulo}</span>
         )}
+      </td>
+      <td
+        style={{ whiteSpace: 'nowrap', color: 'var(--texto-suave)', fontSize: 13 }}
+        title={u.assinaturaEm ? new Date(u.assinaturaEm).toLocaleString('pt-BR') : undefined}
+      >
+        {u.assinaturaEm ? formatarData(u.assinaturaEm) : <span style={{ color: 'var(--texto-suave)' }}>—</span>}
       </td>
       <td
         style={{ whiteSpace: 'nowrap', color: 'var(--texto-suave)', fontSize: 13 }}

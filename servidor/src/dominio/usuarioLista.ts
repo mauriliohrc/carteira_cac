@@ -10,8 +10,22 @@ import { JANELA_ONLINE_MIN } from './tipos.js';
 export const INCLUDE_USUARIO_LISTA = {
   vinculos: { include: { entidade: { select: { id: true, nome: true } } } },
   dispositivos: { where: { ativo: true }, select: { plataforma: true, appVersao: true } },
+  // Assinaturas da loja (mensal/anual) p/ a data de assinatura premium.
+  assinaturas: {
+    select: { iniciouEm: true, status: true },
+    orderBy: { iniciouEm: 'desc' as const },
+  },
   _count: { select: { registrosSync: { where: { tipo: 'armas', removido: false } } } },
 } satisfies Prisma.UsuarioAppInclude;
+
+/** Data de assinatura premium: início da assinatura vigente (ATIVA/EM_GRACA) ou,
+ *  na falta, a mais recente. Null para quem nunca assinou na loja. */
+export function dataAssinaturaPremium(u: {
+  assinaturas: { iniciouEm: Date | null; status: string }[];
+}): Date | null {
+  const ativa = u.assinaturas.find((a) => a.status === 'ATIVA' || a.status === 'EM_GRACA');
+  return (ativa ?? u.assinaturas[0])?.iniciouEm ?? null;
+}
 
 export type UsuarioComLista = Prisma.UsuarioAppGetPayload<{ include: typeof INCLUDE_USUARIO_LISTA }>;
 
@@ -56,5 +70,6 @@ export function mapUsuarioLista(u: UsuarioComLista) {
         .at(-1) ?? null,
     armasSistema: u._count.registrosSync,
     criadoEm: u.criadoEm,
+    assinaturaEm: dataAssinaturaPremium(u),
   };
 }
