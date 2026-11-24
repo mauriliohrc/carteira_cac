@@ -1,7 +1,7 @@
 import type { FiliacaoLiga } from '@prisma/client';
 import { prisma } from '../db/cliente.js';
 import { registrarEventoUsuario } from './eventoUsuario.js';
-import { refletirFiliacaoNoSync } from './filiacaoSync.js';
+import { garantirCertificadoNoAcervo, refletirFiliacaoNoSync } from './filiacaoSync.js';
 
 /** Vínculo associativo de 1 ano (legislação / validade PF). */
 export const MESES_VINCULO = 12;
@@ -14,6 +14,14 @@ export const STATUS_FILIACAO = [
   'vencida',
   'cancelada',
 ] as const;
+
+/** True se o usuário tem filiação ATIVA e vigente (liga). Base do preço filiado. */
+export async function usuarioFiliado(usuarioId: string): Promise<boolean> {
+  const n = await prisma.filiacaoLiga.count({
+    where: { usuarioId, status: 'ativa', vigenteAte: { gt: new Date() } },
+  });
+  return n > 0;
+}
 
 export function adicionarMeses(base: Date, meses: number): Date {
   const d = new Date(base);
@@ -54,12 +62,31 @@ export async function revogarPremiumFiliacao(usuarioId: string): Promise<void> {
   });
 }
 
-/** Gera um número de filiação único e legível: "AAAA-000123". */
+/**
+ * Piso do número de filiação: a numeração começa num patamar alto para transmitir
+ * volume (em vez de 000001). O próximo número é sempre MAIOR número já emitido + 1,
+ * com piso aqui — então nunca regride, mesmo após renumerações.
+ */
+export const PISO_NUMERO_FILIACAO = 3292;
+
+/** Sufixo numérico de um número de filiação ("2026-003292" → 3292). */
+export function sufixoNumeroFiliacao(numero: string | null | undefined): number {
+  const m = /(\d+)\s*$/.exec(numero ?? '');
+  return m ? Number(m[1]) : 0;
+}
+
+/** Gera um número de filiação único e legível: "AAAA-003292" (começa alto). */
 async function gerarNumeroFiliacao(): Promise<string> {
   const ano = new Date().getFullYear();
+  const numeradas = await prisma.filiacaoLiga.findMany({
+    where: { numeroFiliacao: { not: null } },
+    select: { numeroFiliacao: true },
+  });
+  // Próximo = maior sufixo já usado + 1, com piso em PISO_NUMERO_FILIACAO.
+  let prox = PISO_NUMERO_FILIACAO;
+  for (const f of numeradas) prox = Math.max(prox, sufixoNumeroFiliacao(f.numeroFiliacao) + 1);
   for (let tentativa = 0; tentativa < 5; tentativa++) {
-    const total = await prisma.filiacaoLiga.count({ where: { numeroFiliacao: { not: null } } });
-    const candidato = `${ano}-${String(total + 1 + tentativa).padStart(6, '0')}`;
+    const candidato = `${ano}-${String(prox + tentativa).padStart(6, '0')}`;
     const existe = await prisma.filiacaoLiga.findUnique({ where: { numeroFiliacao: candidato } });
     if (!existe) return candidato;
   }
@@ -91,6 +118,13 @@ export async function ativarFiliacao(
   });
   await refletirFiliacaoNoSync(atualizada);
   await concederPremiumFiliacao(atualizada.usuarioId);
+  // Anexa (ou atualiza) o certificado no acervo do usuário — não bloqueia a
+  // ativação se a geração do PDF falhar (o lazy em GET /filiacao recupera).
+  try {
+    await garantirCertificadoNoAcervo(atualizada, { regenerar: true });
+  } catch {
+    /* geração do certificado é best-effort */
+  }
   await registrarEventoUsuario(atualizada.usuarioId, 'FILIACAO_ATIVA', {
     origem: opcoes.origemEvento ?? 'ASAAS',
     descricao: `Filiação ${numeroFiliacao} ativa até ${atualizada.vigenteAte
@@ -147,6 +181,11 @@ export async function criarFiliacaoManual(opts: {
   });
   await refletirFiliacaoNoSync(criada);
   await concederPremiumFiliacao(criada.usuarioId);
+  try {
+    await garantirCertificadoNoAcervo(criada, { regenerar: true });
+  } catch {
+    /* geração do certificado é best-effort */
+  }
   await registrarEventoUsuario(opts.usuarioId, 'FILIACAO_ATIVA', {
     origem: 'ADMIN',
     descricao: `Filiado manualmente (nº ${criada.numeroFiliacao})`,
@@ -163,6 +202,7 @@ export function apresentarFiliacao(f: FiliacaoLiga) {
     origem: f.origem,
     nomeCompleto: f.nomeCompleto,
     cpf: f.cpf,
+    dataNascimento: f.dataNascimento,
     endereco: {
       cep: f.cep,
       logradouro: f.logradouro,

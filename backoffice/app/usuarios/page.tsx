@@ -279,6 +279,7 @@ function ListaUsuarios() {
                 <Th coluna="emailVerificado">E-mail</Th>
                 <Th coluna="celular">Telefone</Th>
                 <Th coluna="premium">Plano</Th>
+                <Th coluna="assinatura">Assinatura</Th>
                 <Th coluna="criadoEm">Criado</Th>
                 <Th coluna="ultimoAcesso">Último acesso</Th>
                 <Th coluna="entidades">Entidades</Th>
@@ -315,6 +316,12 @@ function ListaUsuarios() {
                       const meta = PLANO_META[categoriaPlano(u.premium, u.premiumTipo)];
                       return <span className={`etiqueta ${meta.classe}`}>{meta.rotulo}</span>;
                     })()}
+                  </td>
+                  <td
+                    style={{ whiteSpace: 'nowrap', color: 'var(--texto-suave)', fontSize: 13 }}
+                    title={u.assinaturaEm ? new Date(u.assinaturaEm).toLocaleString('pt-BR') : undefined}
+                  >
+                    {u.assinaturaEm ? formatarData(u.assinaturaEm) : <span style={{ color: 'var(--texto-suave)' }}>—</span>}
                   </td>
                   <td
                     style={{ whiteSpace: 'nowrap', color: 'var(--texto-suave)', fontSize: 13 }}

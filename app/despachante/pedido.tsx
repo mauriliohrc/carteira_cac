@@ -9,7 +9,14 @@ import { Campo } from '@/ui/formulario';
 import { avisar } from '@/ui/dialogo';
 import { useApp } from '@/estado/AppContext';
 import { useConta } from '@/conta/ContaContext';
-import { criarPedido, listarServicos, type ServicoDespachante } from '@/despachante/api';
+import {
+  criarPedido,
+  listarServicos,
+  precoTotalDespachante,
+  precoUnitarioDespachante,
+  temDescontoFiliado,
+  type ServicoDespachante,
+} from '@/despachante/api';
 import { upsertProcessoLocal } from '@/db/processos';
 import { mascaraCelular, reais, ROTULO_SERVICO } from '@/despachante/formato';
 import type { Arma } from '@/domain/tipos';
@@ -27,6 +34,7 @@ export default function PedidoDespachante() {
   const { usuario, atualizarPerfil } = useConta();
 
   const [servico, setServico] = useState<ServicoDespachante | null | undefined>(undefined);
+  const [filiado, setFiliado] = useState(false);
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
   const [celular, setCelular] = useState('');
   const [tocado, setTocado] = useState(false);
@@ -38,7 +46,9 @@ export default function PedidoDespachante() {
     let vivo = true;
     listarServicos()
       .then((cat) => {
-        if (vivo) setServico(cat.servicos.find((s) => (s.codigo ?? s.tipo) === tipoParam) ?? null);
+        if (!vivo) return;
+        setServico(cat.servicos.find((s) => (s.codigo ?? s.tipo) === tipoParam) ?? null);
+        setFiliado(!!cat.filiado);
       })
       .catch(() => {
         if (vivo) setServico(null);
@@ -59,7 +69,13 @@ export default function PedidoDespachante() {
   const qtd = usaArmas ? selecionadas.size : 1;
   const exigeAceite = !!servico?.termoAceite;
   const podeEnviar = qtd > 0 && (!precisaCelular || celularOk) && (!exigeAceite || aceito);
-  const totalCentavos = (servico?.precoCentavos ?? 0) * Math.max(1, qtd);
+  // Preço autoritativo é o do servidor; aqui só espelhamos p/ exibir.
+  const unidade = servico ? precoUnitarioDespachante(servico, qtd, filiado) : 0;
+  const totalCentavos = servico ? precoTotalDespachante(servico, qtd, filiado) : 0;
+  const temDesconto = servico ? temDescontoFiliado(servico) : false;
+  // Quanto economizaria SE fosse filiado (para o convite).
+  const totalSeFiliado = servico ? precoTotalDespachante(servico, qtd, true) : 0;
+  const economiaFiliado = totalCentavos - totalSeFiliado;
 
   function alternar(id: string) {
     setSelecionadas((atual) => {
@@ -144,9 +160,23 @@ export default function PedidoDespachante() {
 
       {servico ? (
         <View style={p.totalCartao}>
-          <Text style={p.totalRotulo}>{usaArmas && qtd > 1 ? `Total (${qtd} × ${reais(servico.precoCentavos)})` : 'Total'}</Text>
+          <Text style={p.totalRotulo}>
+            {usaArmas && qtd > 1 ? `Total (${qtd} × ${reais(unidade)})` : 'Total'}
+            {temDesconto && filiado ? '  • filiado' : ''}
+          </Text>
           <Text style={p.totalValor}>{reais(totalCentavos)}</Text>
         </View>
+      ) : null}
+
+      {servico && temDesconto && !filiado && economiaFiliado > 0 ? (
+        <Pressable style={p.convite} onPress={() => router.push('/filiacao')}>
+          <Ionicons name="shield-checkmark" size={20} color={c.primario} />
+          <View style={{ flex: 1 }}>
+            <Text style={p.conviteTitulo}>Filiado economizaria {reais(economiaFiliado)}</Text>
+            <Text style={p.conviteSub}>Filie-se à liga para pagar o preço de filiado neste e nos outros serviços.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={c.textoFraco} />
+        </Pressable>
       ) : null}
 
       {precisaCelular ? (
@@ -246,6 +276,16 @@ const folha = (c: Paleta) =>
     },
     totalRotulo: { ...tipo.legenda, color: c.textoMedio },
     totalValor: { ...tipo.corpo, fontWeight: '800', color: c.texto },
+    convite: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: espaco.sm,
+      backgroundColor: c.primarioFraco,
+      borderRadius: raio.lg,
+      padding: espaco.md,
+    },
+    conviteTitulo: { ...tipo.corpo, fontWeight: '800', color: c.texto },
+    conviteSub: { ...tipo.legenda, color: c.textoMedio, marginTop: 2, lineHeight: 17 },
     celular: { marginTop: espaco.xs },
     rodape: { ...tipo.legenda, color: c.textoMedio, textAlign: 'center', lineHeight: 18 },
     aceiteLinha: { flexDirection: 'row', alignItems: 'flex-start', gap: espaco.sm, marginTop: espaco.xs },

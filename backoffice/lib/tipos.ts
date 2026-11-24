@@ -103,6 +103,8 @@ export interface UsuarioApp {
   /** Armas cadastradas no app (acervo sincronizado). */
   armasSistema?: number;
   criadoEm: string;
+  /** Início da assinatura da loja (mensal/anual). Null = sem assinatura. */
+  assinaturaEm?: string | null;
 }
 
 export interface ListaUsuariosApp {
@@ -695,6 +697,13 @@ export interface CampoDespachante {
   ativo: boolean;
 }
 
+/** Faixa de preço por quantidade/filiação de um serviço (ver backend). */
+export interface FaixaPrecoDespachante {
+  qtdMin: number;
+  precoCentavos: number;
+  precoFiliadoCentavos: number;
+}
+
 export interface ServicoDespachanteAdmin {
   id: string;
   codigo: string;
@@ -713,6 +722,8 @@ export interface ServicoDespachanteAdmin {
   mensagemWhatsappInicio: string | null;
   termoAceite: string | null;
   campos: CampoDespachante[];
+  /** Preços diferenciados (vazio = usa GRU + honorário para todos). */
+  faixas: FaixaPrecoDespachante[];
 }
 
 export type PapelStatusDespachante =

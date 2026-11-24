@@ -58,6 +58,8 @@ export const CHAVES = {
   ligaDispensas: 'liga.dispensas',
   /** Spotlight de novidade da liga já mostrado (para quem atualizou de versão antiga). */
   ligaSpotlightVisto: 'liga.spotlightVisto',
+  /** Caminho (relativo/estável) da foto do usuário na carteira de filiado. */
+  carteirinhaFoto: 'carteirinha.foto',
   /**
    * Id anônimo e estável deste aparelho, para métricas de produto (funil de
    * onboarding). Gerado uma vez e nunca muda — mede até quem não criou conta.

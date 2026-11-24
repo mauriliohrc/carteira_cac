@@ -273,17 +273,32 @@ export async function rotasPushAdmin(app: FastifyInstance) {
     const include = {
       vinculos: { include: { entidade: { select: { id: true, nome: true } } } },
       dispositivos: { where: { ativo: true }, select: { plataforma: true, appVersao: true } },
+      // Assinaturas da loja (mensal/anual) p/ a data de assinatura e a ordenação.
+      assinaturas: {
+        select: { iniciouEm: true, expiraEm: true, status: true, premiumTipo: true },
+        orderBy: { iniciouEm: 'desc' as const },
+      },
       _count: { select: { registrosSync: { where: { tipo: 'armas', removido: false } } } },
     } satisfies Prisma.UsuarioAppInclude;
+
+    // Data de assinatura do usuário: início da assinatura vigente (ATIVA/EM_GRACA)
+    // ou, na falta, a mais recente. Null para quem nunca assinou na loja.
+    const dataAssinaturaDe = (u: {
+      assinaturas: { iniciouEm: Date | null; status: string }[];
+    }): Date | null => {
+      const ativa = u.assinaturas.find((a) => a.status === 'ATIVA' || a.status === 'EM_GRACA');
+      return (ativa ?? u.assinaturas[0])?.iniciouEm ?? null;
+    };
 
     let total: number;
     let lista: Prisma.UsuarioAppGetPayload<{ include: typeof include }>[];
 
-    if (q.ordenar === 'armas' || q.ordenar === 'appVersao') {
+    if (q.ordenar === 'armas' || q.ordenar === 'appVersao' || q.ordenar === 'assinatura') {
       // Valores DERIVADOS que o Prisma não ordena no banco: "Armas" é uma
-      // contagem FILTRADA (registrosSync tipo=armas) e "Versão" é a mais nova
-      // entre os aparelhos ativos. Como a base de usuários é pequena (admin),
-      // carrega os que casam com a busca, ordena em memória e pagina.
+      // contagem FILTRADA (registrosSync tipo=armas), "Versão" é a mais nova
+      // entre os aparelhos ativos e "Assinatura" vem de uma relação 1-N
+      // (AssinaturaApp). Como a base de usuários é pequena (admin), carrega os
+      // que casam com a busca, ordena em memória e pagina.
       const todos = await prisma.usuarioApp.findMany({ where, include });
       if (q.ordenar === 'appVersao') {
         const versaoDe = (u: (typeof todos)[number]) =>
@@ -295,6 +310,13 @@ export async function rotasPushAdmin(app: FastifyInstance) {
         todos.sort((a, b) => {
           const c = compararVersao(versaoDe(a), versaoDe(b));
           return dir === 'asc' ? c : -c;
+        });
+      } else if (q.ordenar === 'assinatura') {
+        // Sem assinatura → -1 (vai para o fim no desc, início no asc).
+        todos.sort((a, b) => {
+          const va = dataAssinaturaDe(a)?.getTime() ?? -1;
+          const vb = dataAssinaturaDe(b)?.getTime() ?? -1;
+          return dir === 'asc' ? va - vb : vb - va;
         });
       } else {
         todos.sort((a, b) =>
@@ -346,6 +368,8 @@ export async function rotasPushAdmin(app: FastifyInstance) {
         // Armas cadastradas no app (acervo sincronizado).
         armasSistema: u._count.registrosSync,
         criadoEm: u.criadoEm,
+        // Início da assinatura da loja (mensal/anual), p/ coluna e ordenação.
+        assinaturaEm: dataAssinaturaDe(u),
       })),
       total,
       pagina,

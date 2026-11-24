@@ -17,6 +17,16 @@ export interface CampoDespachante {
   ordem: number;
 }
 
+/** Faixa de preço por quantidade/filiação (ver backend FaixaPrecoDespachante). */
+export interface FaixaPrecoDespachante {
+  /** Vale a partir desta quantidade de equipamentos (1 = faixa base). */
+  qtdMin: number;
+  /** Preço por unidade (centavos) para não filiados. */
+  precoCentavos: number;
+  /** Preço por unidade (centavos) para filiados da liga. */
+  precoFiliadoCentavos: number;
+}
+
 export interface ServicoDespachante {
   tipo: TipoServicoDespachante | string;
   nome: string;
@@ -42,6 +52,10 @@ export interface ServicoDespachante {
   ordem?: number;
   /** Campos de documento que o usuário preenche depois de pagar. */
   campos?: CampoDespachante[];
+  /** Preço por unidade (1 equip.) para filiados da liga. Ausente = sem desconto. */
+  precoFiliadoCentavos?: number;
+  /** Faixas de preço por quantidade/filiação. Vazio/ausente = preço único. */
+  faixas?: FaixaPrecoDespachante[];
 }
 
 /** Status dinâmico do processo (label/cor/ícone vêm do servidor). */
@@ -61,6 +75,48 @@ export interface CatalogoDespachante {
   gruNota: string;
   /** Número do Carteira CAC para o botão "Auxílio Jurídico" (só dígitos). */
   whatsappJuridico?: string;
+  /** Se o usuário é filiado vigente da liga (define o preço destacado na tela). */
+  filiado?: boolean;
+}
+
+/**
+ * Preço POR UNIDADE (centavos) para uma quantidade e filiação. Espelha o cálculo
+ * do servidor (que é a fonte da verdade da cobrança): usa a faixa de maior
+ * `qtdMin` que não ultrapassa a quantidade; sem faixas, usa `precoCentavos`
+ * (não filiado) / `precoFiliadoCentavos` (filiado, se houver).
+ */
+export function precoUnitarioDespachante(
+  servico: Pick<ServicoDespachante, 'precoCentavos' | 'precoFiliadoCentavos' | 'faixas'>,
+  quantidade: number,
+  filiado: boolean
+): number {
+  const faixas = (servico.faixas ?? []).slice().sort((a, b) => a.qtdMin - b.qtdMin);
+  if (faixas.length === 0) {
+    return filiado ? servico.precoFiliadoCentavos ?? servico.precoCentavos : servico.precoCentavos;
+  }
+  const q = Math.max(1, Math.floor(quantidade) || 1);
+  let escolhida = faixas[0];
+  for (const f of faixas) if (f.qtdMin <= q) escolhida = f;
+  return filiado ? escolhida.precoFiliadoCentavos : escolhida.precoCentavos;
+}
+
+/** Total do pedido (preço por unidade × quantidade), em centavos. */
+export function precoTotalDespachante(
+  servico: Pick<ServicoDespachante, 'precoCentavos' | 'precoFiliadoCentavos' | 'faixas'>,
+  quantidade: number,
+  filiado: boolean
+): number {
+  const q = Math.max(1, Math.floor(quantidade) || 1);
+  return precoUnitarioDespachante(servico, q, filiado) * q;
+}
+
+/** True se o serviço tem preço de filiado menor que o de não filiado (p/ CTA). */
+export function temDescontoFiliado(
+  servico: Pick<ServicoDespachante, 'precoCentavos' | 'precoFiliadoCentavos' | 'faixas'>
+): boolean {
+  const faixas = servico.faixas ?? [];
+  if (faixas.length) return faixas.some((f) => f.precoFiliadoCentavos < f.precoCentavos);
+  return (servico.precoFiliadoCentavos ?? servico.precoCentavos) < servico.precoCentavos;
 }
 
 export interface ProgressoDespachante {

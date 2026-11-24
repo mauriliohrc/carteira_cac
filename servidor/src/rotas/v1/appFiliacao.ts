@@ -4,7 +4,7 @@ import { prisma } from '../../db/cliente.js';
 import { exigirApp } from '../../http/guardas.js';
 import { invalido, naoAutorizado } from '../../http/erros.js';
 import { criarCliente, criarAssinatura, cobrancasDaAssinatura } from '../../integracoes/asaas.js';
-import { refletirFiliacaoNoSync } from '../../dominio/filiacaoSync.js';
+import { garantirCertificadoNoAcervo, refletirFiliacaoNoSync } from '../../dominio/filiacaoSync.js';
 import { apresentarFiliacao, MESES_VINCULO } from '../../dominio/filiacao.js';
 import { resolverConfigFiliacao } from '../../dominio/filiacaoConfig.js';
 import { registrarEventoUsuario } from '../../dominio/eventoUsuario.js';
@@ -23,6 +23,13 @@ const DOC_TIPOS = ['CNH', 'RG', 'RNE', 'OUTRO'] as const;
 
 const filiarSchema = z.object({
   nomeCompleto: z.string().trim().min(3).max(160),
+  // Data de nascimento YYYY-MM-DD (para a carteira de filiado). Opcional.
+  dataNascimento: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida')
+    .optional()
+    .nullable(),
   endereco: enderecoSchema.optional(),
   docTipo: z.enum(DOC_TIPOS).optional(),
   // registroId de um ArquivoSync já enviado pelo app via POST /app/sync/arquivo.
@@ -59,6 +66,9 @@ export async function rotasFiliacaoAppV1(app: FastifyInstance) {
       }),
       resolverConfigFiliacao(),
     ]);
+    // Garante (lazy, idempotente) o certificado no acervo também para filiados
+    // ATUAIS que ativaram antes deste recurso existir. Não bloqueia a resposta.
+    if (filiacao) void garantirCertificadoNoAcervo(filiacao).catch(() => {});
     return {
       filiacao: filiacao ? apresentarFiliacao(filiacao) : null,
       config: {
@@ -74,7 +84,7 @@ export async function rotasFiliacaoAppV1(app: FastifyInstance) {
 
   // Solicita a filiação e abre a assinatura anual no Asaas.
   app.post('/app/filiacao', async (req) => {
-    const { nomeCompleto, endereco, docTipo, docArquivoId } = filiarSchema.parse(req.body);
+    const { nomeCompleto, dataNascimento, endereco, docTipo, docArquivoId } = filiarSchema.parse(req.body);
     const config = await resolverConfigFiliacao();
     if (!config.ativo) throw invalido('filiacao_indisponivel');
 
@@ -124,6 +134,7 @@ export async function rotasFiliacaoAppV1(app: FastifyInstance) {
           usuarioId: usuario.id,
           nomeCompleto,
           cpf: usuario.cpf,
+          dataNascimento: dataNascimento ?? null,
           cep: endereco?.cep ?? null,
           logradouro: endereco?.logradouro ?? null,
           numero: endereco?.numero ?? null,
@@ -159,6 +170,7 @@ export async function rotasFiliacaoAppV1(app: FastifyInstance) {
         invoiceUrl,
         // Mantém/atualiza os dados informados nesta tentativa.
         nomeCompleto,
+        dataNascimento: dataNascimento ?? filiacao.dataNascimento,
         cep: endereco?.cep ?? filiacao.cep,
         logradouro: endereco?.logradouro ?? filiacao.logradouro,
         numero: endereco?.numero ?? filiacao.numero,

@@ -267,9 +267,40 @@ function ServicoCard({ servico, aoMudar }: { servico: ServicoDespachanteAdmin; a
   const [aberto, setAberto] = useState(false);
   const [abaServ, setAbaServ] = useState<'dados' | 'documentos'>('dados');
 
+  // Preços diferenciados (filiado × não filiado e, p/ por-arma, por quantidade).
+  type LinhaFaixa = { qtdMin: string; preco: string; precoFiliado: string };
+  const [precosDif, setPrecosDif] = useState((servico.faixas?.length ?? 0) > 0);
+  const [faixas, setFaixas] = useState<LinhaFaixa[]>(
+    (servico.faixas ?? []).map((f) => ({
+      qtdMin: String(f.qtdMin),
+      preco: reais(f.precoCentavos),
+      precoFiliado: reais(f.precoFiliadoCentavos),
+    }))
+  );
+
+  function mudarFaixa(i: number, campo: keyof LinhaFaixa, valor: string) {
+    setFaixas((atual) => atual.map((f, k) => (k === i ? { ...f, [campo]: valor } : f)));
+  }
+  function adicionarFaixa() {
+    setFaixas((atual) => [...atual, { qtdMin: '', preco: '', precoFiliado: '' }]);
+  }
+  function removerFaixa(i: number) {
+    setFaixas((atual) => atual.filter((_, k) => k !== i));
+  }
+
   async function salvar() {
     setSalvando(true);
     try {
+      // Faixas enviadas = substituem as do serviço. Desligado = vazio (volta ao
+      // preço legado GRU + honorário). Serviço sem por-arma usa só a 1ª faixa.
+      const linhas = porArma ? faixas : faixas.slice(0, 1);
+      const faixasBody = precosDif
+        ? linhas.map((f, i) => ({
+            qtdMin: i === 0 ? 1 : Math.max(2, Math.floor(Number(f.qtdMin) || 2)),
+            precoCentavos: paraCentavos(f.preco),
+            precoFiliadoCentavos: paraCentavos(f.precoFiliado),
+          }))
+        : [];
       await api(`/api/admin/despachante/servicos/${servico.id}`, {
         metodo: 'PUT',
         corpo: {
@@ -286,6 +317,7 @@ function ServicoCard({ servico, aoMudar }: { servico: ServicoDespachanteAdmin; a
           ordem: Number(ordem) || 0,
           mensagemWhatsappInicio: msg || null,
           termoAceite: termo || null,
+          faixas: faixasBody,
         },
       });
       aoMudar();
@@ -306,7 +338,8 @@ function ServicoCard({ servico, aoMudar }: { servico: ServicoDespachanteAdmin; a
     }
   }
 
-  const total = paraCentavos(gru) + paraCentavos(serv);
+  const total =
+    precosDif && faixas[0] ? paraCentavos(faixas[0].preco) : paraCentavos(gru) + paraCentavos(serv);
 
   return (
     <div className="cartao" style={{ marginBottom: 12, opacity: servico.ativo ? 1 : 0.6 }}>
@@ -349,6 +382,72 @@ function ServicoCard({ servico, aoMudar }: { servico: ServicoDespachanteAdmin; a
         <div className="campo"><label>Honorário (R$)</label><input value={serv} onChange={(e) => setServ(e.target.value)} inputMode="decimal" /></div>
       </div>
 
+      <div style={{ border: '1px solid var(--borda)', borderRadius: 8, padding: 12, marginTop: 4 }}>
+        <label className="radio-opcao" style={{ width: 'fit-content' }} title="Ligado: usa os preços abaixo. Desligado: cobra GRU + honorário de todos.">
+          <input
+            type="checkbox"
+            checked={precosDif}
+            onChange={(e) => {
+              const on = e.target.checked;
+              setPrecosDif(on);
+              if (on && faixas.length === 0) {
+                const base = reais(paraCentavos(gru) + paraCentavos(serv));
+                setFaixas([{ qtdMin: '1', preco: base, precoFiliado: base }]);
+              }
+            }}
+            style={{ width: 'auto' }}
+          />{' '}
+          Preço diferenciado para filiados da liga{porArma ? ' e por quantidade' : ''}
+        </label>
+
+        {precosDif && (
+          <div style={{ marginTop: 10 }}>
+            <p className="subtitulo" style={{ marginTop: 0, marginBottom: 8 }}>
+              {porArma
+                ? 'Preço POR EQUIPAMENTO em cada faixa de quantidade (a GRU já deve estar embutida no valor). “A partir de” define o nº de armas em que a faixa passa a valer.'
+                : 'Valor do serviço para quem é filiado da liga e para quem não é.'}
+            </p>
+            <div style={{ overflowX: 'auto' }}>
+              <table>
+                <thead>
+                  <tr>
+                    {porArma && <th>A partir de (armas)</th>}
+                    <th>Não filiado (R$)</th>
+                    <th>Filiado (R$)</th>
+                    {porArma && <th></th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(porArma ? faixas : faixas.slice(0, 1)).map((f, i) => (
+                    <tr key={i}>
+                      {porArma && (
+                        <td>
+                          {i === 0 ? (
+                            <span style={{ color: 'var(--texto-suave)' }}>1 (base)</span>
+                          ) : (
+                            <input value={f.qtdMin} onChange={(e) => mudarFaixa(i, 'qtdMin', e.target.value)} inputMode="numeric" style={{ width: 90 }} placeholder="ex.: 11" />
+                          )}
+                        </td>
+                      )}
+                      <td><input value={f.preco} onChange={(e) => mudarFaixa(i, 'preco', e.target.value)} inputMode="decimal" style={{ width: 110 }} /></td>
+                      <td><input value={f.precoFiliado} onChange={(e) => mudarFaixa(i, 'precoFiliado', e.target.value)} inputMode="decimal" style={{ width: 110 }} /></td>
+                      {porArma && (
+                        <td>{i > 0 && <button type="button" className="perigo pequeno" onClick={() => removerFaixa(i)} title="Remover faixa">×</button>}</td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {porArma && (
+              <button type="button" className="secundario pequeno" onClick={adicionarFaixa} style={{ marginTop: 8 }}>
+                + Faixa de quantidade
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="campo"><label>Descrição</label><textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} style={{ minHeight: 70 }} /></div>
       <div className="campo"><label>Como funciona (passos / orientações)</label><textarea value={comoFunciona} onChange={(e) => setComoFunciona(e.target.value)} style={{ minHeight: 70 }} /></div>
       <div className="campo">
@@ -371,7 +470,9 @@ function ServicoCard({ servico, aoMudar }: { servico: ServicoDespachanteAdmin; a
           <label>Ordem</label>
           <input value={ordem} onChange={(e) => setOrdem(e.target.value)} inputMode="numeric" style={{ width: 70 }} />
         </div>
-        <strong style={{ marginLeft: 'auto' }}>Total: R$ {reais(total)}</strong>
+        <strong style={{ marginLeft: 'auto' }}>
+          {precosDif ? 'Preço base (não filiado): ' : 'Total: '}R$ {reais(total)}
+        </strong>
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>

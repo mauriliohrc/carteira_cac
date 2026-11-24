@@ -93,6 +93,42 @@ export function precoTotal(s: { gruCentavos: number; servicoCentavos: number }):
   return s.gruCentavos + s.servicoCentavos;
 }
 
+/** Faixa de preço por quantidade/filiação (ver model FaixaPrecoDespachante). */
+export interface FaixaPreco {
+  qtdMin: number;
+  precoCentavos: number;
+  precoFiliadoCentavos: number;
+}
+
+/**
+ * Preço POR UNIDADE (centavos) dada a quantidade de equipamentos e se o usuário
+ * é filiado. Usa as faixas cadastradas (a de maior `qtdMin` que não ultrapassa a
+ * quantidade); SEM faixas, cai no preço legado (GRU + honorário), igual para
+ * filiado e não filiado — preserva 100% o comportamento de serviços existentes.
+ */
+export function precoUnitario(
+  s: { gruCentavos: number; servicoCentavos: number; faixas?: FaixaPreco[] | null },
+  quantidade: number,
+  filiado: boolean
+): number {
+  const faixas = (s.faixas ?? []).slice().sort((a, b) => a.qtdMin - b.qtdMin);
+  if (faixas.length === 0) return precoTotal(s);
+  const q = Math.max(1, Math.floor(quantidade) || 1);
+  let escolhida = faixas[0]!;
+  for (const f of faixas) if (f.qtdMin <= q) escolhida = f;
+  return filiado ? escolhida.precoFiliadoCentavos : escolhida.precoCentavos;
+}
+
+/** Total do pedido (preço por unidade × quantidade), em centavos. */
+export function precoTotalPedido(
+  s: { gruCentavos: number; servicoCentavos: number; faixas?: FaixaPreco[] | null },
+  quantidade: number,
+  filiado: boolean
+): number {
+  const q = Math.max(1, Math.floor(quantidade) || 1);
+  return precoUnitario(s, q, filiado) * q;
+}
+
 /** Nota sobre a GRU, agora que ela já ENTRA no valor cobrado. */
 export const GRU_NOTA =
   'O valor já inclui a GRU (taxa paga ao órgão) e o nosso serviço. As GRUs são ' +

@@ -475,8 +475,38 @@ model ServicoDespachante {
   atualizadoEm           DateTime @updatedAt
 
   campos CampoServicoDespachante[]
+  faixas FaixaPrecoDespachante[]
 
   @@map("servicos_despachante")
+}
+
+/// Preço diferenciado por FAIXA de quantidade (só faz sentido em serviço
+/// `porArma`) e por FILIAÇÃO à liga. Cada faixa vale "a partir de `qtdMin`
+/// equipamentos": escolhe-se a faixa de maior `qtdMin` que não ultrapassa a
+/// quantidade pedida; o preço é POR UNIDADE (já inclui a GRU, igual ao total
+/// legado). `precoFiliadoCentavos` é o valor por unidade para filiados vigentes.
+///
+/// OPT-IN / COMPAT: serviço SEM faixas mantém o preço legado `gruCentavos +
+/// servicoCentavos` para todos (filiado = não filiado) — nada muda para serviços
+/// já existentes nem para apps antigos. Só quando o backoffice cadastra faixas é
+/// que entram os preços por quantidade/filiação.
+model FaixaPrecoDespachante {
+  id                   String   @id @default(cuid())
+  servicoId            String
+  /// Vale a partir desta quantidade de equipamentos (1 = faixa base).
+  qtdMin               Int      @default(1)
+  /// Preço por unidade (centavos) para NÃO filiados.
+  precoCentavos        Int
+  /// Preço por unidade (centavos) para filiados vigentes da liga.
+  precoFiliadoCentavos Int
+  criadoEm             DateTime @default(now())
+  atualizadoEm         DateTime @updatedAt
+
+  servico ServicoDespachante @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+
+  @@unique([servicoId, qtdMin])
+  @@index([servicoId])
+  @@map("faixas_preco_despachante")
 }
 
 /// Status DINÂMICO do processo (CRUD no backoffice): label, cor e ícone/bolinha.
@@ -592,6 +622,8 @@ model FiliacaoLiga {
   // Dados do filiado (snapshot no momento da filiação).
   nomeCompleto         String
   cpf                  String
+  /// Data de nascimento (YYYY-MM-DD), para a carteira de filiado. Opcional.
+  dataNascimento       String?
   cep                  String?
   logradouro           String?
   numero               String?

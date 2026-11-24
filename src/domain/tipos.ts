@@ -204,6 +204,12 @@ export interface Filiacao {
   origem: string | null;
   nomeCompleto: string | null;
   cpf: string | null;
+  /**
+   * Data de nascimento (YYYY-MM-DD) para a carteira de filiado. Vem da API
+   * (/filiacao); NÃO é sincronizada no espelho local 'filiacoes' (manter as
+   * chaves do sync estáveis p/ apps antigos), por isso é opcional.
+   */
+  dataNascimento?: string | null;
   endereco: {
     cep: string | null;
     logradouro: string | null;

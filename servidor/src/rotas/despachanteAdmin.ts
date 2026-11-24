@@ -15,7 +15,7 @@ import {
 import { mudarStatusProcesso } from '../dominio/despachanteNotificacoes.js';
 import { refletirProcessoNoSync, removerProcessoDoSync } from '../dominio/despachanteSync.js';
 import { cancelarCobranca } from '../integracoes/asaas.js';
-import { precoTotal } from '../dominio/despachante.js';
+import { precoUnitario } from '../dominio/despachante.js';
 import { resolverConfigAsaas, urlWebhookAsaas } from '../dominio/asaasConfig.js';
 import { lerTexto, gravarTexto, CHAVE_WHATSAPP_JURIDICO } from '../config/configStore.js';
 
@@ -40,7 +40,48 @@ const servicoSchema = z.object({
   ordem: z.number().int().min(0).max(100_000).optional(),
   mensagemWhatsappInicio: z.string().trim().max(2000).nullish(),
   termoAceite: z.string().trim().max(8000).nullish(),
+  // Faixas de preço por quantidade/filiação (opcional). Quando presente (mesmo
+  // vazio) SUBSTITUI as faixas do serviço. Vazio = volta ao preço legado.
+  faixas: z
+    .array(
+      z.object({
+        qtdMin: z.number().int().min(1).max(100_000),
+        precoCentavos: z.number().int().min(0).max(10_000_000),
+        precoFiliadoCentavos: z.number().int().min(0).max(10_000_000),
+      })
+    )
+    .max(30)
+    .optional(),
 });
+
+/** Normaliza as faixas: dedup por qtdMin (mantém a última), ordenadas, garante
+ * uma faixa base (qtdMin=1). Vazio continua vazio (= preço legado). */
+function normalizarFaixas(
+  faixas: { qtdMin: number; precoCentavos: number; precoFiliadoCentavos: number }[]
+): { qtdMin: number; precoCentavos: number; precoFiliadoCentavos: number }[] {
+  if (faixas.length === 0) return [];
+  const porQtd = new Map<number, { qtdMin: number; precoCentavos: number; precoFiliadoCentavos: number }>();
+  for (const f of faixas) porQtd.set(f.qtdMin, f);
+  const lista = [...porQtd.values()].sort((a, b) => a.qtdMin - b.qtdMin);
+  // Garante faixa base para qualquer quantidade >= 1.
+  if (lista[0]!.qtdMin !== 1) lista[0] = { ...lista[0]!, qtdMin: 1 };
+  return lista;
+}
+
+/** Substitui todas as faixas de um serviço (quando o corpo trouxe `faixas`). */
+async function salvarFaixas(
+  servicoId: string,
+  faixas: { qtdMin: number; precoCentavos: number; precoFiliadoCentavos: number }[] | undefined
+): Promise<void> {
+  if (faixas === undefined) return;
+  const norm = normalizarFaixas(faixas);
+  await prisma.faixaPrecoDespachante.deleteMany({ where: { servicoId } });
+  if (norm.length) {
+    await prisma.faixaPrecoDespachante.createMany({
+      data: norm.map((f) => ({ servicoId, ...f })),
+    });
+  }
+}
 
 const campoSchema = z.object({
   tipo: z.enum(TIPOS_CAMPO),
@@ -147,12 +188,15 @@ export async function rotasDespachanteAdmin(app: FastifyInstance) {
     const [servicos, status] = await Promise.all([
       prisma.servicoDespachante.findMany({
         orderBy: [{ ordem: 'asc' }, { nome: 'asc' }],
-        include: { campos: { orderBy: { ordem: 'asc' } } },
+        include: {
+          campos: { orderBy: { ordem: 'asc' } },
+          faixas: { orderBy: { qtdMin: 'asc' } },
+        },
       }),
       listarStatus(),
     ]);
     return {
-      servicos: servicos.map((s) => ({ ...s, precoCentavos: precoTotal(s) })),
+      servicos: servicos.map((s) => ({ ...s, precoCentavos: precoUnitario(s, 1, false) })),
       status,
     };
   });
@@ -180,6 +224,7 @@ export async function rotasDespachanteAdmin(app: FastifyInstance) {
         termoAceite: d.termoAceite ?? null,
       },
     });
+    await salvarFaixas(servico.id, d.faixas);
     return { ok: true, id: servico.id, codigo };
   });
 
@@ -206,6 +251,7 @@ export async function rotasDespachanteAdmin(app: FastifyInstance) {
         termoAceite: d.termoAceite ?? null,
       },
     });
+    await salvarFaixas(id, d.faixas);
     return { ok: true };
   });
 

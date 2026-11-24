@@ -1,6 +1,11 @@
-import type { CampoServicoDespachante, ServicoDespachante, StatusProcessoDespachante } from '@prisma/client';
+import type {
+  CampoServicoDespachante,
+  FaixaPrecoDespachante,
+  ServicoDespachante,
+  StatusProcessoDespachante,
+} from '@prisma/client';
 import { prisma } from '../db/cliente.js';
-import { SERVICOS_DESPACHANTE, precoTotal } from './despachante.js';
+import { SERVICOS_DESPACHANTE, precoUnitario } from './despachante.js';
 
 /**
  * Catálogo DINÂMICO do despachante: serviços, status e campos de formulário são
@@ -117,8 +122,23 @@ function iconePadrao(codigo: string): string {
 }
 
 export interface ServicoComCampos extends ServicoDespachante {
+  /** Preço por unidade, NÃO filiado, para 1 equipamento (compat: campo legado). */
   precoCentavos: number;
+  /** Preço por unidade, FILIADO, para 1 equipamento (aditivo). */
+  precoFiliadoCentavos: number;
+  faixas: FaixaPrecoDespachante[];
   campos: CampoServicoDespachante[];
+}
+
+/** Anexa os preços-base resolvidos (1 unidade) a partir das faixas/legado. */
+function comPrecos<T extends { gruCentavos: number; servicoCentavos: number; faixas: FaixaPrecoDespachante[] }>(
+  s: T
+): T & { precoCentavos: number; precoFiliadoCentavos: number } {
+  return {
+    ...s,
+    precoCentavos: precoUnitario(s, 1, false),
+    precoFiliadoCentavos: precoUnitario(s, 1, true),
+  };
 }
 
 /** Serviços do catálogo (com campos ativos), ordenados. */
@@ -127,9 +147,12 @@ export async function resolverServicosDinamicos(apenasAtivos = false): Promise<S
   const servicos = await prisma.servicoDespachante.findMany({
     where: apenasAtivos ? { ativo: true } : undefined,
     orderBy: [{ ordem: 'asc' }, { nome: 'asc' }],
-    include: { campos: { where: { ativo: true }, orderBy: { ordem: 'asc' } } },
+    include: {
+      campos: { where: { ativo: true }, orderBy: { ordem: 'asc' } },
+      faixas: { orderBy: { qtdMin: 'asc' } },
+    },
   });
-  return servicos.map((s) => ({ ...s, precoCentavos: precoTotal(s) }));
+  return servicos.map(comPrecos);
 }
 
 /** Um serviço do catálogo pelo código (= tipoServico). */
@@ -137,9 +160,12 @@ export async function resolverServicoDinamico(codigo: string): Promise<ServicoCo
   await garantirCatalogoDespachante();
   const s = await prisma.servicoDespachante.findUnique({
     where: { codigo },
-    include: { campos: { where: { ativo: true }, orderBy: { ordem: 'asc' } } },
+    include: {
+      campos: { where: { ativo: true }, orderBy: { ordem: 'asc' } },
+      faixas: { orderBy: { qtdMin: 'asc' } },
+    },
   });
-  return s ? { ...s, precoCentavos: precoTotal(s) } : undefined;
+  return s ? comPrecos(s) : undefined;
 }
 
 /** Lista de status (ordenada). */

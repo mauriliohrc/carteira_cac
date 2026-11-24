@@ -55,6 +55,8 @@ export async function obterFiliacao(): Promise<RespostaFiliacao | null> {
 /** Solicita a filiação e abre a assinatura anual no Asaas. */
 export async function filiar(dados: {
   nomeCompleto: string;
+  /** Data de nascimento no formato YYYY-MM-DD (opcional). */
+  dataNascimento?: string | null;
   endereco?: DadosEndereco;
   docTipo?: TipoDocIdentificacao;
   docArquivoId?: string;

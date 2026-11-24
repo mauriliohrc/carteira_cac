@@ -7,7 +7,8 @@ import { invalido, naoAutorizado, naoEncontrado } from '../../http/erros.js';
 import { cancelarCobranca, criarCliente, criarCobranca } from '../../integracoes/asaas.js';
 import { cifrar, decifrar } from '../../dominio/cripto.js';
 import { refletirProcessoNoSync, removerProcessoDoSync } from '../../dominio/despachanteSync.js';
-import { GRU_NOTA } from '../../dominio/despachante.js';
+import { GRU_NOTA, precoTotalPedido, precoUnitario } from '../../dominio/despachante.js';
+import { usuarioFiliado } from '../../dominio/filiacao.js';
 import {
   type ServicoComCampos,
   calcularProgresso,
@@ -70,6 +71,14 @@ function apresentarServico(s: ServicoComCampos) {
     ordem: s.ordem,
     porArma: s.porArma,
     termoAceite: s.termoAceite,
+    // Preços diferenciados (filiação × quantidade). Sem faixas, precoFiliado ==
+    // preco e `faixas` vazio — o app mostra um preço só, como antes.
+    precoFiliadoCentavos: s.precoFiliadoCentavos,
+    faixas: s.faixas.map((f) => ({
+      qtdMin: f.qtdMin,
+      precoCentavos: f.precoCentavos,
+      precoFiliadoCentavos: f.precoFiliadoCentavos,
+    })),
     campos: s.campos.map((c) => ({
       id: c.id,
       tipo: c.tipo,
@@ -113,17 +122,21 @@ export async function rotasDespachanteAppV1(app: FastifyInstance) {
   app.addHook('preHandler', exigirApp());
 
   // Catálogo dinâmico (preços resolvidos + campos de formulário + status).
-  app.get('/app/despachante/servicos', async () => {
-    const [servicos, status, whatsappJuridico] = await Promise.all([
+  app.get('/app/despachante/servicos', async (req) => {
+    const [servicos, status, whatsappJuridico, filiado] = await Promise.all([
       resolverServicosDinamicos(true),
       listarStatus(),
       lerTexto(CHAVE_WHATSAPP_JURIDICO),
+      usuarioFiliado(req.usuario!.id),
     ]);
     return {
       servicos: servicos.map(apresentarServico),
       status: status.filter((s) => s.ativo),
       gruNota: GRU_NOTA,
       whatsappJuridico: whatsappJuridico ?? '',
+      // Se o usuário é filiado da liga (define qual preço a tela destaca e se
+      // mostra o convite para filiar). Fonte da verdade da cobrança é o servidor.
+      filiado,
     };
   });
 
@@ -189,7 +202,13 @@ export async function rotasDespachanteAppV1(app: FastifyInstance) {
       armas && armas.length
         ? armas.map((a) => ({ id: a.id ?? null, nome: a.nome ?? null }))
         : [{ id: armaId ?? null, nome: armaNome ?? null }];
-    const totalCentavos = servico.precoCentavos * itens.length;
+
+    // Preço autoritativo no SERVIDOR: a faixa certa pela quantidade e o preço de
+    // filiado/não-filiado conforme a filiação vigente — nunca confia no cliente.
+    // Sem faixas cadastradas, cai no preço legado (= servico.precoCentavos).
+    const filiado = await usuarioFiliado(usuario.id);
+    const precoUnitarioCentavos = precoUnitario(servico, itens.length, filiado);
+    const totalCentavos = precoTotalPedido(servico, itens.length, filiado);
 
     let asaasCustomerId = usuario.asaasCustomerId;
     if (!asaasCustomerId) {
@@ -212,7 +231,7 @@ export async function rotasDespachanteAppV1(app: FastifyInstance) {
             usuarioId: usuario.id,
             tipoServico,
             status: 'aguardando_pagamento',
-            valorCentavos: servico.precoCentavos,
+            valorCentavos: precoUnitarioCentavos,
             armaId: it.id,
             armaNome: it.nome,
           },

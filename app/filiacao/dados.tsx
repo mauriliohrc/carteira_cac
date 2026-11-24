@@ -24,6 +24,32 @@ const TIPOS_DOC: { tipo: TipoDocIdentificacao; rotulo: string }[] = [
   { tipo: 'OUTRO', rotulo: 'Outro' },
 ];
 
+/** Máscara dd/mm/aaaa a partir dos dígitos digitados. */
+function mascaraData(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 8);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
+  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
+}
+
+/** dd/mm/aaaa → YYYY-MM-DD (null se incompleto/ inválido). */
+function dataParaISO(v: string): string | null {
+  const d = v.replace(/\D/g, '');
+  if (d.length !== 8) return null;
+  const dia = d.slice(0, 2);
+  const mes = d.slice(2, 4);
+  const ano = d.slice(4);
+  if (Number(mes) < 1 || Number(mes) > 12 || Number(dia) < 1 || Number(dia) > 31) return null;
+  return `${ano}-${mes}-${dia}`;
+}
+
+/** YYYY-MM-DD → dd/mm/aaaa (para preencher o campo ao reabrir). */
+function isoParaData(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+}
+
 /**
  * Coleta os dados do filiado (nome, endereço, documento de identificação) e
  * dispara a filiação (abre o checkout do Asaas). Quando o usuário já é filiado
@@ -36,6 +62,7 @@ export default function DadosFiliacao() {
 
   const [filiacao, setFiliacao] = useState<Filiacao | null>(null);
   const [nome, setNome] = useState(usuario?.nome ?? '');
+  const [nascimento, setNascimento] = useState('');
   const [celular, setCelular] = useState(usuario?.celular ?? '');
   const [cep, setCep] = useState('');
   const [logradouro, setLogradouro] = useState('');
@@ -55,6 +82,7 @@ export default function DadosFiliacao() {
         setFiliacao(r.filiacao);
         const e = r.filiacao.endereco;
         setNome((n) => n || r.filiacao!.nomeCompleto || '');
+        setNascimento((v) => v || isoParaData(r.filiacao!.dataNascimento));
         setCep((v) => v || e.cep || '');
         setLogradouro((v) => v || e.logradouro || '');
         setNumero((v) => v || e.numero || '');
@@ -107,6 +135,7 @@ export default function DadosFiliacao() {
       await salvarCelularSePreciso();
       const { invoiceUrl } = await filiar({
         nomeCompleto: nome.trim(),
+        dataNascimento: dataParaISO(nascimento),
         endereco: {
           cep: cep.trim() || null,
           logradouro: logradouro.trim() || null,
@@ -139,7 +168,7 @@ export default function DadosFiliacao() {
     } finally {
       setProcessando(false);
     }
-  }, [nome, celular, cep, logradouro, numero, complemento, bairro, cidade, uf, docTipo, arquivo, salvarCelularSePreciso]);
+  }, [nome, nascimento, celular, cep, logradouro, numero, complemento, bairro, cidade, uf, docTipo, arquivo, salvarCelularSePreciso]);
 
   return (
     <Tela voltar tituloCabecalho={soDocumento ? 'Documento' : 'Filiação'} teclado estilo={s.conteudo}>
@@ -147,6 +176,15 @@ export default function DadosFiliacao() {
         <>
           <Secao titulo="Dados do filiado" />
           <Campo rotulo="Nome completo" valor={nome} aoMudar={setNome} obrigatorio autoCapitalize="words" />
+          <Campo
+            rotulo="Data de nascimento"
+            valor={nascimento}
+            aoMudar={(v) => setNascimento(mascaraData(v))}
+            teclado="numeric"
+            placeholder="dd/mm/aaaa"
+            maxLength={10}
+            dica="Usada na sua carteira de filiado."
+          />
           <Campo
             rotulo="Celular"
             valor={celular}

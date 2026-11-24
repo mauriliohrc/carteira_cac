@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 
@@ -7,6 +7,8 @@ import { espaco, MONO, raio, tipo, useCores, useEstilos, type Paleta } from '@/t
 import { Botao, Tela } from '@/ui/base';
 import {
   listarServicos,
+  precoUnitarioDespachante,
+  temDescontoFiliado,
   type ServicoDespachante,
 } from '@/despachante/api';
 import { reais } from '@/despachante/formato';
@@ -45,6 +47,7 @@ export default function ServicoDespachanteTela() {
   const { tipo: tipoParam } = useLocalSearchParams<{ tipo: TipoServicoDespachante }>();
 
   const [servico, setServico] = useState<ServicoDespachante | null>(null);
+  const [filiado, setFiliado] = useState(false);
   const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
@@ -53,7 +56,8 @@ export default function ServicoDespachanteTela() {
       try {
         const cat = await listarServicos();
         if (!vivo) return;
-        setServico(cat.servicos.find((s) => s.tipo === tipoParam) ?? null);
+        setServico(cat.servicos.find((s) => (s.codigo ?? s.tipo) === tipoParam) ?? null);
+        setFiliado(!!cat.filiado);
       } catch {
         /* sem rede: deixa o fallback abaixo */
       } finally {
@@ -66,6 +70,13 @@ export default function ServicoDespachanteTela() {
   }, [tipoParam]);
 
   const passos = PASSOS[tipoParam as TipoServicoDespachante] ?? PASSOS_PADRAO;
+
+  // Preço por unidade (1 equipamento) para cada público. Se houver desconto de
+  // filiado e o usuário NÃO for filiado, a tela mostra os dois e convida a filiar.
+  const precoNaoFiliado = servico ? precoUnitarioDespachante(servico, 1, false) : 0;
+  const precoFiliado = servico ? precoUnitarioDespachante(servico, 1, true) : 0;
+  const temDesconto = servico ? temDescontoFiliado(servico) : false;
+  const economia = precoNaoFiliado - precoFiliado;
 
   return (
     <Tela voltar tituloCabecalho="Serviços" estilo={p.conteudo}>
@@ -84,10 +95,55 @@ export default function ServicoDespachanteTela() {
           <Text style={p.sub}>{servico?.descricao ?? ''}</Text>
 
           {servico ? (
-            <View style={p.precoCartao}>
-              <Text style={p.preco}>{reais(servico.precoCentavos)}</Text>
-              <Text style={p.precoUnidade}>{servico.unidade}</Text>
-            </View>
+            temDesconto ? (
+              <View style={p.precoCartao}>
+                {filiado ? (
+                  <>
+                    <View style={p.selo}>
+                      <Ionicons name="shield-checkmark" size={13} color={c.primario} />
+                      <Text style={p.seloTexto}>preço de filiado</Text>
+                    </View>
+                    <Text style={p.preco}>{reais(precoFiliado)}</Text>
+                    <Text style={p.precoRiscado}>{reais(precoNaoFiliado)}</Text>
+                    <Text style={p.precoUnidade}>{servico.unidade}</Text>
+                  </>
+                ) : (
+                  <>
+                    <View style={p.linhaPreco}>
+                      <View style={p.colPreco}>
+                        <Text style={p.precoRotulo}>Não filiado</Text>
+                        <Text style={p.precoMedio}>{reais(precoNaoFiliado)}</Text>
+                      </View>
+                      <View style={[p.colPreco, p.colPrecoDestaque]}>
+                        <Text style={[p.precoRotulo, { color: c.primario }]}>Filiado</Text>
+                        <Text style={p.preco}>{reais(precoFiliado)}</Text>
+                      </View>
+                    </View>
+                    <Text style={p.precoUnidade}>{servico.unidade}</Text>
+                  </>
+                )}
+              </View>
+            ) : (
+              <View style={p.precoCartao}>
+                <Text style={p.preco}>{reais(filiado ? precoFiliado : precoNaoFiliado)}</Text>
+                <Text style={p.precoUnidade}>{servico.unidade}</Text>
+              </View>
+            )
+          ) : null}
+
+          {servico && temDesconto && !filiado ? (
+            <Pressable style={p.convite} onPress={() => router.push('/filiacao')}>
+              <Ionicons name="shield-checkmark" size={20} color={c.primario} />
+              <View style={{ flex: 1 }}>
+                <Text style={p.conviteTitulo}>
+                  Filie-se à liga e economize{economia > 0 ? ` ${reais(economia)}` : ''}
+                </Text>
+                <Text style={p.conviteSub}>
+                  Filiados pagam menos em todos os serviços do despachante — e ainda têm Premium no app.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={c.textoFraco} />
+            </Pressable>
           ) : null}
 
           {servico?.comoFunciona ? (
@@ -157,7 +213,36 @@ const folha = (c: Paleta) =>
       marginTop: espaco.sm,
     },
     preco: { ...tipo.numero, fontFamily: MONO, fontSize: 32, color: c.texto },
+    precoMedio: { ...tipo.numero, fontFamily: MONO, fontSize: 24, color: c.textoMedio },
+    precoRiscado: {
+      ...tipo.legenda,
+      fontFamily: MONO,
+      color: c.textoFraco,
+      textDecorationLine: 'line-through',
+      marginTop: 2,
+    },
     precoUnidade: { ...tipo.legenda, color: c.textoMedio, marginTop: 2 },
+    precoRotulo: { ...tipo.legenda, color: c.textoMedio, marginBottom: 2 },
+    linhaPreco: { flexDirection: 'row', alignItems: 'stretch', gap: espaco.sm },
+    colPreco: { flex: 1, alignItems: 'center', paddingVertical: espaco.xs },
+    colPrecoDestaque: {
+      backgroundColor: c.superficie,
+      borderRadius: raio.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.primario,
+    },
+    selo: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
+    seloTexto: { ...tipo.legenda, color: c.primario, fontWeight: '700' },
+    convite: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: espaco.sm,
+      backgroundColor: c.primarioFraco,
+      borderRadius: raio.lg,
+      padding: espaco.md,
+    },
+    conviteTitulo: { ...tipo.corpo, fontWeight: '800', color: c.texto },
+    conviteSub: { ...tipo.legenda, color: c.textoMedio, marginTop: 2, lineHeight: 17 },
     detalhe: { marginTop: espaco.sm },
     detalheTexto: { ...tipo.legenda, color: c.textoMedio },
     passos: {
